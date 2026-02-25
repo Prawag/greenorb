@@ -7,30 +7,34 @@
 }
 
 :root {
-    --bg: #000;
-    --bg2: #060606;
-    --bg3: #0f0f0f;
-    --sf: #131313;
-    --sf2: #191919;
-    --bd: #1e1e1e;
-    --bd2: #2a2a2a;
-    --jade: #00e87a;
-    --jd: #00a854;
-    --jg: rgba(0, 232, 122, .09);
-    --cyan: #00d4e8;
-    --amb: #f5a623;
-    --red: #ff4d4d;
-    --pur: #a78bfa;
+    /* === Premium Dark Green Palette === */
+    --bg: #040d08;
+    --bg2: #071410;
+    --bg3: #0e1f18;
+    --sf: #0c1a14;
+    --sf2: #132820;
+    --bd: #1a3028;
+    --bd2: #264038;
+    --jade: #00f0a0;
+    --jd: #00b878;
+    --jg: rgba(0, 240, 160, .08);
+    --cyan: #34d8e8;
+    --amb: #f0c040;
+    --red: #ff5a5a;
+    --pur: #b49cff;
     --blu: #60a5fa;
-    --tx: #e8f5ee;
-    --tx2: #7aad90;
-    --tx3: #3a6b50;
+    --gold: #f0c040;
+    --tx: #e4f5ec;
+    --tx2: #7eb898;
+    --tx3: #3d6b52;
     --mono: 'DM Mono', monospace;
     --disp: 'Syne', sans-serif;
     --body: 'Lato', sans-serif;
-    --nav: 58px;
-    --top: 52px;
+    --nav: 60px;
+    --top: 54px;
     --safe: env(safe-area-inset-bottom, 0px);
+    --glass: rgba(12, 26, 20, .72);
+    --glass-bd: rgba(0, 240, 160, .12);
 }
 
 html,
@@ -77,14 +81,14 @@ textarea {
     background: var(--bg);
 }
 
-/* Phone (default - up to 767px) */
+/* Phone (default) */
 @media (max-width: 767px) {
     .app-shell {
         max-width: 100%;
     }
 }
 
-/* Tablet (768px – 1023px) */
+/* Tablet */
 @media (min-width: 768px) {
     .app-shell {
         max-width: 600px;
@@ -93,24 +97,25 @@ textarea {
     }
 }
 
-/* Desktop (1024px+) */
+/* Desktop */
 @media (min-width: 1024px) {
     .app-shell {
-        max-width: 480px;
+        max-width: 520px;
         border-left: 1px solid var(--bd);
         border-right: 1px solid var(--bd);
-        box-shadow: 0 0 60px rgba(0, 232, 122, .06);
+        box-shadow:
+            0 0 80px rgba(0, 240, 160, .04),
+            0 0 200px rgba(0, 240, 160, .02);
     }
 }
 
-/* Large Desktop (1440px+) */
+/* Large */
 @media (min-width: 1440px) {
     .app-shell {
-        max-width: 520px;
+        max-width: 560px;
     }
 }
 
-/* iPhone safe area support */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
     .app-content {
         padding-bottom: calc(var(--nav) + env(safe-area-inset-bottom) + 8px);
@@ -144,7 +149,7 @@ textarea {
     }
 
     50% {
-        opacity: .35
+        opacity: .3
     }
 }
 
@@ -152,11 +157,11 @@ textarea {
 
     0%,
     100% {
-        box-shadow: 0 0 10px rgba(0, 232, 122, .35)
+        box-shadow: 0 0 12px rgba(0, 240, 160, .3)
     }
 
     50% {
-        box-shadow: 0 0 28px rgba(0, 232, 122, .7)
+        box-shadow: 0 0 32px rgba(0, 240, 160, .6)
     }
 }
 
@@ -217,5 +222,65 @@ textarea {
 
     100% {
         top: 10%
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0
+    }
+
+    100% {
+        background-position: 200% 0
+    }
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0)
+    }
+
+    50% {
+        transform: translateY(-4px)
+    }
+}
+
+@keyframes gradientShift {
+    0% {
+        background-position: 0% 50%
+    }
+
+    50% {
+        background-position: 100% 50%
+    }
+
+    100% {
+        background-position: 0% 50%
+    }
+}
+
+@keyframes ripple {
+    0% {
+        transform: scale(0);
+        opacity: .6
+    }
+
+    100% {
+        transform: scale(2.5);
+        opacity: 0
+    }
+}
+
+@keyframes borderGlow {
+
+    0%,
+    100% {
+        border-color: rgba(0, 240, 160, .2)
+    }
+
+    50% {
+        border-color: rgba(0, 240, 160, .5)
     }
 }
