@@ -1,0 +1,161 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0
+}
+
+:root {
+    --bg: #000;
+    --bg2: #060606;
+    --bg3: #0f0f0f;
+    --sf: #131313;
+    --sf2: #191919;
+    --bd: #1e1e1e;
+    --bd2: #2a2a2a;
+    --jade: #00e87a;
+    --jd: #00a854;
+    --jg: rgba(0, 232, 122, .09);
+    --cyan: #00d4e8;
+    --amb: #f5a623;
+    --red: #ff4d4d;
+    --pur: #a78bfa;
+    --blu: #60a5fa;
+    --tx: #e8f5ee;
+    --tx2: #7aad90;
+    --tx3: #3a6b50;
+    --mono: 'DM Mono', monospace;
+    --disp: 'Syne', sans-serif;
+    --body: 'Lato', sans-serif;
+    --nav: 58px;
+    --top: 52px;
+    --safe: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    width: 100%;
+    background: var(--bg);
+    color: var(--tx);
+    font-family: var(--body);
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none
+}
+
+::-webkit-scrollbar {
+    display: none
+}
+
+input,
+button,
+label,
+select,
+textarea {
+    -webkit-tap-highlight-color: transparent;
+    font-family: var(--body)
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px)
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0)
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg)
+    }
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1
+    }
+
+    50% {
+        opacity: .35
+    }
+}
+
+@keyframes glow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 10px rgba(0, 232, 122, .35)
+    }
+
+    50% {
+        box-shadow: 0 0 28px rgba(0, 232, 122, .7)
+    }
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1
+    }
+
+    50% {
+        opacity: 0
+    }
+}
+
+@keyframes ticker {
+    0% {
+        transform: translateX(0)
+    }
+
+    100% {
+        transform: translateX(-50%)
+    }
+}
+
+@keyframes pop {
+    0% {
+        transform: scale(.94);
+        opacity: 0
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px)
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0)
+    }
+}
+
+@keyframes scan {
+    0% {
+        top: 10%
+    }
+
+    50% {
+        top: 85%
+    }
+
+    100% {
+        top: 10%
+    }
+}
