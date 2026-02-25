@@ -7,13 +7,13 @@ import CompareTab from "./tabs/CompareTab";
 import ScanTab from "./tabs/ScanTab";
 import AgentTab from "./tabs/AgentTab";
 
-const VIEWS = {
-    globe: <GlobeTab />,
-    companies: <CompaniesTab />,
-    compare: <CompareTab />,
-    scan: <ScanTab />,
-    agent: <AgentTab />,
-};
+const TABS = [
+    { key: "globe", Component: GlobeTab },
+    { key: "companies", Component: CompaniesTab },
+    { key: "compare", Component: CompareTab },
+    { key: "scan", Component: ScanTab },
+    { key: "agent", Component: AgentTab },
+];
 
 export default function App() {
     const [tab, setTab] = useState("globe");
@@ -24,23 +24,21 @@ export default function App() {
     }, [tab]);
 
     return (
-        <div style={{
-            display: "flex", flexDirection: "column",
-            height: "100%", background: "var(--bg)",
-            maxWidth: 430, margin: "0 auto",
-            position: "relative", overflow: "hidden",
-        }}>
+        <div className="app-shell">
             <TopBar tab={tab} />
             <div
-                key={tab}
                 ref={scrollRef}
-                style={{
-                    flex: 1, overflowY: "auto", overflowX: "hidden",
-                    paddingBottom: `calc(var(--nav) + var(--safe) + 8px)`,
-                    background: "var(--bg)",
-                }}
+                className="app-content"
             >
-                {VIEWS[tab]}
+                {/* Keep ALL tabs mounted but only show active one */}
+                {TABS.map(({ key, Component }) => (
+                    <div
+                        key={key}
+                        style={{ display: tab === key ? "block" : "none" }}
+                    >
+                        <Component />
+                    </div>
+                ))}
             </div>
             <BottomNav active={tab} set={setTab} />
         </div>

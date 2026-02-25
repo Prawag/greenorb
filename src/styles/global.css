@@ -58,6 +58,66 @@ textarea {
     font-family: var(--body)
 }
 
+/* === App Shell (responsive) === */
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+}
+
+.app-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: calc(var(--nav) + var(--safe) + 8px);
+    background: var(--bg);
+}
+
+/* Phone (default - up to 767px) */
+@media (max-width: 767px) {
+    .app-shell {
+        max-width: 100%;
+    }
+}
+
+/* Tablet (768px – 1023px) */
+@media (min-width: 768px) {
+    .app-shell {
+        max-width: 600px;
+        border-left: 1px solid var(--bd);
+        border-right: 1px solid var(--bd);
+    }
+}
+
+/* Desktop (1024px+) */
+@media (min-width: 1024px) {
+    .app-shell {
+        max-width: 480px;
+        border-left: 1px solid var(--bd);
+        border-right: 1px solid var(--bd);
+        box-shadow: 0 0 60px rgba(0, 232, 122, .06);
+    }
+}
+
+/* Large Desktop (1440px+) */
+@media (min-width: 1440px) {
+    .app-shell {
+        max-width: 520px;
+    }
+}
+
+/* iPhone safe area support */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .app-content {
+        padding-bottom: calc(var(--nav) + env(safe-area-inset-bottom) + 8px);
+    }
+}
+
+/* === Keyframes === */
 @keyframes fadeUp {
     from {
         opacity: 0;

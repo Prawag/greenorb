@@ -99,12 +99,12 @@ export async function geminiGeneratePDF(pdfBase64, prompt, systemPrompt = "", st
         contents: [{
             role: "user",
             parts: [
-                { inline_data: { mime_type: "application/pdf", data: pdfBase64 } },
+                { inlineData: { mimeType: "application/pdf", data: pdfBase64 } },
                 { text: prompt },
             ],
         }],
         systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
-        generationConfig: { maxOutputTokens: 2000, temperature: 0.7 },
+        generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
     };
 
     const res = await fetch(url, {
@@ -144,4 +144,37 @@ export async function* parseGeminiStream(response) {
             } catch { }
         }
     }
+}
+
+// Gemini image analysis (for mobile photo uploads)
+export async function geminiGenerateImage(imageBase64, mimeType, prompt, systemPrompt = "", stream = false) {
+    const model = "gemini-1.5-flash";
+    const url = stream
+        ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`
+        : `${GEMINI_BASE}/models/${model}:generateContent?key=${GEMINI_KEY}`;
+
+    const body = {
+        contents: [{
+            role: "user",
+            parts: [
+                { inlineData: { mimeType, data: imageBase64 } },
+                { text: prompt },
+            ],
+        }],
+        systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+        generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
+    };
+
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Gemini API error ${res.status}: ${err.slice(0, 200)}`);
+    }
+
+    return res;
 }

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import * as THREE from "three";
 import { COUNTRIES } from "../data/countries";
+import { COUNTRY_BORDERS } from "../data/countries-geo";
 import { emissToHex, emissToCSS, gradeToBdg } from "../utils";
 import { M, Bdg, Dot, Cd, Rw, PBar } from "../components/primitives";
 
@@ -45,27 +46,44 @@ export default function GlobeTab() {
         const group = new THREE.Group();
         scene.add(group);
 
+        // Globe sphere
         const globeGeo = new THREE.SphereGeometry(1.5, 64, 64);
         const globeMat = new THREE.MeshPhongMaterial({ color: 0x040d08, shininess: 30, specular: 0x002211 });
         group.add(new THREE.Mesh(globeGeo, globeMat));
 
+        // Atmosphere glow
         const atmosGeo = new THREE.SphereGeometry(1.62, 32, 32);
         const atmosMat = new THREE.MeshBasicMaterial({ color: 0x001a0a, transparent: true, opacity: 0.18, side: THREE.BackSide });
         group.add(new THREE.Mesh(atmosGeo, atmosMat));
 
+        // Latitude/longitude grid lines
         for (let lat = -80; lat <= 80; lat += 20) {
             const pts = [];
             for (let lng = 0; lng <= 360; lng += 3) pts.push(latLngToXYZ(lat, lng - 180, 1.502));
             const g = new THREE.BufferGeometry().setFromPoints(pts);
-            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x0a2a12, transparent: true, opacity: 0.5 })));
+            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x0a2a12, transparent: true, opacity: 0.35 })));
         }
         for (let lng = 0; lng < 360; lng += 20) {
             const pts = [];
             for (let lat = -90; lat <= 90; lat += 3) pts.push(latLngToXYZ(lat, lng - 180, 1.502));
             const g = new THREE.BufferGeometry().setFromPoints(pts);
-            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x0a2a12, transparent: true, opacity: 0.5 })));
+            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x0a2a12, transparent: true, opacity: 0.35 })));
         }
 
+        // *** COUNTRY BORDERS (green outlines) ***
+        const borderMat = new THREE.LineBasicMaterial({
+            color: 0x00e87a,
+            transparent: true,
+            opacity: 0.55,
+        });
+        COUNTRY_BORDERS.forEach(ring => {
+            if (ring.length < 3) return;
+            const pts = ring.map(([lng, lat]) => latLngToXYZ(lat, lng, 1.505));
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            group.add(new THREE.Line(geo, borderMat));
+        });
+
+        // Country data markers
         const markerMeshes = [];
         COUNTRIES.forEach((c, i) => {
             const [, lat, lng, mt] = c;
@@ -88,6 +106,7 @@ export default function GlobeTab() {
             group.add(ring);
         });
 
+        // Interaction
         let dragging = false, moved = 0, autoRot = true;
         let px = 0, py = 0;
         const raycaster = new THREE.Raycaster();
@@ -131,6 +150,15 @@ export default function GlobeTab() {
         canvas.addEventListener("touchmove", touchMove, { passive: false });
         canvas.addEventListener("touchend", touchEnd, { passive: false });
 
+        // Handle resize
+        const onResize = () => {
+            const nW = el.clientWidth, nH = el.clientHeight;
+            camera.aspect = nW / nH;
+            camera.updateProjectionMatrix();
+            renderer.setSize(nW, nH);
+        };
+        window.addEventListener("resize", onResize);
+
         let raf;
         const animate = () => {
             raf = requestAnimationFrame(animate);
@@ -147,6 +175,7 @@ export default function GlobeTab() {
             canvas.removeEventListener("touchstart", touchStart);
             canvas.removeEventListener("touchmove", touchMove);
             canvas.removeEventListener("touchend", touchEnd);
+            window.removeEventListener("resize", onResize);
             renderer.dispose();
             if (el.contains(canvas)) el.removeChild(canvas);
         };

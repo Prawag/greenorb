@@ -1,0 +1,24 @@
+{
+    "name": "GreenOrb",
+    "short_name": "GreenOrb",
+    "description": "Open Carbon Intelligence Platform — real CO₂ data for countries, companies, and products",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#000000",
+    "theme_color": "#000000",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/globe.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "sustainability",
+        "environment",
+        "education",
+        "productivity"
+    ]
+}

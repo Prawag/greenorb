@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { gradeToColor } from "../utils";
-import { geminiGeneratePDF, parseGeminiStream } from "../utils";
+import { geminiGeneratePDF, geminiGenerateImage, parseGeminiStream } from "../utils";
 import { M, Bdg, Cd, Rw, PBar, Spin, SHd, Dot } from "../components/primitives";
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const ACCEPTED = "application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif";
 
 export default function ScanTab() {
     const [phase, setPhase] = useState("idle");
@@ -32,7 +35,9 @@ export default function ScanTab() {
 
     const analyze = async (file) => {
         if (!file) return;
-        if (file.type !== "application/pdf") { setErrMsg("Please upload a PDF file."); setPhase("error"); return; }
+        const isPDF = file.type === "application/pdf";
+        const isImage = IMAGE_TYPES.includes(file.type) || file.type.startsWith("image/");
+        if (!isPDF && !isImage) { setErrMsg("Please upload a PDF or image file (JPEG, PNG, WebP)."); setPhase("error"); return; }
         if (file.size > 20 * 1024 * 1024) { setErrMsg("File too large (max 20MB)."); setPhase("error"); return; }
         setFileName(file.name);
         setFileSize((file.size / 1024).toFixed(0) + " KB");
@@ -51,12 +56,26 @@ export default function ScanTab() {
         const systemPrompt = `You are GreenOrb's Carbon Intelligence Engine. Analyze any document and produce a structured carbon footprint report with these ## sections: Executive Summary, Greendex Score (write "Greendex Score: XX/100"), Scope 1 Emissions (write "X.X tCO2e"), Scope 2 Emissions, Scope 3 Emissions, Carbon Hotspots, Regulatory Compliance (EU DPP/CBAM/BRSR), ⚠ Risk Flags (prefix each with ⚠), ✅ Recommended Actions (prefix each with ✅), Calculation Methodology Used. Be quantitative — estimate from industry benchmarks if direct data is absent, labeling estimates clearly.`;
 
         try {
-            const res = await geminiGeneratePDF(
-                b64,
-                "Analyze this document. Produce the full GreenOrb carbon & ESG report.",
-                systemPrompt,
-                true
-            );
+            let res;
+            if (isPDF) {
+                res = await geminiGeneratePDF(
+                    b64,
+                    "Analyze this document. Produce the full GreenOrb carbon & ESG report.",
+                    systemPrompt,
+                    true
+                );
+            } else {
+                // Image upload (phone camera, screenshots, etc.)
+                const mimeType = file.type.startsWith("image/heic") || file.type.startsWith("image/heif")
+                    ? "image/jpeg" : file.type;
+                res = await geminiGenerateImage(
+                    b64,
+                    mimeType,
+                    "This is a photo/scan of a document. Analyze it and produce the full GreenOrb carbon & ESG report.",
+                    systemPrompt,
+                    true
+                );
+            }
             setProgress(50);
             let chars = 0;
             for await (const chunk of parseGeminiStream(res)) {
@@ -81,7 +100,7 @@ export default function ScanTab() {
 
     return (
         <div style={{ padding: "16px 14px" }}>
-            <SHd tag="ai carbon analyzer" title="PDF Carbon Report" sub="Upload any financial, ESG, or supply chain document for instant AI analysis" />
+            <SHd tag="ai carbon analyzer" title="PDF Carbon Report" sub="Upload any document or take a photo for instant AI carbon analysis" />
 
             {(phase === "idle" || phase === "error") && (
                 <div style={{ animation: "fadeUp .4s ease" }}>
@@ -95,18 +114,30 @@ export default function ScanTab() {
                         </Cd>
                     )}
 
-                    <label htmlFor="greenorb-pdf" style={{ display: "block", cursor: "pointer", marginBottom: 14 }}>
-                        <input id="greenorb-pdf" type="file" accept="application/pdf"
+                    {/* Main upload area */}
+                    <label htmlFor="greenorb-pdf" style={{ display: "block", cursor: "pointer", marginBottom: 10 }}>
+                        <input id="greenorb-pdf" type="file" accept={ACCEPTED}
                             onChange={e => { const f = e.target.files?.[0]; if (f) analyze(f); e.target.value = ""; }}
                             style={{ display: "none" }} />
                         <div style={{ border: "2px dashed rgba(0,232,122,.3)", borderRadius: 16, padding: "32px 20px", textAlign: "center", background: "rgba(0,232,122,.03)", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
                             <div style={{ width: 72, height: 72, borderRadius: 18, background: "var(--jg)", border: "1px solid rgba(0,232,122,.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34 }}>📄</div>
-                            <div style={{ fontFamily: "var(--disp)", fontWeight: 800, fontSize: 20, color: "var(--tx)" }}>Tap to Upload PDF</div>
-                            <M size={12} color="var(--tx3)">File picker opens immediately</M>
+                            <div style={{ fontFamily: "var(--disp)", fontWeight: 800, fontSize: 20, color: "var(--tx)" }}>Upload Document</div>
+                            <M size={12} color="var(--tx3)">PDF, JPEG, PNG, or WebP</M>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
-                                {["Invoices", "Utility Bills", "ESG Reports", "Supply Chain", "Audit Reports"].map(t => <Bdg key={t} color="cyan">{t}</Bdg>)}
+                                {["PDF Reports", "Photos", "Screenshots", "ESG Reports", "Invoices"].map(t => <Bdg key={t} color="cyan">{t}</Bdg>)}
                             </div>
-                            <div style={{ width: "100%", background: "var(--jade)", borderRadius: 12, padding: "14px", fontFamily: "var(--disp)", fontWeight: 800, fontSize: 16, color: "#000" }}>⬆ Choose PDF File</div>
+                            <div style={{ width: "100%", background: "var(--jade)", borderRadius: 12, padding: "14px", fontFamily: "var(--disp)", fontWeight: 800, fontSize: 16, color: "#000" }}>⬆ Choose File</div>
+                        </div>
+                    </label>
+
+                    {/* Camera capture for mobile */}
+                    <label htmlFor="greenorb-camera" style={{ display: "block", cursor: "pointer", marginBottom: 14 }}>
+                        <input id="greenorb-camera" type="file" accept="image/*" capture="environment"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) analyze(f); e.target.value = ""; }}
+                            style={{ display: "none" }} />
+                        <div style={{ border: "1px solid var(--bd2)", borderRadius: 12, padding: "14px", textAlign: "center", background: "var(--sf)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                            <span style={{ fontSize: 20 }}>📸</span>
+                            <span style={{ fontFamily: "var(--disp)", fontWeight: 700, fontSize: 14, color: "var(--tx)" }}>Take Photo of Document</span>
                         </div>
                     </label>
 
@@ -210,7 +241,7 @@ export default function ScanTab() {
                         <div style={{ display: "flex", gap: 10 }}>
                             <button onClick={reset} style={{ flex: 1, padding: 13, borderRadius: 12, border: "1px solid var(--bd2)", background: "var(--sf)", color: "var(--tx2)", fontFamily: "var(--disp)", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← New Doc</button>
                             <label htmlFor="greenorb-pdf2" style={{ flex: 1, display: "block", cursor: "pointer" }}>
-                                <input id="greenorb-pdf2" type="file" accept="application/pdf"
+                                <input id="greenorb-pdf2" type="file" accept={ACCEPTED}
                                     onChange={e => { const f = e.target.files?.[0]; if (f) { reset(); setTimeout(() => analyze(f), 100); } e.target.value = ""; }}
                                     style={{ display: "none" }} />
                                 <div style={{ padding: 13, borderRadius: 12, background: "var(--jade)", color: "#000", fontFamily: "var(--disp)", fontWeight: 800, fontSize: 14, textAlign: "center", boxShadow: "0 0 20px rgba(0,232,122,.3)" }}>⬆ Analyze Another</div>
