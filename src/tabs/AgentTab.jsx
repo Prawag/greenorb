@@ -218,102 +218,157 @@ export default function AgentTab() {
         addToFeed("⏹ Scout paused", "system", "scout");
     };
 
-    /* ─── ANALYST LOGIC ──────────────────────────────────────────────────────── */
+    /* ─── ANALYST LOGIC (continuous polling) ────────────────────────────────── */
+    const analystProcessOne = async (c) => {
+        setCurrentPhase(p => ({ ...p, analyst: `Analyzing: ${c.name}` }));
+        setCurrentQuery(q => ({ ...q, analyst: c.name }));
+        addToFeed(`📊 Analyzing: ${c.name}`, "search", "analyst");
+        setStreamText("");
+        try {
+            const res = await geminiGenerate(`Analyze ESG profile of "${c.name}" (sector: ${c.sector}, country: ${c.country}, CO2: ${c.co2} Mt, grade: ${c.grade})`, PROMPTS.analyst, true);
+            let full = "";
+            for await (const chunk of parseGeminiStream(res)) { if (stopRefs.current.analyst) return; full += chunk; setStreamText(full); }
+            const lines = full.split("\n").filter(l => l.includes("|||"));
+            const parsed = lines.map(l => { const p = l.split("|||"); return p.length >= 8 ? { name: p[0]?.trim(), overallScore: p[1]?.trim(), envScore: p[2]?.trim(), socialScore: p[3]?.trim(), govScore: p[4]?.trim(), trend: p[5]?.trim(), peerRank: p[6]?.trim(), strengths: p[7]?.trim(), weaknesses: p[8]?.trim(), rec: p[9]?.trim(), analyzedAt: new Date().toISOString() } : null; }).filter(Boolean);
+            if (parsed.length > 0) {
+                setAnalysis(prev => { const next = [...prev, ...parsed]; storage.set(KEYS.analysis, JSON.stringify(next)); return next; });
+                addToFeed(`✓ ${parsed[0].name}: Score ${parsed[0].overallScore}/100 (${parsed[0].rec})`, "data", "analyst");
+                broadcastMsg("analyst", "risk", "analyzed", [c]);
+            }
+        } catch (e) { addToFeed(`⚠ ${e.message?.slice(0, 60)}`, "error", "analyst"); }
+    };
+
     const startAnalyst = async () => {
         stopRefs.current.analyst = false;
         setRunning(r => ({ ...r, analyst: true }));
-        addToFeed("📊 Analyst Agent started — analyzing Scout's discoveries", "system", "analyst");
-        const unanalyzed = db.filter(c => c.name && c.co2 && c.co2 !== "N/A" && !analysis.find(a => a.name?.toLowerCase() === c.name.toLowerCase()));
-        if (unanalyzed.length === 0) { addToFeed("ℹ No new companies to analyze. Start Scout first.", "info", "analyst"); setRunning(r => ({ ...r, analyst: false })); return; }
-        for (let i = 0; i < unanalyzed.length; i++) {
-            if (stopRefs.current.analyst) break;
-            const c = unanalyzed[i];
-            setCurrentPhase(p => ({ ...p, analyst: `Analyzing ${i + 1}/${unanalyzed.length}` }));
-            setCurrentQuery(q => ({ ...q, analyst: c.name }));
-            addToFeed(`📊 Analyzing: ${c.name}`, "search", "analyst");
-            setStreamText("");
-            try {
-                const res = await geminiGenerate(`Analyze ESG profile of "${c.name}" (sector: ${c.sector}, country: ${c.country}, CO2: ${c.co2} Mt, grade: ${c.grade})`, PROMPTS.analyst, true);
-                let full = "";
-                for await (const chunk of parseGeminiStream(res)) { if (stopRefs.current.analyst) break; full += chunk; setStreamText(full); }
-                const lines = full.split("\n").filter(l => l.includes("|||"));
-                const parsed = lines.map(l => { const p = l.split("|||"); return p.length >= 8 ? { name: p[0]?.trim(), overallScore: p[1]?.trim(), envScore: p[2]?.trim(), socialScore: p[3]?.trim(), govScore: p[4]?.trim(), trend: p[5]?.trim(), peerRank: p[6]?.trim(), strengths: p[7]?.trim(), weaknesses: p[8]?.trim(), rec: p[9]?.trim(), analyzedAt: new Date().toISOString() } : null; }).filter(Boolean);
-                if (parsed.length > 0) {
-                    setAnalysis(prev => { const next = [...prev, ...parsed]; storage.set(KEYS.analysis, JSON.stringify(next)); return next; });
-                    addToFeed(`✓ ${parsed[0].name}: Score ${parsed[0].overallScore}/100 (${parsed[0].rec})`, "data", "analyst");
+        addToFeed("📊 Analyst Agent started — continuous analysis mode", "system", "analyst");
+        // Use refs to read latest state inside the loop
+        const getDb = () => { try { const s = storage.get(KEYS.db); return s ? JSON.parse(s.value) : []; } catch { return []; } };
+        const getAnalysis = () => { try { const s = storage.get(KEYS.analysis); return s ? JSON.parse(s.value) : []; } catch { return []; } };
+        while (!stopRefs.current.analyst) {
+            const currentDb = getDb();
+            const currentAnalysis = getAnalysis();
+            const analyzed = new Set(currentAnalysis.map(a => a.name?.toLowerCase()));
+            const unanalyzed = currentDb.filter(c => c.name && c.co2 && c.co2 !== "N/A" && !analyzed.has(c.name.toLowerCase()));
+            if (unanalyzed.length > 0) {
+                setCurrentPhase(p => ({ ...p, analyst: `${unanalyzed.length} companies queued` }));
+                for (const c of unanalyzed) {
+                    if (stopRefs.current.analyst) break;
+                    await analystProcessOne(c);
+                    if (!stopRefs.current.analyst) await new Promise(r => setTimeout(r, 2500));
                 }
-            } catch (e) { addToFeed(`⚠ ${e.message?.slice(0, 60)}`, "error", "analyst"); }
-            if (!stopRefs.current.analyst) await new Promise(r => setTimeout(r, 2000));
+            } else {
+                setCurrentPhase(p => ({ ...p, analyst: "⏳ Waiting for Scout data…" }));
+                setCurrentQuery(q => ({ ...q, analyst: "Polling every 10s" }));
+            }
+            if (!stopRefs.current.analyst) await new Promise(r => setTimeout(r, 10000));
         }
-        broadcastMsg("analyst", "risk", "analysis_complete", unanalyzed);
         setRunning(r => ({ ...r, analyst: false }));
-        addToFeed("✓ Analyst batch complete", "success", "analyst");
+        addToFeed("⏹ Analyst paused", "system", "analyst");
     };
 
-    /* ─── RISK LOGIC ─────────────────────────────────────────────────────────── */
+    /* ─── RISK LOGIC (continuous polling) ────────────────────────────────────── */
+    const riskProcessOne = async (a) => {
+        setCurrentPhase(p => ({ ...p, risk: `Scanning: ${a.name}` }));
+        setCurrentQuery(q => ({ ...q, risk: a.name }));
+        addToFeed(`⚠️ Risk scan: ${a.name}`, "search", "risk");
+        setStreamText("");
+        try {
+            const res = await geminiGenerate(`Evaluate greenwashing and regulatory risk for "${a.name}" (ESG score: ${a.overallScore}/100, trend: ${a.trend}, strengths: ${a.strengths}, weaknesses: ${a.weaknesses})`, PROMPTS.risk, true);
+            let full = "";
+            for await (const chunk of parseGeminiStream(res)) { if (stopRefs.current.risk) return; full += chunk; setStreamText(full); }
+            const parsed = full.split("\n").filter(l => l.includes("|||")).map(l => { const p = l.split("|||"); return p.length >= 5 ? { name: p[0]?.trim(), greenwashRisk: p[1]?.trim(), regRisk: p[2]?.trim(), climateExposure: p[3]?.trim(), dataQuality: p[4]?.trim(), redFlags: p[5]?.trim(), complianceGaps: p[6]?.trim(), scannedAt: new Date().toISOString() } : null; }).filter(Boolean);
+            if (parsed.length > 0) {
+                setRisks(prev => { const next = [...prev, ...parsed]; storage.set(KEYS.risks, JSON.stringify(next)); return next; });
+                addToFeed(`🚦 ${parsed[0].name}: GW:${parsed[0].greenwashRisk} Reg:${parsed[0].regRisk} Clim:${parsed[0].climateExposure}`, "data", "risk");
+                broadcastMsg("risk", "strategy", "risk_assessed", [a]);
+            }
+        } catch (e) { addToFeed(`⚠ ${e.message?.slice(0, 60)}`, "error", "risk"); }
+    };
+
     const startRisk = async () => {
         stopRefs.current.risk = false;
         setRunning(r => ({ ...r, risk: true }));
-        addToFeed("⚠️ Risk Agent started — scanning for greenwashing & compliance", "system", "risk");
-        const unscanned = analysis.filter(a => !risks.find(r => r.name?.toLowerCase() === a.name?.toLowerCase()));
-        if (unscanned.length === 0) { addToFeed("ℹ No new analysis to scan. Start Analyst first.", "info", "risk"); setRunning(r => ({ ...r, risk: false })); return; }
-        for (let i = 0; i < unscanned.length; i++) {
-            if (stopRefs.current.risk) break;
-            const a = unscanned[i];
-            setCurrentPhase(p => ({ ...p, risk: `Scanning ${i + 1}/${unscanned.length}` }));
-            setCurrentQuery(q => ({ ...q, risk: a.name }));
-            addToFeed(`⚠️ Risk scan: ${a.name}`, "search", "risk");
-            setStreamText("");
-            try {
-                const res = await geminiGenerate(`Evaluate greenwashing and regulatory risk for "${a.name}" (ESG score: ${a.overallScore}/100, trend: ${a.trend}, strengths: ${a.strengths}, weaknesses: ${a.weaknesses})`, PROMPTS.risk, true);
-                let full = "";
-                for await (const chunk of parseGeminiStream(res)) { if (stopRefs.current.risk) break; full += chunk; setStreamText(full); }
-                const parsed = full.split("\n").filter(l => l.includes("|||")).map(l => { const p = l.split("|||"); return p.length >= 5 ? { name: p[0]?.trim(), greenwashRisk: p[1]?.trim(), regRisk: p[2]?.trim(), climateExposure: p[3]?.trim(), dataQuality: p[4]?.trim(), redFlags: p[5]?.trim(), complianceGaps: p[6]?.trim(), scannedAt: new Date().toISOString() } : null; }).filter(Boolean);
-                if (parsed.length > 0) {
-                    setRisks(prev => { const next = [...prev, ...parsed]; storage.set(KEYS.risks, JSON.stringify(next)); return next; });
-                    addToFeed(`🚦 ${parsed[0].name}: GW:${parsed[0].greenwashRisk} Reg:${parsed[0].regRisk} Clim:${parsed[0].climateExposure}`, "data", "risk");
+        addToFeed("⚠️ Risk Agent started — continuous scanning mode", "system", "risk");
+        const getAnalysis = () => { try { const s = storage.get(KEYS.analysis); return s ? JSON.parse(s.value) : []; } catch { return []; } };
+        const getRisks = () => { try { const s = storage.get(KEYS.risks); return s ? JSON.parse(s.value) : []; } catch { return []; } };
+        while (!stopRefs.current.risk) {
+            const currentAnalysis = getAnalysis();
+            const currentRisks = getRisks();
+            const scanned = new Set(currentRisks.map(r => r.name?.toLowerCase()));
+            const unscanned = currentAnalysis.filter(a => !scanned.has(a.name?.toLowerCase()));
+            if (unscanned.length > 0) {
+                setCurrentPhase(p => ({ ...p, risk: `${unscanned.length} to scan` }));
+                for (const a of unscanned) {
+                    if (stopRefs.current.risk) break;
+                    await riskProcessOne(a);
+                    if (!stopRefs.current.risk) await new Promise(r => setTimeout(r, 2500));
                 }
-            } catch (e) { addToFeed(`⚠ ${e.message?.slice(0, 60)}`, "error", "risk"); }
-            if (!stopRefs.current.risk) await new Promise(r => setTimeout(r, 2000));
+            } else {
+                setCurrentPhase(p => ({ ...p, risk: "⏳ Waiting for Analyst data…" }));
+                setCurrentQuery(q => ({ ...q, risk: "Polling every 10s" }));
+            }
+            if (!stopRefs.current.risk) await new Promise(r => setTimeout(r, 10000));
         }
-        broadcastMsg("risk", "strategy", "risk_scan_complete", unscanned);
         setRunning(r => ({ ...r, risk: false }));
-        addToFeed("✓ Risk scan batch complete", "success", "risk");
+        addToFeed("⏹ Risk paused", "system", "risk");
     };
 
-    /* ─── STRATEGY LOGIC ─────────────────────────────────────────────────────── */
+    /* ─── STRATEGY LOGIC (continuous polling) ────────────────────────────────── */
+    const strategyProcessOne = async (r) => {
+        const getAnalysis = () => { try { const s = storage.get(KEYS.analysis); return s ? JSON.parse(s.value) : []; } catch { return []; } };
+        const getDb = () => { try { const s = storage.get(KEYS.db); return s ? JSON.parse(s.value) : []; } catch { return []; } };
+        const a = getAnalysis().find(x => x.name?.toLowerCase() === r.name?.toLowerCase());
+        const c = getDb().find(x => x.name?.toLowerCase() === r.name?.toLowerCase());
+        setCurrentPhase(p => ({ ...p, strategy: `Strategizing: ${r.name}` }));
+        setCurrentQuery(q => ({ ...q, strategy: r.name }));
+        addToFeed(`💡 Strategizing: ${r.name}`, "search", "strategy");
+        setStreamText("");
+        try {
+            const res = await geminiGenerate(`Investment recommendation for "${r.name}" (CO2: ${c?.co2 || "N/A"} Mt, ESG: ${a?.overallScore || "N/A"}/100, Greenwash: ${r.greenwashRisk}, Regulatory: ${r.regRisk}, Climate: ${r.climateExposure})`, PROMPTS.strategy, true);
+            let full = "";
+            for await (const chunk of parseGeminiStream(res)) { if (stopRefs.current.strategy) return; full += chunk; setStreamText(full); }
+            const parsed = full.split("\n").filter(l => l.includes("|||")).map(l => { const p = l.split("|||"); return p.length >= 5 ? { name: p[0]?.trim(), action: p[1]?.trim(), confidence: p[2]?.trim(), rationale: p[3]?.trim(), priceImpact: p[4]?.trim(), catalyst: p[5]?.trim(), timeline: p[6]?.trim(), createdAt: new Date().toISOString() } : null; }).filter(Boolean);
+            if (parsed.length > 0) {
+                setStrategies(prev => { const next = [...prev, ...parsed]; storage.set(KEYS.strategies, JSON.stringify(next)); return next; });
+                addToFeed(`🎯 ${parsed[0].name}: ${parsed[0].action} (${parsed[0].confidence}% confidence)`, "data", "strategy");
+            }
+        } catch (e) { addToFeed(`⚠ ${e.message?.slice(0, 60)}`, "error", "strategy"); }
+    };
+
     const startStrategy = async () => {
         stopRefs.current.strategy = false;
         setRunning(r => ({ ...r, strategy: true }));
-        addToFeed("💡 Strategy Agent started — generating recommendations", "system", "strategy");
-        const available = risks.filter(r => !strategies.find(s => s.name?.toLowerCase() === r.name?.toLowerCase()));
-        if (available.length === 0) { addToFeed("ℹ No new risk data. Start Risk Agent first.", "info", "strategy"); setRunning(r => ({ ...r, strategy: false })); return; }
-        for (let i = 0; i < available.length; i++) {
-            if (stopRefs.current.strategy) break;
-            const r = available[i];
-            const a = analysis.find(x => x.name?.toLowerCase() === r.name?.toLowerCase());
-            const c = db.find(x => x.name?.toLowerCase() === r.name?.toLowerCase());
-            setCurrentPhase(p => ({ ...p, strategy: `Strategy ${i + 1}/${available.length}` }));
-            setCurrentQuery(q => ({ ...q, strategy: r.name }));
-            addToFeed(`💡 Strategizing: ${r.name}`, "search", "strategy");
-            setStreamText("");
-            try {
-                const res = await geminiGenerate(`Investment recommendation for "${r.name}" (CO2: ${c?.co2 || "N/A"} Mt, ESG: ${a?.overallScore || "N/A"}/100, Greenwash: ${r.greenwashRisk}, Regulatory: ${r.regRisk}, Climate: ${r.climateExposure})`, PROMPTS.strategy, true);
-                let full = "";
-                for await (const chunk of parseGeminiStream(res)) { if (stopRefs.current.strategy) break; full += chunk; setStreamText(full); }
-                const parsed = full.split("\n").filter(l => l.includes("|||")).map(l => { const p = l.split("|||"); return p.length >= 5 ? { name: p[0]?.trim(), action: p[1]?.trim(), confidence: p[2]?.trim(), rationale: p[3]?.trim(), priceImpact: p[4]?.trim(), catalyst: p[5]?.trim(), timeline: p[6]?.trim(), createdAt: new Date().toISOString() } : null; }).filter(Boolean);
-                if (parsed.length > 0) {
-                    setStrategies(prev => { const next = [...prev, ...parsed]; storage.set(KEYS.strategies, JSON.stringify(next)); return next; });
-                    addToFeed(`🎯 ${parsed[0].name}: ${parsed[0].action} (${parsed[0].confidence}% confidence)`, "data", "strategy");
+        addToFeed("💡 Strategy Agent started — continuous recommendation mode", "system", "strategy");
+        const getRisks = () => { try { const s = storage.get(KEYS.risks); return s ? JSON.parse(s.value) : []; } catch { return []; } };
+        const getStrategies = () => { try { const s = storage.get(KEYS.strategies); return s ? JSON.parse(s.value) : []; } catch { return []; } };
+        while (!stopRefs.current.strategy) {
+            const currentRisks = getRisks();
+            const currentStrategies = getStrategies();
+            const done = new Set(currentStrategies.map(s => s.name?.toLowerCase()));
+            const pending = currentRisks.filter(r => !done.has(r.name?.toLowerCase()));
+            if (pending.length > 0) {
+                setCurrentPhase(p => ({ ...p, strategy: `${pending.length} pending` }));
+                for (const r of pending) {
+                    if (stopRefs.current.strategy) break;
+                    await strategyProcessOne(r);
+                    if (!stopRefs.current.strategy) await new Promise(r => setTimeout(r, 2500));
                 }
-            } catch (e) { addToFeed(`⚠ ${e.message?.slice(0, 60)}`, "error", "strategy"); }
-            if (!stopRefs.current.strategy) await new Promise(r => setTimeout(r, 2000));
+            } else {
+                setCurrentPhase(p => ({ ...p, strategy: "⏳ Waiting for Risk data…" }));
+                setCurrentQuery(q => ({ ...q, strategy: "Polling every 10s" }));
+            }
+            if (!stopRefs.current.strategy) await new Promise(r => setTimeout(r, 10000));
         }
         setRunning(r => ({ ...r, strategy: false }));
-        addToFeed("✓ Strategy batch complete", "success", "strategy");
+        addToFeed("⏹ Strategy paused", "system", "strategy");
     };
 
-    const startAll = () => { startScout(); };
+    /* ─── LAUNCH ALL / STOP ALL ──────────────────────────────────────────────── */
+    const startAll = () => {
+        addToFeed("🚀 All agents launched — collaborative continuous mode", "comms", "system");
+        startScout(); startAnalyst(); startRisk(); startStrategy();
+    };
     const stopAll = () => { Object.keys(stopRefs.current).forEach(k => stopRefs.current[k] = true); };
     const stopAgent = (id) => { stopRefs.current[id] = true; };
 
@@ -404,27 +459,16 @@ export default function AgentTab() {
                 </div>
             </Cd>
 
-            {/* Agent Controls */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-                {Object.values(AGENTS).map(a => (
-                    <div key={a.id}>
-                        {!running[a.id] ? (
-                            <GlassBtn primary onClick={() => {
-                                if (a.id === "scout") startScout();
-                                else if (a.id === "analyst") startAnalyst();
-                                else if (a.id === "risk") startRisk();
-                                else startStrategy();
-                            }} style={{ padding: "10px", fontSize: 12, borderRadius: 10 }}>
-                                {a.icon} Start {a.name.split(" ")[0]}
-                            </GlassBtn>
-                        ) : (
-                            <GlassBtn danger onClick={() => stopAgent(a.id)} style={{ padding: "10px", fontSize: 12, borderRadius: 10 }}>
-                                ⏹ Stop {a.name.split(" ")[0]}
-                            </GlassBtn>
-                        )}
-                    </div>
-                ))}
-            </div>
+            {/* Launch All / Stop All */}
+            {!agentRunning ? (
+                <GlassBtn primary onClick={startAll} style={{ marginBottom: 14 }}>
+                    🚀 Launch All Agents
+                </GlassBtn>
+            ) : (
+                <GlassBtn danger onClick={stopAll} style={{ marginBottom: 14 }}>
+                    ⏹ Stop All Agents
+                </GlassBtn>
+            )}
 
             {/* Active Agent Stream */}
             {running[activeAgent] && (
