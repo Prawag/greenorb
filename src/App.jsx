@@ -6,6 +6,7 @@ import CompaniesTab from "./tabs/CompaniesTab";
 import CompareTab from "./tabs/CompareTab";
 import ScanTab from "./tabs/ScanTab";
 import AgentTab from "./tabs/AgentTab";
+import TokenTab from "./tabs/TokenTab";
 
 const TABS = [
     { key: "globe", Component: GlobeTab },
@@ -13,6 +14,7 @@ const TABS = [
     { key: "compare", Component: CompareTab },
     { key: "scan", Component: ScanTab },
     { key: "agent", Component: AgentTab },
+    { key: "token", Component: TokenTab },
 ];
 
 export default function App() {

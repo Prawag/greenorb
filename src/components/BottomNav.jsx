@@ -7,6 +7,7 @@ const TABS = [
     { id: "compare", icon: "⚖", label: "Compare" },
     { id: "scan", icon: "📄", label: "Scan" },
     { id: "agent", icon: "🤖", label: "Agent" },
+    { id: "token", icon: "🪙", label: "Token" },
 ];
 
 export default function BottomNav({ active, set }) {

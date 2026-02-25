@@ -63,7 +63,7 @@ const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 export async function geminiGenerate(prompt, systemPrompt = "", stream = false) {
-    const model = "gemini-1.5-flash";
+    const model = "gemini-2.0-flash";
     const url = stream
         ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`
         : `${GEMINI_BASE}/models/${model}:generateContent?key=${GEMINI_KEY}`;
@@ -71,8 +71,7 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
     const body = {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
-        generationConfig: { maxOutputTokens: 2000, temperature: 0.7 },
-        tools: [{ googleSearch: {} }],
+        generationConfig: { maxOutputTokens: 4096, temperature: 0.7 },
     };
 
     const res = await fetch(url, {
@@ -90,7 +89,7 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
 }
 
 export async function geminiGeneratePDF(pdfBase64, prompt, systemPrompt = "", stream = false) {
-    const model = "gemini-1.5-flash";
+    const model = "gemini-2.0-flash";
     const url = stream
         ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`
         : `${GEMINI_BASE}/models/${model}:generateContent?key=${GEMINI_KEY}`;
@@ -148,7 +147,7 @@ export async function* parseGeminiStream(response) {
 
 // Gemini image analysis (for mobile photo uploads)
 export async function geminiGenerateImage(imageBase64, mimeType, prompt, systemPrompt = "", stream = false) {
-    const model = "gemini-1.5-flash";
+    const model = "gemini-2.0-flash";
     const url = stream
         ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`
         : `${GEMINI_BASE}/models/${model}:generateContent?key=${GEMINI_KEY}`;
