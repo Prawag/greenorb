@@ -11,27 +11,27 @@ export function latLngToXYZ(lat, lng, r) {
 }
 
 export function emissToHex(mt) {
-    if (mt < 50) return 0x00e87a;
+    if (mt < 50) return 0x10b981;
     if (mt < 200) return 0x34d399;
-    if (mt < 500) return 0xf5a623;
-    if (mt < 2000) return 0xfb923c;
-    return 0xff4d4d;
+    if (mt < 500) return 0xd97706;
+    if (mt < 2000) return 0xea580c;
+    return 0xdc2626;
 }
 
 export function emissToCSS(mt) {
-    if (mt < 50) return "#00e87a";
+    if (mt < 50) return "#10b981";
     if (mt < 200) return "#34d399";
-    if (mt < 500) return "#f5a623";
-    if (mt < 2000) return "#fb923c";
-    return "#ff4d4d";
+    if (mt < 500) return "#d97706";
+    if (mt < 2000) return "#ea580c";
+    return "#dc2626";
 }
 
 export function gradeToColor(g) {
     if (!g) return "var(--tx3)";
-    if (g.startsWith("A")) return "#00e87a";
-    if (g.startsWith("B")) return "#00d4e8";
-    if (g.startsWith("C")) return "#f5a623";
-    return "#ff4d4d";
+    if (g.startsWith("A")) return "#059669";
+    if (g.startsWith("B")) return "#0891b2";
+    if (g.startsWith("C")) return "#d97706";
+    return "#dc2626";
 }
 
 export function gradeToBdg(g) {

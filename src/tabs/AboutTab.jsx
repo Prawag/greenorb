@@ -59,8 +59,8 @@ export default function AboutTab() {
                 ].map(s => (
                     <button key={s.k} onClick={() => setSection(s.k)} style={{
                         flex: 1, padding: "10px 6px", borderRadius: 10,
-                        background: section === s.k ? "linear-gradient(135deg, rgba(0,240,160,.12), rgba(52,216,232,.08))" : "transparent",
-                        border: `1px solid ${section === s.k ? "rgba(0,240,160,.25)" : "var(--bd)"}`,
+                        background: section === s.k ? "rgba(16,185,129,.08)" : "transparent",
+                        border: `1px solid ${section === s.k ? "rgba(16,185,129,.2)" : "var(--bd)"}`,
                         color: section === s.k ? "var(--jade)" : "var(--tx3)",
                         fontFamily: "var(--disp)", fontWeight: 700, fontSize: 11, cursor: "pointer",
                         whiteSpace: "nowrap", flexShrink: 0, transition: "all .2s",
@@ -95,7 +95,7 @@ export default function AboutTab() {
                         </Cd>
                     ))}
 
-                    <Cd glass style={{ padding: 16, marginTop: 12, borderColor: "rgba(255,90,90,.15)", background: "rgba(255,90,90,.03)" }}>
+                    <Cd style={{ padding: 16, marginTop: 12, borderColor: "rgba(220,38,38,.15)", background: "rgba(220,38,38,.02)" }}>
                         <M size={12} color="var(--red)" style={{ display: "block", fontWeight: 700, marginBottom: 6 }}>The Result:</M>
                         <M size={12} color="var(--tx2)" style={{ display: "block", lineHeight: 1.8 }}>
                             Investors can't properly assess ESG risk. Regulators can't enforce compliance. Consumers can't make informed choices. Greenwashing flourishes because verification is impossible at scale.
@@ -173,7 +173,7 @@ export default function AboutTab() {
                                 </thead>
                                 <tbody>
                                     {COMPETITORS.map(c => (
-                                        <tr key={c.name} style={{ borderBottom: "1px solid var(--bg3)", background: c.name === "GreenOrb" ? "rgba(0,240,160,.05)" : "transparent" }}>
+                                        <tr key={c.name} style={{ borderBottom: "1px solid var(--bg3)", background: c.name === "GreenOrb" ? "rgba(16,185,129,.04)" : "transparent" }}>
                                             <td style={{ padding: "6px 4px", color: c.name === "GreenOrb" ? "var(--jade)" : "var(--tx)", fontWeight: c.name === "GreenOrb" ? 700 : 400 }}>{c.name}</td>
                                             <td style={{ padding: "6px 4px", color: "var(--tx2)" }}>{c.cost}</td>
                                             <td style={{ padding: "6px 4px", color: "var(--tx2)" }}>{c.coverage}</td>
@@ -217,7 +217,7 @@ export default function AboutTab() {
                         </Cd>
                     ))}
 
-                    <Cd glass style={{ padding: 16, marginTop: 8, borderColor: "rgba(0,240,160,.2)" }}>
+                    <Cd style={{ padding: 16, marginTop: 8, borderColor: "rgba(16,185,129,.2)" }}>
                         <M size={10} color="var(--jade)" style={{ display: "block", fontWeight: 700, letterSpacing: ".1em", marginBottom: 8 }}>TOKEN ECONOMICS</M>
                         {[
                             ["Supply", "1B GORB (8 decimals)"],
@@ -240,7 +240,7 @@ export default function AboutTab() {
             {section === "roadmap" && (
                 <div style={{ animation: "fadeUp .3s ease" }}>
                     {ROADMAP.map((r, i) => (
-                        <Cd key={r.phase} glass style={{ padding: 16, marginBottom: 10, borderColor: i === 0 ? "rgba(0,240,160,.25)" : "var(--bd)" }}>
+                        <Cd key={r.phase} style={{ padding: 16, marginBottom: 10, borderColor: i === 0 ? "rgba(16,185,129,.25)" : "var(--bd)" }}>
                             <Rw style={{ justifyContent: "space-between", marginBottom: 8 }}>
                                 <Bdg color={i === 0 ? "jade" : "amb"}>{r.phase}</Bdg>
                                 <M size={14} color={i === 0 ? "var(--jade)" : "var(--tx)"} style={{ fontFamily: "var(--disp)", fontWeight: 800 }}>{r.title}</M>

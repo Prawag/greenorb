@@ -1,55 +1,52 @@
 import React from "react";
 
-// ── M — Monospace text span ───────────────────────────────────────────────────
-export const M = ({ children, color, size = 11, style }) => (
-    <span style={{ fontFamily: "var(--mono)", fontSize: size, color: color || "var(--tx2)", lineHeight: 1.5, ...style }}>
+// ── M — Text span ─────────────────────────────────────────────────────────────
+export const M = ({ children, color, size = 13, style, mono }) => (
+    <span style={{ fontFamily: mono ? "var(--mono)" : "var(--body)", fontSize: size, color: color || "var(--tx2)", lineHeight: 1.5, ...style }}>
         {children}
     </span>
 );
 
-// ── Bdg — Badge chip (glassmorphic) ──────────────────────────────────────────
+// ── Bdg — Badge chip ──────────────────────────────────────────────────────────
 export const Bdg = ({ color = "jade", children, style }) => {
     const C = {
-        jade: ["rgba(0,240,160,.1)", "rgba(0,240,160,.25)", "#00f0a0"],
-        cyan: ["rgba(52,216,232,.08)", "rgba(52,216,232,.22)", "#34d8e8"],
-        amb: ["rgba(240,192,64,.08)", "rgba(240,192,64,.22)", "#f0c040"],
-        red: ["rgba(255,90,90,.08)", "rgba(255,90,90,.22)", "#ff5a5a"],
-        pur: ["rgba(180,156,255,.08)", "rgba(180,156,255,.22)", "#b49cff"],
-        blu: ["rgba(96,165,250,.08)", "rgba(96,165,250,.22)", "#60a5fa"],
-        gold: ["rgba(240,192,64,.08)", "rgba(240,192,64,.22)", "#f0c040"],
-    }[color] || ["rgba(0,240,160,.1)", "rgba(0,240,160,.25)", "#00f0a0"];
+        jade: ["rgba(16,185,129,.08)", "rgba(16,185,129,.2)", "#059669"],
+        cyan: ["rgba(8,145,178,.06)", "rgba(8,145,178,.18)", "#0891b2"],
+        amb: ["rgba(217,119,6,.06)", "rgba(217,119,6,.18)", "#d97706"],
+        red: ["rgba(220,38,38,.06)", "rgba(220,38,38,.18)", "#dc2626"],
+        pur: ["rgba(124,58,237,.06)", "rgba(124,58,237,.18)", "#7c3aed"],
+        blu: ["rgba(37,99,235,.06)", "rgba(37,99,235,.18)", "#2563eb"],
+        gold: ["rgba(202,138,4,.06)", "rgba(202,138,4,.18)", "#ca8a04"],
+    }[color] || ["rgba(16,185,129,.08)", "rgba(16,185,129,.2)", "#059669"];
     return (
         <span style={{
             background: C[0], border: `1px solid ${C[1]}`, color: C[2],
-            borderRadius: 6, padding: "3px 9px", fontSize: 10,
-            fontFamily: "var(--mono)", fontWeight: 600, letterSpacing: ".06em",
-            whiteSpace: "nowrap", backdropFilter: "blur(8px)", ...style,
+            borderRadius: 6, padding: "2px 8px", fontSize: 11,
+            fontFamily: "var(--body)", fontWeight: 600, letterSpacing: ".01em",
+            whiteSpace: "nowrap", ...style,
         }}>
             {children}
         </span>
     );
 };
 
-// ── Dot — Glowing dot indicator ───────────────────────────────────────────────
-export const Dot = ({ color = "#00f0a0", size = 7, pulse }) => (
+// ── Dot — Indicator dot ───────────────────────────────────────────────────────
+export const Dot = ({ color = "#10b981", size = 7, pulse }) => (
     <span style={{
         display: "inline-block", width: size, height: size, borderRadius: "50%",
-        background: color, boxShadow: `0 0 ${size + 3}px ${color}`,
+        background: color, boxShadow: `0 0 ${size}px ${color}40`,
         animation: pulse ? "pulse 2s infinite" : "none", flexShrink: 0,
     }} />
 );
 
-// ── Cd — Card container (glassmorphism) ───────────────────────────────────────
+// ── Cd — Card container ───────────────────────────────────────────────────────
 export const Cd = ({ children, style, accent, danger, glass }) => (
     <div style={{
-        background: glass ? "var(--glass)" : "var(--sf)",
-        backdropFilter: glass ? "blur(16px) saturate(1.2)" : "none",
-        borderRadius: 16,
-        border: `1px solid ${accent ? "rgba(0,240,160,.2)" : danger ? "rgba(255,90,90,.18)" : "var(--bd)"}`,
-        boxShadow: accent
-            ? "0 0 24px rgba(0,240,160,.06), inset 0 1px 0 rgba(0,240,160,.06)"
-            : "inset 0 1px 0 rgba(255,255,255,.02)",
-        transition: "border-color .2s, box-shadow .2s",
+        background: "var(--sf)",
+        borderRadius: "var(--radius)",
+        border: `1px solid ${accent ? "rgba(16,185,129,.25)" : danger ? "rgba(220,38,38,.2)" : "var(--bd)"}`,
+        boxShadow: accent ? "0 0 0 1px rgba(16,185,129,.08), var(--shadow)" : "var(--shadow-sm)",
+        transition: "box-shadow .2s, border-color .2s",
         ...style,
     }}>
         {children}
@@ -63,24 +60,22 @@ export const Rw = ({ children, style }) => (
     </div>
 );
 
-// ── PBar — Progress bar (gradient) ───────────────────────────────────────────
+// ── PBar — Progress bar ──────────────────────────────────────────────────────
 export const PBar = ({ v, color = "var(--jade)", h = 4, animate }) => (
     <div style={{ height: h, background: "var(--bg3)", borderRadius: h, overflow: "hidden" }}>
         <div style={{
             width: `${Math.min(v, 100)}%`, height: "100%",
-            background: `linear-gradient(90deg, ${color}, ${color}88)`,
-            borderRadius: h,
-            transition: animate ? "width 1.2s ease" : "none",
-            boxShadow: v > 0 ? `0 0 8px ${color}44` : "none",
+            background: color, borderRadius: h,
+            transition: animate ? "width 1s ease" : "none",
         }} />
     </div>
 );
 
-// ── Spin — Loading spinner (gradient) ────────────────────────────────────────
+// ── Spin — Loading spinner ───────────────────────────────────────────────────
 export const Spin = ({ size = 20, color = "var(--jade)" }) => (
     <div style={{
         width: size, height: size,
-        border: `2px solid rgba(0,240,160,.1)`,
+        border: `2px solid var(--bg3)`,
         borderTop: `2px solid ${color}`,
         borderRadius: "50%",
         animation: "spin .8s linear infinite",
@@ -88,38 +83,33 @@ export const Spin = ({ size = 20, color = "var(--jade)" }) => (
     }} />
 );
 
-// ── SHd — Section header ──────────────────────────────────────────────────────
+// ── SHd — Section header ─────────────────────────────────────────────────────
 export const SHd = ({ tag, title, sub }) => (
-    <div style={{ marginBottom: 18, animation: "fadeUp .4s ease" }}>
-        <M color="var(--jade)" size={10} style={{ display: "block", marginBottom: 5, letterSpacing: ".14em", textTransform: "uppercase", fontWeight: 600 }}>
+    <div style={{ marginBottom: 20, animation: "fadeUp .4s ease" }}>
+        <M color="var(--jade)" size={11} style={{ display: "block", marginBottom: 4, letterSpacing: ".08em", textTransform: "uppercase", fontWeight: 600 }}>
             {tag}
         </M>
-        <h2 style={{ fontFamily: "var(--disp)", fontWeight: 800, fontSize: 22, color: "var(--tx)", marginBottom: sub ? 6 : 0, lineHeight: 1.2 }}>
+        <h2 style={{ fontFamily: "var(--disp)", fontWeight: 700, fontSize: 24, color: "var(--tx)", marginBottom: sub ? 6 : 0, lineHeight: 1.25, letterSpacing: "-.02em" }}>
             {title}
         </h2>
-        {sub && <p style={{ color: "var(--tx2)", fontSize: 13, lineHeight: 1.65 }}>{sub}</p>}
+        {sub && <p style={{ color: "var(--tx2)", fontSize: 14, lineHeight: 1.6 }}>{sub}</p>}
     </div>
 );
 
-// ── GlassBtn — Premium button ─────────────────────────────────────────────────
+// ── GlassBtn — Primary button ─────────────────────────────────────────────────
 export const GlassBtn = ({ children, onClick, disabled, primary, danger, style }) => (
     <button
         onClick={onClick}
         disabled={disabled}
         style={{
-            width: "100%", padding: "14px 20px", borderRadius: 14,
-            border: primary ? "none" : danger ? "1px solid rgba(255,90,90,.3)" : "1px solid var(--bd2)",
-            background: primary
-                ? "linear-gradient(135deg, #00f0a0, #00b878)"
-                : danger
-                    ? "rgba(255,90,90,.06)"
-                    : "var(--glass)",
-            backdropFilter: primary ? "none" : "blur(12px)",
-            color: primary ? "#040d08" : danger ? "var(--red)" : "var(--tx)",
-            fontFamily: "var(--disp)", fontWeight: 800, fontSize: 15,
+            width: "100%", padding: "12px 20px", borderRadius: "var(--radius)",
+            border: primary ? "none" : danger ? "1px solid rgba(220,38,38,.25)" : "1px solid var(--bd)",
+            background: primary ? "var(--jade)" : danger ? "rgba(220,38,38,.04)" : "var(--sf)",
+            color: primary ? "#ffffff" : danger ? "var(--red)" : "var(--tx)",
+            fontFamily: "var(--disp)", fontWeight: 600, fontSize: 14,
             cursor: disabled ? "default" : "pointer",
             opacity: disabled ? 0.5 : 1,
-            boxShadow: primary ? "0 0 28px rgba(0,240,160,.3), inset 0 1px 0 rgba(255,255,255,.15)" : "none",
+            boxShadow: primary ? "0 1px 3px rgba(16,185,129,.3)" : "var(--shadow-sm)",
             transition: "all .2s", display: "flex", alignItems: "center",
             justifyContent: "center", gap: 8, ...style,
         }}

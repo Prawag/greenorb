@@ -8,7 +8,7 @@ import { M, Bdg, Cd, Rw, Spin, Dot, SHd, GlassBtn } from "../components/primitiv
 
 const AGENTS = {
     scout: {
-        id: "scout", name: "Scout Agent", icon: "🔍", color: "#00f0a0",
+        id: "scout", name: "Scout Agent", icon: "🔍", color: "#10b981",
         role: "Discovers companies and their ESG/sustainability data",
         description: "Generates company names per sector, then searches each for carbon emissions, ESG grades, and report URLs.",
     },
@@ -455,7 +455,7 @@ export default function AgentTab() {
                     <input value={customPrompt} onChange={e => setCustomPrompt(e.target.value)} placeholder="e.g. Indian textile manufacturers…"
                         disabled={running.scout} style={{ flex: 1, padding: "12px 14px", background: "var(--bg3)", border: "1px solid var(--bd2)", borderRadius: 12, color: "var(--tx)", fontFamily: "var(--body)", fontSize: 13, outline: "none", minWidth: 0 }} />
                     <button onClick={startCustomSearch} disabled={running.scout || !customPrompt.trim()}
-                        style={{ padding: "12px 20px", borderRadius: 12, border: "none", background: running.scout ? "var(--sf)" : "linear-gradient(135deg, #00f0a0, #00b878)", color: running.scout ? "var(--tx3)" : "#040d08", fontFamily: "var(--disp)", fontWeight: 700, fontSize: 12, cursor: running.scout ? "default" : "pointer", flexShrink: 0 }}>Search</button>
+                        style={{ padding: "12px 20px", borderRadius: 12, border: "none", background: running.scout ? "var(--bg3)" : "var(--jade)", color: running.scout ? "var(--tx3)" : "#fff", fontFamily: "var(--disp)", fontWeight: 700, fontSize: 12, cursor: running.scout ? "default" : "pointer", flexShrink: 0 }}>Search</button>
                 </div>
             </Cd>
 

@@ -32,14 +32,14 @@ export default function GlobeTab() {
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(W, H);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setClearColor(0x000000, 0);
+        renderer.setClearColor(0xf8faf9, 0);
         el.appendChild(renderer.domElement);
 
-        scene.add(new THREE.AmbientLight(0x112211, 2));
-        const dLight = new THREE.DirectionalLight(0x00e87a, 0.4);
+        scene.add(new THREE.AmbientLight(0x778877, 2.5));
+        const dLight = new THREE.DirectionalLight(0x10b981, 0.8);
         dLight.position.set(4, 3, 4);
         scene.add(dLight);
-        const pLight = new THREE.PointLight(0x003322, 1.5, 12);
+        const pLight = new THREE.PointLight(0x10b981, 1.0, 12);
         pLight.position.set(-3, 1, 2);
         scene.add(pLight);
 
@@ -48,12 +48,12 @@ export default function GlobeTab() {
 
         // Globe sphere
         const globeGeo = new THREE.SphereGeometry(1.5, 64, 64);
-        const globeMat = new THREE.MeshPhongMaterial({ color: 0x040d08, shininess: 30, specular: 0x002211 });
+        const globeMat = new THREE.MeshPhongMaterial({ color: 0x1a3a2a, shininess: 40, specular: 0x10b981 });
         group.add(new THREE.Mesh(globeGeo, globeMat));
 
         // Atmosphere glow
         const atmosGeo = new THREE.SphereGeometry(1.62, 32, 32);
-        const atmosMat = new THREE.MeshBasicMaterial({ color: 0x001a0a, transparent: true, opacity: 0.18, side: THREE.BackSide });
+        const atmosMat = new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.08, side: THREE.BackSide });
         group.add(new THREE.Mesh(atmosGeo, atmosMat));
 
         // Latitude/longitude grid lines
@@ -61,18 +61,18 @@ export default function GlobeTab() {
             const pts = [];
             for (let lng = 0; lng <= 360; lng += 3) pts.push(latLngToXYZ(lat, lng - 180, 1.502));
             const g = new THREE.BufferGeometry().setFromPoints(pts);
-            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x0a2a12, transparent: true, opacity: 0.35 })));
+            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x2a5a3a, transparent: true, opacity: 0.3 })));
         }
         for (let lng = 0; lng < 360; lng += 20) {
             const pts = [];
             for (let lat = -90; lat <= 90; lat += 3) pts.push(latLngToXYZ(lat, lng - 180, 1.502));
             const g = new THREE.BufferGeometry().setFromPoints(pts);
-            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x0a2a12, transparent: true, opacity: 0.35 })));
+            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x2a5a3a, transparent: true, opacity: 0.3 })));
         }
 
         // *** COUNTRY BORDERS (green outlines) ***
         const borderMat = new THREE.LineBasicMaterial({
-            color: 0x00e87a,
+            color: 0x34d399,
             transparent: true,
             opacity: 0.55,
         });
@@ -189,11 +189,11 @@ export default function GlobeTab() {
 
     return (
         <div>
-            <div ref={mountRef} style={{ width: "100%", height: 320, background: "var(--bg)", cursor: "grab", touchAction: "none" }} />
+            <div ref={mountRef} style={{ width: "100%", height: 360, background: "var(--bg)", cursor: "grab", touchAction: "none", borderRadius: 16, overflow: "hidden" }} />
 
             {/* Legend */}
-            <div style={{ display: "flex", gap: 12, padding: "8px 16px", background: "var(--bg2)", borderBottom: "1px solid var(--bd)", overflowX: "auto" }}>
-                {[["< 50 Mt", "#00e87a"], ["50-200", "#34d399"], ["200-500", "#f5a623"], ["500-2k", "#fb923c"], ["> 2000 Mt", "#ff4d4d"]].map(([l, c]) => (
+            <div style={{ display: "flex", gap: 12, padding: "10px 16px", background: "var(--sf)", borderBottom: "1px solid var(--bd)", overflowX: "auto" }}>
+                {[["< 50 Mt", "#10b981"], ["50-200", "#34d399"], ["200-500", "#d97706"], ["500-2k", "#ea580c"], ["> 2000 Mt", "#dc2626"]].map(([l, c]) => (
                     <Rw key={l} style={{ gap: 5, flexShrink: 0 }}>
                         <div style={{ width: 8, height: 8, borderRadius: "50%", background: c, boxShadow: `0 0 6px ${c}` }} />
                         <M size={9} color="var(--tx3)">{l}</M>
