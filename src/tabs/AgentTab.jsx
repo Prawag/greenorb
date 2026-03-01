@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { storage, geminiGenerate, parseGeminiStream, gradeToBdg } from "../utils";
+import { storage, geminiGenerate, parseGeminiStream, gradeToBdg, API_BASE } from "../utils";
 import { M, Bdg, Cd, Rw, Spin, Dot, SHd, GlassBtn } from "../components/primitives";
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -53,16 +53,32 @@ const SEED_SECTORS = [
 
 const PROMPTS = {
     scout_gen: `You are a research assistant. Given a sector description, list 15 real, specific company names in that sector. Output ONLY company names, one per line, no numbers, no extra text. Focus on well-known companies that publish sustainability or ESG reports.`,
-    scout_extract: `You are an ESG data extraction agent. For the given company, find sustainability/ESG data. Output ONLY in this format (one line per company):
+    scout_extract: `Skill: Scout Search (ESG Discovery). 
+Procedural Knowledge:
+1. Target keywords: "2024 Sustainability Report", "Impact Report PDF".
+2. Prioritize official corporate domains.
+3. Locate GRI/SASB indexes for Scope 1, 2, 3 emissions in Mt CO2e.
+Output ONLY in this format (one line per company):
 COMPANY|||sector|||country|||estimated_CO2_Mt|||ESG_grade|||report_URL|||key_products
 No headers, no markdown, no extra text. Use N/A for missing fields.`,
-    analyst: `You are a senior ESG analyst. Given a company's basic data, produce a detailed analysis. Output in this format:
+    analyst: `Skill: PDF Deep Scan (Sustainability Analysis).
+Procedural Knowledge:
+1. Search tables for "Performance Summary".
+2. Verify Market-based vs Location-based CO2.
+3. Contrast verbal commitments with year-over-year trends.
+Output in this format:
 COMPANY|||overall_score_0_100|||environmental_score|||social_score|||governance_score|||trend_UP_DOWN_STABLE|||peer_ranking_top_middle_bottom|||key_strengths|||key_weaknesses|||recommendation_BUY_HOLD_AVOID
 One line per company. No markdown, no extra text.`,
-    risk: `You are a climate risk and greenwashing detection specialist. Given company ESG data, evaluate for risks. Output in this format:
+    risk: `Skill: Risk & Greenwashing Detection.
+Procedural Knowledge:
+1. Detect passive language or vague commitments.
+2. Scan for environmental fines or regulatory gaps.
+3. Scale risk based on GRI-305 (Emissions) disclosure transparency.
+Output in this format:
 COMPANY|||greenwash_risk_LOW_MED_HIGH|||regulatory_risk_LOW_MED_HIGH|||climate_exposure_LOW_MED_HIGH|||data_quality_GOOD_FAIR_POOR|||red_flags|||compliance_gaps
 One line per company. No markdown, no extra text.`,
-    strategy: `You are an ESG investment strategist. Given company data with analysis and risk scores, produce investment recommendations. Output in this format:
+    strategy: `You are an ESG investment strategist. Synthesize all agent findings (Skills: Scout, Analyst, Risk) into actionable advice. 
+Output in this format:
 COMPANY|||action_BUY_HOLD_SELL_AVOID|||confidence_0_100|||rationale|||target_price_impact|||esg_catalyst|||timeline_SHORT_MED_LONG
 One line per company. No markdown, no extra text.`,
 };
@@ -102,19 +118,55 @@ export default function AgentTab() {
     const stopRefs = useRef({ scout: false, analyst: false, risk: false, strategy: false });
     const feedRef = useRef(null);
 
-    // Load persisted data
+    // ─── NEON API UTILS ──────────────────────────────────────────────────────────
+
+    const fetchAllData = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/data`);
+            if (!res.ok) throw new Error("API Fetch failed");
+            const data = await res.json();
+
+            // Map flat join result back to individual agent states
+            const uniqueCompanies = Array.from(new Set(data.map(d => d.name))).map(name => data.find(d => d.name === name));
+            setDb(uniqueCompanies.map(c => ({
+                name: c.name, sector: c.sector, country: c.country, co2: c.co2, grade: c.esg,
+                url: c.url, products: c.products, methodology: c.methodology,
+                s1: c.s1, s2: c.s2, s3: c.s3, discoveredAt: c.ts, source: "neon"
+            })));
+
+            setAnalysis(data.filter(d => d.score !== null).map(a => ({
+                name: a.name, overallScore: a.score, envScore: a.e_score, socialScore: a.s_score,
+                govScore: a.g_score, trend: a.trend, peerRank: a.peer,
+                strengths: a.strengths, weaknesses: a.weaknesses, rec: a.recommendation
+            })));
+
+            setRisks(data.filter(d => d.greenwash !== null).map(r => ({
+                name: r.name, greenwashRisk: r.greenwash, regRisk: r.reg_risk,
+                climateExposure: r.climate_exp, dataQuality: r.data_quality,
+                redFlags: r.red_flags, complianceGaps: r.compliance
+            })));
+
+            setStrategies(data.filter(d => d.action !== null).map(s => ({
+                name: s.name, action: s.action, confidence: s.confidence,
+                rationale: s.rationale, priceImpact: s.price_impact,
+                catalyst: s.catalyst, timeline: s.timeline
+            })));
+        } catch (e) {
+            console.error("Neon Sync Error:", e);
+        }
+    };
+
+    // Load initial data
     useEffect(() => {
-        const load = (key, setter) => {
-            const stored = storage.get(key);
-            if (stored) { try { setter(JSON.parse(stored.value)); } catch { } }
-        };
-        load(KEYS.db, setDb);
-        load(KEYS.feed, (d) => setFeed(d.slice(-60)));
-        load(KEYS.analysis, setAnalysis);
-        load(KEYS.risks, setRisks);
-        load(KEYS.strategies, setStrategies);
+        fetchAllData();
+        const storedFeed = storage.get(KEYS.feed);
+        if (storedFeed) try { setFeed(JSON.parse(storedFeed.value).slice(-60)); } catch { }
         const idx = storage.get(KEYS.sectorIdx);
         if (idx) try { setSectorIdx(parseInt(idx.value) || 0); } catch { }
+
+        // Polling for network collaboration
+        const inv = setInterval(fetchAllData, 30000);
+        return () => clearInterval(inv);
     }, []);
 
     useEffect(() => {
@@ -130,12 +182,26 @@ export default function AgentTab() {
         });
     }, []);
 
+    const syncToNeon = async (endpoint, data) => {
+        try {
+            await fetch(`${API_BASE}/${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+        } catch (e) { console.error(`Neon Sync Error [${endpoint}]:`, e); }
+    };
+
     const addToDb = useCallback((entries) => {
         setDb(prev => {
             const existing = new Set(prev.map(c => c.name?.toLowerCase()));
             const unique = entries.filter(c => c.name && !existing.has(c.name.toLowerCase()));
+            unique.forEach(c => syncToNeon('scout', {
+                name: c.name, sector: c.sector, country: c.country, co2: parseFloat(c.co2) || 0,
+                esg: c.grade, url: c.url, products: c.products, methodology: c.methodology,
+                s1: parseFloat(c.s1) || 0, s2: parseFloat(c.s2) || 0, s3: parseFloat(c.s3) || 0
+            }));
             const next = [...prev, ...unique].slice(-3000);
-            storage.set(KEYS.db, JSON.stringify(next));
             return next;
         });
     }, []);
@@ -231,8 +297,16 @@ export default function AgentTab() {
             const lines = full.split("\n").filter(l => l.includes("|||"));
             const parsed = lines.map(l => { const p = l.split("|||"); return p.length >= 8 ? { name: p[0]?.trim(), overallScore: p[1]?.trim(), envScore: p[2]?.trim(), socialScore: p[3]?.trim(), govScore: p[4]?.trim(), trend: p[5]?.trim(), peerRank: p[6]?.trim(), strengths: p[7]?.trim(), weaknesses: p[8]?.trim(), rec: p[9]?.trim(), analyzedAt: new Date().toISOString() } : null; }).filter(Boolean);
             if (parsed.length > 0) {
-                setAnalysis(prev => { const next = [...prev, ...parsed]; storage.set(KEYS.analysis, JSON.stringify(next)); return next; });
-                addToFeed(`✓ ${parsed[0].name}: Score ${parsed[0].overallScore}/100 (${parsed[0].rec})`, "data", "analyst");
+                const aData = parsed[0];
+                setAnalysis(prev => [...prev, aData]);
+                syncToNeon('analyze', {
+                    company: aData.name, score: parseInt(aData.overallScore),
+                    e_score: parseInt(aData.envScore), s_score: parseInt(aData.socialScore),
+                    g_score: parseInt(aData.govScore), trend: aData.trend,
+                    peer: aData.peerRank, strengths: aData.strengths,
+                    weaknesses: aData.weaknesses, recommendation: aData.rec
+                });
+                addToFeed(`✓ ${aData.name}: Score ${aData.overallScore}/100 (${aData.rec})`, "data", "analyst");
                 broadcastMsg("analyst", "risk", "analyzed", [c]);
             }
         } catch (e) { addToFeed(`⚠ ${e.message?.slice(0, 60)}`, "error", "analyst"); }
@@ -279,8 +353,15 @@ export default function AgentTab() {
             for await (const chunk of parseGeminiStream(res)) { if (stopRefs.current.risk) return; full += chunk; setStreamText(full); }
             const parsed = full.split("\n").filter(l => l.includes("|||")).map(l => { const p = l.split("|||"); return p.length >= 5 ? { name: p[0]?.trim(), greenwashRisk: p[1]?.trim(), regRisk: p[2]?.trim(), climateExposure: p[3]?.trim(), dataQuality: p[4]?.trim(), redFlags: p[5]?.trim(), complianceGaps: p[6]?.trim(), scannedAt: new Date().toISOString() } : null; }).filter(Boolean);
             if (parsed.length > 0) {
-                setRisks(prev => { const next = [...prev, ...parsed]; storage.set(KEYS.risks, JSON.stringify(next)); return next; });
-                addToFeed(`🚦 ${parsed[0].name}: GW:${parsed[0].greenwashRisk} Reg:${parsed[0].regRisk} Clim:${parsed[0].climateExposure}`, "data", "risk");
+                const rData = parsed[0];
+                setRisks(prev => [...prev, rData]);
+                syncToNeon('risk', {
+                    company: rData.name, greenwash: rData.greenwashRisk,
+                    reg_risk: rData.regRisk, climate_exp: rData.climateExposure,
+                    data_quality: rData.dataQuality, red_flags: rData.redFlags,
+                    compliance: rData.complianceGaps
+                });
+                addToFeed(`🚦 ${rData.name}: GW:${rData.greenwashRisk} Reg:${rData.regRisk} Clim:${rData.climateExposure}`, "data", "risk");
                 broadcastMsg("risk", "strategy", "risk_assessed", [a]);
             }
         } catch (e) { addToFeed(`⚠ ${e.message?.slice(0, 60)}`, "error", "risk"); }
@@ -330,8 +411,15 @@ export default function AgentTab() {
             for await (const chunk of parseGeminiStream(res)) { if (stopRefs.current.strategy) return; full += chunk; setStreamText(full); }
             const parsed = full.split("\n").filter(l => l.includes("|||")).map(l => { const p = l.split("|||"); return p.length >= 5 ? { name: p[0]?.trim(), action: p[1]?.trim(), confidence: p[2]?.trim(), rationale: p[3]?.trim(), priceImpact: p[4]?.trim(), catalyst: p[5]?.trim(), timeline: p[6]?.trim(), createdAt: new Date().toISOString() } : null; }).filter(Boolean);
             if (parsed.length > 0) {
-                setStrategies(prev => { const next = [...prev, ...parsed]; storage.set(KEYS.strategies, JSON.stringify(next)); return next; });
-                addToFeed(`🎯 ${parsed[0].name}: ${parsed[0].action} (${parsed[0].confidence}% confidence)`, "data", "strategy");
+                const sData = parsed[0];
+                setStrategies(prev => [...prev, sData]);
+                syncToNeon('strategy', {
+                    company: sData.name, action: sData.action,
+                    confidence: parseInt(sData.confidence), rationale: sData.rationale,
+                    price_impact: sData.priceImpact, catalyst: sData.catalyst,
+                    timeline: sData.timeline
+                });
+                addToFeed(`🎯 ${sData.name}: ${sData.action} (${sData.confidence}% confidence)`, "data", "strategy");
             }
         } catch (e) { addToFeed(`⚠ ${e.message?.slice(0, 60)}`, "error", "strategy"); }
     };

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { COMPANIES } from "../data/companies";
-import { gradeToBdg, gradeToColor, geminiGenerate } from "../utils";
+import { gradeToBdg, gradeToColor, geminiGenerate, API_BASE } from "../utils";
 import { M, Bdg, Rw, Cd, Spin, SHd } from "../components/primitives";
 
 const SECTORS = ["All", "Technology", "Energy", "Consumer", "Manufacturing", "Food & Agri", "Mining", "Chemicals", "Fashion", "Transport", "Healthcare"];
@@ -11,10 +11,49 @@ export default function CompaniesTab() {
     const [aiData, setAiData] = useState({});
     const [loading, setLoading] = useState(null);
     const [sector, setSector] = useState("All");
+    const [liveCompanies, setLiveCompanies] = useState([]);
 
-    const filtered = COMPANIES.filter(c =>
-        (sector === "All" || c[1] === sector) &&
-        (q === "" || c[0].toLowerCase().includes(q.toLowerCase()) || c[1].toLowerCase().includes(q.toLowerCase()) || c[7].toLowerCase().includes(q.toLowerCase()))
+    // ─── FETCH NEON DATA ──────────────────────────────────────────────────────
+    const fetchNeonData = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/data`);
+            if (!res.ok) return;
+            const data = await res.json();
+
+            // Map Neon backend data to COMPANIES format
+            // [name, sector, country, co2, esg, employees, url, products, methodology, s1, s2, s3]
+            const mapped = data.map(c => [
+                c.name, c.sector || "N/A", c.country || "N/A", c.co2 || 0, c.esg || "N/A",
+                "N/A", c.url || "N/A", c.products || "N/A", c.methodology || "N/A",
+                c.s1 || 0, c.s2 || 0, c.s3 || 0
+            ]);
+            setLiveCompanies(mapped);
+        } catch (e) {
+            console.error("CompaniesTab Sync Error:", e);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchNeonData();
+        const inv = setInterval(fetchNeonData, 10000);
+        return () => clearInterval(inv);
+    }, []);
+
+    // Merge static and live data (preferring live/agent data)
+    const combined = [...liveCompanies];
+    const liveNames = new Set(liveCompanies.map(c => c[0].toLowerCase()));
+
+    COMPANIES.forEach(c => {
+        if (!liveNames.has(c[0].toLowerCase())) {
+            combined.push(c);
+        }
+    });
+
+    const filtered = combined.filter(c =>
+        (sector === "All" || c[1].toLowerCase().includes(sector.toLowerCase())) &&
+        (q === "" || c[0].toLowerCase().includes(q.toLowerCase()) ||
+            c[1].toLowerCase().includes(q.toLowerCase()) ||
+            c[7].toLowerCase().includes(q.toLowerCase()))
     );
 
     const fetchLive = async (company) => {

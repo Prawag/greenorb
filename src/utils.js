@@ -58,6 +58,8 @@ export const storage = {
     },
 };
 
+export const API_BASE = "http://localhost:5000/api";
+
 // Gemini API caller
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
