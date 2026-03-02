@@ -59,12 +59,37 @@ export const storage = {
 };
 
 export const API_BASE = "http://localhost:5000/api";
+export const OLLAMA_BASE = "http://localhost:11434/api";
+
+const PREFER_LOCAL_AI = true; // Set to true to use Llama 3.2 locally
 
 // Gemini API caller
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 export async function geminiGenerate(prompt, systemPrompt = "", stream = false) {
+    // If local preference is on, try Ollama first
+    if (PREFER_LOCAL_AI && !stream) {
+        try {
+            const ollamaRes = await ollamaGenerate(prompt, systemPrompt);
+            const ollamaData = await ollamaRes.json();
+            if (ollamaData.response) {
+                // Return a "Shim" that looks like a fetch response to keep existing code working
+                return {
+                    ok: true,
+                    json: async () => ({
+                        candidates: [{ content: { parts: [{ text: ollamaData.response }] } }]
+                    }),
+                    text: async () => JSON.stringify({
+                        candidates: [{ content: { parts: [{ text: ollamaData.response }] } }]
+                    })
+                };
+            }
+        } catch (e) {
+            console.warn("Local Ollama failed, falling back to Gemini:", e);
+        }
+    }
+
     const model = "gemini-2.0-flash";
     const url = stream
         ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`
@@ -88,6 +113,21 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
     }
 
     return res;
+}
+
+export async function ollamaGenerate(prompt, systemPrompt = "") {
+    const body = {
+        model: "llama3.2",
+        prompt: systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt,
+        stream: false,
+        options: { temperature: 0.7 }
+    };
+
+    return await fetch(`${OLLAMA_BASE}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
 }
 
 export async function geminiGeneratePDF(pdfBase64, prompt, systemPrompt = "", stream = false) {

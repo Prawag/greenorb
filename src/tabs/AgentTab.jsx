@@ -115,6 +115,7 @@ export default function AgentTab() {
     const [customPrompt, setCustomPrompt] = useState("");
     const [sectorIdx, setSectorIdx] = useState(0);
     const [searchesRemaining, setSearchesRemaining] = useState(0);
+    const [aiProvider, setAiProvider] = useState("Checking...");
     const stopRefs = useRef({ scout: false, analyst: false, risk: false, strategy: false });
     const feedRef = useRef(null);
 
@@ -166,7 +167,22 @@ export default function AgentTab() {
 
         // Polling for network collaboration
         const inv = setInterval(fetchAllData, 30000);
-        return () => clearInterval(inv);
+
+        // Check AI Provider
+        const checkAI = async () => {
+            try {
+                const res = await fetch("http://localhost:11434/api/tags");
+                if (res.ok) setAiProvider("Local Llama 3.2");
+                else setAiProvider("Cloud Gemini 2.0");
+            } catch { setAiProvider("Cloud Gemini 2.0"); }
+        };
+        checkAI();
+        const aiInv = setInterval(checkAI, 10000);
+
+        return () => {
+            clearInterval(inv);
+            clearInterval(aiInv);
+        };
     }, []);
 
     useEffect(() => {
@@ -493,6 +509,14 @@ export default function AgentTab() {
     return (
         <div style={{ padding: "16px 14px" }}>
             <SHd tag="Multi-Agent ESG Intelligence" title="Agent Command Center" sub="4 specialized AI agents that collaborate to discover, analyze, assess, and strategize ESG data" />
+
+            <Cd glass style={{ padding: "8px 12px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", borderLeft: `4px solid ${aiProvider.includes("Local") ? "var(--jade)" : "var(--pur)"}` }}>
+                <Rw style={{ gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: aiProvider.includes("Local") ? "var(--jade)" : "var(--pur)", boxShadow: `0 0 10px ${aiProvider.includes("Local") ? "var(--jade)" : "var(--pur)"}` }}></div>
+                    <M size={11} color="var(--tx2)" style={{ fontWeight: 600 }}>Active Intelligence:</M>
+                </Rw>
+                <Bdg color={aiProvider.includes("Local") ? "jade" : "pur"}>{aiProvider}</Bdg>
+            </Cd>
 
             {/* Agent Overview Grid */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
