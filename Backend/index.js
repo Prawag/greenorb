@@ -109,11 +109,11 @@ app.get('/api/data', async (req, res) => {
 
 // POST Scout data
 app.post('/api/scout', async (req, res) => {
-    const { name, sector, country, co2, esg, url, products, methodology, s1, s2, s3 } = req.body;
+    const { name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year } = req.body;
     try {
         await sql`
-            INSERT INTO companies (name, sector, country, co2, esg, url, products, methodology, s1, s2, s3)
-            VALUES (${name}, ${sector}, ${country}, ${co2}, ${esg}, ${url}, ${products}, ${methodology}, ${s1}, ${s2}, ${s3})
+            INSERT INTO companies (name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year)
+            VALUES (${name}, ${sector}, ${country}, ${co2}, ${esg}, ${url}, ${products}, ${methodology}, ${s1}, ${s2}, ${s3}, ${report_year})
             ON CONFLICT (name) DO UPDATE SET
                 sector = EXCLUDED.sector,
                 country = EXCLUDED.country,
@@ -125,6 +125,7 @@ app.post('/api/scout', async (req, res) => {
                 s1 = EXCLUDED.s1,
                 s2 = EXCLUDED.s2,
                 s3 = EXCLUDED.s3,
+                report_year = EXCLUDED.report_year,
                 ts = CURRENT_TIMESTAMP
         `;
         res.json({ success: true });

@@ -111,7 +111,7 @@ export default function CompaniesTab() {
             <M size={10} color="var(--tx3)" style={{ display: "block", marginBottom: 10 }}>{filtered.length} companies · Tap for ESG report + methodology</M>
 
             {filtered.map(c => {
-                const [cname, csec, ccountry, co2, esg, emp, url, products, methodology, s1, s2, s3] = c;
+                const [cname, csec, ccountry, co2, esg, emp, url, products, methodology, s1, s2, s3, report_year] = c;
                 const isOpen = sel === cname;
                 const isLoading = loading === cname;
                 const live = aiData[cname];
@@ -121,10 +121,15 @@ export default function CompaniesTab() {
                             <Rw style={{ justifyContent: "space-between", marginBottom: 6 }}>
                                 <div>
                                     <div style={{ fontFamily: "var(--disp)", fontWeight: 700, fontSize: 14, color: "var(--tx)", marginBottom: 4 }}>{cname}</div>
-                                    <Rw style={{ gap: 6, flexWrap: "wrap" }}>
+                                    <Rw style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                                        {report_year && (
+                                            <Bdg color={report_year >= 2024 ? "jade" : "red"}>
+                                                {report_year >= 2024 ? `✅ ${report_year} Report` : `⚠ Old Data (${report_year})`}
+                                            </Bdg>
+                                        )}
                                         <Bdg color={gradeToBdg(esg)}>{`ESG ${esg}`}</Bdg>
                                         <Bdg color="blu">{csec}</Bdg>
-                                        <M size={10} color="var(--tx3)">{ccountry} · {emp}k employees</M>
+                                        <M size={10} color="var(--tx3)">{ccountry}</M>
                                     </Rw>
                                 </div>
                                 <div style={{ textAlign: "right", flexShrink: 0 }}>
