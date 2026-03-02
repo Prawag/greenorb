@@ -69,24 +69,72 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 export async function geminiGenerate(prompt, systemPrompt = "", stream = false) {
     // If local preference is on, try Ollama first
-    if (PREFER_LOCAL_AI && !stream) {
+    if (PREFER_LOCAL_AI) {
         try {
-            const ollamaRes = await ollamaGenerate(prompt, systemPrompt);
-            const ollamaData = await ollamaRes.json();
-            if (ollamaData.response) {
-                // Return a "Shim" that looks like a fetch response to keep existing code working
-                return {
-                    ok: true,
-                    json: async () => ({
-                        candidates: [{ content: { parts: [{ text: ollamaData.response }] } }]
-                    }),
-                    text: async () => JSON.stringify({
-                        candidates: [{ content: { parts: [{ text: ollamaData.response }] } }]
-                    })
-                };
+            // Check if Ollama is responsive first
+            const check = await fetch(`${OLLAMA_BASE}/tags`).catch(() => null);
+            if (check && check.ok) {
+                if (!stream) {
+                    const ollamaRes = await ollamaGenerate(prompt, systemPrompt);
+                    const ollamaData = await ollamaRes.json();
+                    if (ollamaData.response) {
+                        return {
+                            ok: true,
+                            json: async () => ({
+                                candidates: [{ content: { parts: [{ text: ollamaData.response }] } }]
+                            }),
+                            text: async () => JSON.stringify({
+                                candidates: [{ content: { parts: [{ text: ollamaData.response }] } }]
+                            })
+                        };
+                    }
+                } else {
+                    // Streaming Intercept for Ollama
+                    const ollamaRes = await fetch(`${OLLAMA_BASE}/generate`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            model: "llama3.2",
+                            prompt: systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt,
+                            stream: true,
+                        }),
+                    });
+
+                    if (ollamaRes.ok) {
+                        // Create a "Shim" Stream that looks like Gemini's SSE
+                        const reader = ollamaRes.body.getReader();
+                        const encoder = new TextEncoder();
+                        const decoder = new TextDecoder();
+
+                        const shimStream = new ReadableStream({
+                            async start(controller) {
+                                while (true) {
+                                    const { done, value } = await reader.read();
+                                    if (done) {
+                                        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                                        controller.close();
+                                        break;
+                                    }
+                                    const chunk = decoder.decode(value);
+                                    try {
+                                        const json = JSON.parse(chunk);
+                                        const geminiFormat = {
+                                            candidates: [{ content: { parts: [{ text: json.response }] } }]
+                                        };
+                                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(geminiFormat)}\n\n`));
+                                    } catch (e) { }
+                                }
+                            }
+                        });
+
+                        return new Response(shimStream, {
+                            headers: { 'Content-Type': 'text/event-stream' }
+                        });
+                    }
+                }
             }
         } catch (e) {
-            console.warn("Local Ollama failed, falling back to Gemini:", e);
+            console.warn("Local Ollama failed or bypassed, falling back to Gemini:", e);
         }
     }
 
