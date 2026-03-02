@@ -71,8 +71,12 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
     // If local preference is on, try Ollama first
     if (PREFER_LOCAL_AI) {
         try {
-            // Check if Ollama is responsive first
-            const check = await fetch(`${OLLAMA_BASE}/tags`).catch(() => null);
+            // Check if Ollama is responsive (2s timeout to avoid hanging UI)
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2000);
+            const check = await fetch(`${OLLAMA_BASE}/tags`, { signal: controller.signal }).catch(() => null);
+            clearTimeout(timeout);
+
             if (check && check.ok) {
                 if (!stream) {
                     const ollamaRes = await ollamaGenerate(prompt, systemPrompt);
@@ -89,7 +93,7 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
                         };
                     }
                 } else {
-                    // Streaming Intercept for Ollama
+                    // Streaming mode: Ollama streams newline-delimited JSON
                     const ollamaRes = await fetch(`${OLLAMA_BASE}/generate`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -101,28 +105,49 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
                     });
 
                     if (ollamaRes.ok) {
-                        // Create a "Shim" Stream that looks like Gemini's SSE
+                        // Shim: Convert Ollama's newline-delimited JSON into Gemini-compatible SSE
                         const reader = ollamaRes.body.getReader();
                         const encoder = new TextEncoder();
                         const decoder = new TextDecoder();
+                        let buffer = "";
 
                         const shimStream = new ReadableStream({
                             async start(controller) {
-                                while (true) {
-                                    const { done, value } = await reader.read();
-                                    if (done) {
-                                        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                                        controller.close();
-                                        break;
+                                try {
+                                    while (true) {
+                                        const { done, value } = await reader.read();
+                                        if (done) {
+                                            // Flush remaining buffer
+                                            if (buffer.trim()) {
+                                                try {
+                                                    const json = JSON.parse(buffer.trim());
+                                                    if (json.response) {
+                                                        const fmt = { candidates: [{ content: { parts: [{ text: json.response }] } }] };
+                                                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(fmt)}\n\n`));
+                                                    }
+                                                } catch { }
+                                            }
+                                            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                                            controller.close();
+                                            break;
+                                        }
+                                        // Ollama streams newline-delimited JSON objects
+                                        buffer += decoder.decode(value, { stream: true });
+                                        const lines = buffer.split("\n");
+                                        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+                                        for (const line of lines) {
+                                            if (!line.trim()) continue;
+                                            try {
+                                                const json = JSON.parse(line);
+                                                if (json.response) {
+                                                    const fmt = { candidates: [{ content: { parts: [{ text: json.response }] } }] };
+                                                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(fmt)}\n\n`));
+                                                }
+                                            } catch { }
+                                        }
                                     }
-                                    const chunk = decoder.decode(value);
-                                    try {
-                                        const json = JSON.parse(chunk);
-                                        const geminiFormat = {
-                                            candidates: [{ content: { parts: [{ text: json.response }] } }]
-                                        };
-                                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(geminiFormat)}\n\n`));
-                                    } catch (e) { }
+                                } catch (e) {
+                                    controller.error(e);
                                 }
                             }
                         });
@@ -134,7 +159,7 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
                 }
             }
         } catch (e) {
-            console.warn("Local Ollama failed or bypassed, falling back to Gemini:", e);
+            console.warn("Local Ollama unavailable, falling back to Gemini:", e.message);
         }
     }
 
