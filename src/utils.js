@@ -74,7 +74,10 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
             // Check if Ollama is responsive (2s timeout to avoid hanging UI)
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 2000);
-            const check = await fetch(`${OLLAMA_BASE}/tags`, { signal: controller.signal }).catch(() => null);
+            const check = await fetch(`${OLLAMA_BASE}/tags`, { signal: controller.signal }).catch((err) => {
+                console.warn("Ollama Health Check Failed (CORS or Server Down?):", err);
+                return null;
+            });
             clearTimeout(timeout);
 
             if (check && check.ok) {
@@ -82,6 +85,7 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
                     const ollamaRes = await ollamaGenerate(prompt, systemPrompt);
                     const ollamaData = await ollamaRes.json();
                     if (ollamaData.response) {
+                        console.log("Using Local AI (Non-Streaming)");
                         return {
                             ok: true,
                             json: async () => ({
@@ -94,6 +98,7 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
                     }
                 } else {
                     // Streaming mode: Ollama streams newline-delimited JSON
+                    console.log("Attempting Local AI Streaming...");
                     const ollamaRes = await fetch(`${OLLAMA_BASE}/generate`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -102,9 +107,13 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
                             prompt: systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt,
                             stream: true,
                         }),
+                    }).catch(err => {
+                        console.error("Local AI Stream Fetch Error:", err);
+                        throw err;
                     });
 
                     if (ollamaRes.ok) {
+                        console.log("Local AI Stream established.");
                         // Shim: Convert Ollama's newline-delimited JSON into Gemini-compatible SSE
                         const reader = ollamaRes.body.getReader();
                         const encoder = new TextEncoder();
@@ -147,6 +156,7 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
                                         }
                                     }
                                 } catch (e) {
+                                    console.error("Shim Stream Error:", e);
                                     controller.error(e);
                                 }
                             }
@@ -155,11 +165,15 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
                         return new Response(shimStream, {
                             headers: { 'Content-Type': 'text/event-stream' }
                         });
+                    } else {
+                        console.warn("Ollama /generate returned non-ok status:", ollamaRes.status);
                     }
                 }
+            } else if (check) {
+                console.warn("Ollama health check returned non-ok:", check.status);
             }
         } catch (e) {
-            console.warn("Local Ollama unavailable, falling back to Gemini:", e.message);
+            console.warn("Local Ollama unavailable or errored, falling back to Gemini:", e.message);
         }
     }
 
@@ -204,6 +218,10 @@ export async function ollamaGenerate(prompt, systemPrompt = "") {
 }
 
 export async function geminiGeneratePDF(pdfBase64, prompt, systemPrompt = "", stream = false) {
+    if (PREFER_LOCAL_AI) {
+        console.log("PDF Scan requested. Redirecting to Local AI (Note: Text-only model will not see PDF content).");
+        return await geminiGenerate(`[PDF ATTACHED] ${prompt}`, systemPrompt, stream);
+    }
     const model = "gemini-2.0-flash";
     const url = stream
         ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`
@@ -262,6 +280,10 @@ export async function* parseGeminiStream(response) {
 
 // Gemini image analysis (for mobile photo uploads)
 export async function geminiGenerateImage(imageBase64, mimeType, prompt, systemPrompt = "", stream = false) {
+    if (PREFER_LOCAL_AI) {
+        console.log("Image Scan requested. Redirecting to Local AI (Note: Text-only model will not see Image content).");
+        return await geminiGenerate(`[IMAGE ATTACHED] ${prompt}`, systemPrompt, stream);
+    }
     const model = "gemini-2.0-flash";
     const url = stream
         ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`
