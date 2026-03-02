@@ -37,30 +37,30 @@ def extract_text_from_pdf(pdf_path, max_pages=30):
     # Return at most 20,000 characters to ensure it fits in Llama's context window
     return text[:20000]
 
-ANALYZE_PROMPT = """You are a highly precise corporate data extraction AI. Read the following text extracted from an ESG or Sustainability report.
-Your job is to identify the company who published this report and pull exact factual figures.
-IMPORTANT RULES:
-1. DO NOT GUESS OR ESTIMATE ANY NUMBERS. If a value is not explicitly stated in the text, return "Unknown" or null.
-2. Return ONLY a valid JSON object. No markdown formatting or explanations.
-
-Required JSON format:
-{
-  "company_name": "The explicitly stated name of the company publishing the report.",
-  "report_year": "The year this report covers (e.g., 2024 or 2025). Extract from title or introductory text. Return as an integer. If not found, return null.",
-  "co2_estimate": "The explicit, actual reported annual CO2 or GHG emissions in metric tons. Return as a number. If not explicitly found, return null.",
-  "esg_grade": "Explicitly reported ESG grade/rating if stated. Otherwise return \\"Unknown\\"",
-  "products": "A comma-separated list of the company's main products or services based on the text.",
-  "net_zero_target": "The explicitly stated Net zero target year. If not stated, return \\"Unknown\\"",
-  "sustainability_summary": "One sentence summarizing their primary sustainability milestone mentioned in the text."
-}
-
-Report Text:
-{text}
-"""
+def build_analyze_prompt(text):
+    return (
+        'You are a highly precise corporate data extraction AI. Read the following text extracted from an ESG or Sustainability report.\n'
+        'Your job is to identify the company who published this report and pull exact factual figures.\n'
+        'IMPORTANT RULES:\n'
+        '1. DO NOT GUESS OR ESTIMATE ANY NUMBERS. If a value is not explicitly stated in the text, return "Unknown" or null.\n'
+        '2. Return ONLY a valid JSON object. No markdown formatting or explanations.\n\n'
+        'Required JSON format:\n'
+        '{\n'
+        '  "company_name": "The explicitly stated name of the company publishing the report.",\n'
+        '  "report_year": "The year this report covers (e.g., 2024 or 2025). Extract from title or introductory text. Return as an integer. If not found, return null.",\n'
+        '  "co2_estimate": "The explicit, actual reported annual CO2 or GHG emissions in metric tons. Return as a number. If not explicitly found, return null.",\n'
+        '  "esg_grade": "Explicitly reported ESG grade/rating if stated. Otherwise return \\"Unknown\\"",\n'
+        '  "products": "A comma-separated list of the company\'s main products or services based on the text.",\n'
+        '  "net_zero_target": "The explicitly stated Net zero target year. If not stated, return \\"Unknown\\"",\n'
+        '  "sustainability_summary": "One sentence summarizing their primary sustainability milestone mentioned in the text."\n'
+        '}\n\n'
+        'Report Text:\n'
+        + text
+    )
 
 def analyze_with_llama(text, filename):
     """Use Llama 3.2 to extract the factual data from the report text."""
-    prompt = ANALYZE_PROMPT.format(text=text)
+    prompt = build_analyze_prompt(text)
 
     body = {
         "model": "llama3.2",
