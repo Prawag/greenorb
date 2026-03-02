@@ -1,4 +1,4 @@
-"""
+"""  """"""
 GreenOrb Company Enrichment Pipeline
 =====================================
 Reads the Forbes Top 2000 PDF, extracts company names + metadata,
@@ -75,21 +75,35 @@ def parse_forbes_pdf(filepath):
 
 # ─── STEP 2: Use Crawl4AI to find sustainability info ────────────────────────
 
-def crawl_company(company_name):
-    """Use the local Crawl4AI endpoint to scrape sustainability data."""
-    search_query = f"{company_name} sustainability report ESG products services"
-    # Use Google search URL as the crawl target
-    search_url = f"https://www.google.com/search?q={requests.utils.quote(search_query)}"
-
+def get_wikipedia_summary(company_name):
+    """Fetch the Wikipedia summary for the company to provide context to the LLM."""
     try:
-        res = requests.post(f"{API_BASE}/crawl", json={"url": search_url}, timeout=60)
+        query = requests.utils.quote(str(company_name))
+        headers = {
+            "User-Agent": "GreenOrbEnrichment/1.0 (https://github.com/Prawag/greenorb; student@example.com) python-requests/2.x"
+        }
+        
+        # Ask Wikipedia directly for the article extract based on the name, following redirects
+        extract_url = f"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&redirects=1&titles={query}&format=json"
+        
+        res = requests.get(extract_url, headers=headers, timeout=10)
         if res.status_code == 200:
             data = res.json()
-            if data.get("success") and data.get("markdown"):
-                # Truncate to 4000 chars to fit in Llama context
-                return data["markdown"][:4000]
+             # Print any redirects that happened
+            if "redirects" in data.get("query", {}):
+                print(f"    [Wiki] Redirected {data['query']['redirects'][0]['from']} -> {data['query']['redirects'][0]['to']}")
+                
+            pages = data.get("query", {}).get("pages", {})
+            for page_id, page_data in pages.items():
+                if str(page_id) != "-1": # -1 means page missing
+                    extract = page_data.get("extract", "")
+                    if extract:
+                        return extract[:4000] # Truncate for LLM window
+            print(f"    [Wiki] Page not found for '{company_name}'")
+        else:
+             print(f"    [Wiki] Search API returned {res.status_code}")
     except Exception as e:
-        print(f"    Crawl failed for {company_name}: {e}")
+        print(f"    [Wiki] Fetch failed for {company_name}: {e}")
 
     return None
 
@@ -99,18 +113,18 @@ def build_enrich_prompt(company, web_context):
     """Build the enrichment prompt for Llama 3.2."""
     return (
         'You are a business intelligence AI. Given the following information about a company, extract the data requested.\n'
-        'Return ONLY a valid JSON object (no markdown fences). If you don\'t know a value, use "Unknown".\n\n'
+        'Return ONLY a valid JSON object (no markdown fences). Do your best to estimate values if they are not explicitly clear.\n\n'
         'Required JSON format:\n'
         '{"products": "Comma-separated list of main products or services", '
-        '"co2_estimate": "Estimated annual CO2 emissions in metric tons, or Unknown", '
-        '"esg_grade": "ESG grade if known (A+ to F), or Unknown", '
-        '"net_zero_target": "Net zero target year if known, or Unknown", '
-        '"sustainability_summary": "One sentence about their sustainability efforts"}\n\n'
+        '"co2_estimate": "Estimated annual CO2 emissions in metric tons (e.g., 5000000). Use your industry knowledge to estimate based on their sector and market cap if not explicitly found.", '
+        '"esg_grade": "Estimate an ESG grade (A+ to F) based on their industry reputation and Wikipedia context.", '
+        '"net_zero_target": "Net zero target year (e.g., 2050), or your best guess.", '
+        '"sustainability_summary": "One sentence summarizing their core sustainability focus or environmental impact based on their industry."}\n\n'
         'Company: ' + company["name"] + '\n'
         'Industry: ' + company["sector"] + '\n'
         'Country: ' + company["country"] + '\n'
         'Market Cap: ' + company["market_cap"] + '\n\n'
-        'Additional context from web search:\n' + web_context
+        'Additional context from Wikipedia:\n' + web_context
     )
 
 def enrich_with_llama(company, web_context="No web data available."):
@@ -232,13 +246,13 @@ def main():
         # Step 2: Crawl (optional)
         web_context = "No web data available. Use your general knowledge."
         if not args.skip_crawl:
-            print(f"    Crawling web for sustainability data...")
-            crawled = crawl_company(company["name"])
+            print(f"    Fetching Wikipedia summary for context...")
+            crawled = get_wikipedia_summary(company["name"])
             if crawled:
                 web_context = crawled
-                print(f"    Got {len(web_context)} chars of web data.")
+                print(f"    Got {len(web_context)} chars of Wikipedia data.")
             else:
-                print(f"    No web data found, using LLM knowledge only.")
+                print(f"    No Wikipedia data found, using LLM knowledge only.")
 
         # Step 3: Enrich with Llama
         print(f"    Extracting products/services with Llama 3.2...")
