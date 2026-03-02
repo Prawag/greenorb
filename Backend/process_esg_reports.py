@@ -140,6 +140,14 @@ def save_to_db(data, filename):
     }
 
     try:
+        # 3. Save to Local JSON Result File
+        results_dir = os.path.join(RAW_DATA_DIR, "JSON_Results")
+        os.makedirs(results_dir, exist_ok=True)
+        json_filename = f"{company_name.replace(' ', '_')}_{report_year or 'Unknown'}.json"
+        with open(os.path.join(results_dir, json_filename), "w") as f:
+            json.dump(payload, f, indent=2)
+        print(f"    📂 Saved result to JSON_Results/{json_filename}")
+
         res = requests.post(f"{API_BASE}/scout", json=payload, timeout=10)
         if res.status_code == 200:
              print(f"    ✅ Saved {company_name} (Year: {report_year}) to DB!")

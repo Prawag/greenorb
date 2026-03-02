@@ -25,7 +25,7 @@ export default function CompaniesTab() {
             const mapped = data.map(c => [
                 c.name, c.sector || "N/A", c.country || "N/A", c.co2 || 0, c.esg || "N/A",
                 "N/A", c.url || "N/A", c.products || "N/A", c.methodology || "N/A",
-                c.s1 || 0, c.s2 || 0, c.s3 || 0
+                c.s1 || 0, c.s2 || 0, c.s3 || 0, c.report_year
             ]);
             setLiveCompanies(mapped);
         } catch (e) {
