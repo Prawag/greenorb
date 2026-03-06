@@ -1,0 +1,72 @@
+[
+  {
+    "name": "Otis Worldwide",
+    "sector": "Construction",
+    "country": "United States",
+    "products": "elevators, escalators, moving walkways",
+    "report_year": null
+  },
+  {
+    "name": "Live Nation Entertainment",
+    "sector": "Media",
+    "country": "United States",
+    "products": "live events, ticket sales, entertainment venues, music concerts, artist management",
+    "report_year": null
+  },
+  {
+    "name": "Korea Shipbuilding & Offshore Engineering",
+    "sector": "Capital Goods",
+    "country": "South Korea",
+    "products": "Shipbuilding and offshore engineering services",
+    "report_year": null
+  },
+  {
+    "name": "China Reinsurance Group",
+    "sector": "Insurance",
+    "country": "China",
+    "products": "Insurance",
+    "report_year": null
+  },
+  {
+    "name": "Profile Spotlight",
+    "sector": "Sweden",
+    "country": "H&M - Hennes & Mauritz",
+    "products": "Stage lighting instruments",
+    "report_year": null
+  },
+  {
+    "name": "Mediobanca",
+    "sector": "Banking",
+    "country": "Italy",
+    "products": "Wealth Management, Corporate & Investment Banking, Consumer Finance and Insurance",
+    "report_year": null
+  },
+  {
+    "name": "Anhui Conch Cement",
+    "sector": "Construction",
+    "country": "China",
+    "products": "cement and clinker",
+    "report_year": null
+  },
+  {
+    "name": "Ashtead Group",
+    "sector": "Business Services & Supplies",
+    "country": "United Kingdom",
+    "products": "Industrial equipment rental",
+    "report_year": null
+  },
+  {
+    "name": "Mashreq Bank",
+    "sector": "Banking",
+    "country": "United Arab Emirates",
+    "products": "Personal Banking, Corporate Banking, Investment Banking",
+    "report_year": null
+  },
+  {
+    "name": "Alinma Bank",
+    "sector": "Banking",
+    "country": "Saudi Arabia",
+    "products": "Banking services",
+    "report_year": null
+  }
+]
