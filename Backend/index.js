@@ -24,6 +24,9 @@ app.use(express.json());
 // ─── INITIALIZE DATABASE ─────────────────────────────────────────────────────
 const initDb = async () => {
     try {
+        // Enable pgvector extension
+        await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+
         await sql`
             CREATE TABLE IF NOT EXISTS companies (
                 name TEXT PRIMARY KEY,
@@ -37,9 +40,24 @@ const initDb = async () => {
                 s1 NUMERIC,
                 s2 NUMERIC,
                 s3 NUMERIC,
+                report_year INTEGER,
                 ts TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
         `;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS embeddings (
+                id SERIAL PRIMARY KEY,
+                company_name TEXT REFERENCES companies(name) ON DELETE CASCADE,
+                content TEXT,
+                embedding VECTOR(768),
+                page_number INTEGER,
+                report_year INTEGER,
+                metadata JSONB,
+                ts TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
+
         await sql`
             CREATE TABLE IF NOT EXISTS analysis (
                 company TEXT PRIMARY KEY REFERENCES companies(name) ON DELETE CASCADE,
@@ -196,6 +214,98 @@ app.post('/api/strategy', async (req, res) => {
         `;
         res.json({ success: true });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Vector Embeddings
+app.post('/api/embeddings', async (req, res) => {
+    const { company_name, content, embedding, page_number, report_year, metadata } = req.body;
+    try {
+        // Format embedding as [0.1, 0.2, ...] string for pgvector
+        const vectorStr = `[${embedding.join(',')}]`;
+        await sql`
+            INSERT INTO embeddings (company_name, content, embedding, page_number, report_year, metadata)
+            VALUES (${company_name}, ${content}, ${vectorStr}, ${page_number}, ${report_year}, ${JSON.stringify(metadata)})
+        `;
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Vector save error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Ask a question about a company (RAG)
+app.post('/api/ask', async (req, res) => {
+    const { company, question } = req.body;
+    if (!company || !question) return res.status(400).json({ error: "Company and question are required" });
+
+    try {
+        // 1. Generate embedding for the question
+        const embedRes = await fetch("http://localhost:11434/api/embeddings", {
+            method: 'POST',
+            body: JSON.stringify({ model: "nomic-embed-text", prompt: question })
+        });
+        const { embedding } = await embedRes.json();
+        const vectorStr = `[${embedding.join(',')}]`;
+
+        // 2. Perform Vector Similarity Search (Semantic Search)
+        // We find the top 5 chunks closest to the question
+        const chunks = await sql`
+            SELECT content, page_number, report_year
+            FROM embeddings
+            WHERE company_name = ${company}
+            ORDER BY embedding <=> ${vectorStr}::vector
+            LIMIT 5
+        `;
+
+        if (chunks.length === 0) {
+            return res.json({
+                answer: `I don't have enough specific data indexed for ${company} to answer that. Try running the discovery agent first.`
+            });
+        }
+
+        // 3. Build context for Gemini/Llama
+        const context = chunks.map(c => `[Page ${c.page_number}, ${c.report_year} Report]: ${c.content}`).join("\n\n");
+
+        // 4. Generate answer with Gemini (or local LLM)
+        const prompt = `
+            You are "GreenOrb Intelligence", an ESG analyst. Use the following context from ${company}'s official reports to answer the user's question.
+            Be extremely precise and factual. Cite the page numbers if available.
+            If the answer is not in the context, say "Based on the official reports I have, I cannot find that specific information."
+
+            CONTEXT:
+            ${context}
+
+            USER QUESTION:
+            ${question}
+        `;
+
+        // Using Gemini for higher quality RAG answers (or fallback to local Llama)
+        const geminiRes = await fetch("http://localhost:5000/api/analyze", { // Shortcut to existing logic
+            method: 'POST',
+            body: JSON.stringify({ company, prompt })
+        });
+        // Note: For simplicity, we'll implement a clean fetch here or reuse existing LLM logic
+        // For this implementation, let's assume a clean call to Ollama or Gemini
+
+        const ollamaRes = await fetch("http://localhost:11434/api/generate", {
+            method: 'POST',
+            body: JSON.stringify({
+                model: "llama3.2",
+                prompt: prompt,
+                stream: false
+            })
+        });
+        const { response } = await ollamaRes.json();
+
+        res.json({
+            answer: response,
+            sources: chunks.map(c => ({ page: c.page_number, year: c.report_year }))
+        });
+
+    } catch (err) {
+        console.error("RAG Error:", err);
         res.status(500).json({ error: err.message });
     }
 });

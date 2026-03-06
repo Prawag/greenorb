@@ -373,10 +373,80 @@ def save_to_db(data, filename):
     return False
 
 
+# ─── LAYER 5: RAG INDEXING (Persistent Memory) ──────────────────────────────
+
+def chunk_text(text, chunk_size=1000, overlap=100):
+    """Split text into manageable chunks for vector embedding."""
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        start += (chunk_size - overlap)
+    return chunks
+
+def generate_embedding(text):
+    """Get vector embedding for a chunk of text using Ollama's nomic-embed-text."""
+    body = {
+        "model": "nomic-embed-text",
+        "prompt": text
+    }
+    try:
+        response = requests.post("http://localhost:11434/api/embeddings", json=body, timeout=60)
+        if response.status_code == 200:
+            return response.json().get("embedding")
+    except Exception as e:
+        print(f"    ❌ Embedding error: {e}")
+    return None
+
+def index_pdf_for_rag(filepath, company_name, report_year):
+    """Chunk the PDF, embed each chunk, and save to the database for RAG."""
+    print(f"    🧠 Indexing report for Corporate Intelligence (RAG)...")
+    
+    doc = fitz.open(filepath)
+    all_chunks = []
+    
+    for i in range(len(doc)):
+        page_text = doc[i].get_text()
+        if not page_text.strip():
+            continue
+            
+        chunks = chunk_text(page_text)
+        for chunk in chunks:
+            all_chunks.append({
+                "content": chunk,
+                "page": i + 1
+            })
+
+    print(f"    🔢 Generating embeddings for {len(all_chunks)} chunks...")
+    indexed = 0
+    for item in all_chunks:
+        embedding = generate_embedding(item["content"])
+        if embedding:
+            # Pushing directly to DB via a new endpoint /api/embeddings
+            payload = {
+                "company_name": company_name,
+                "content": item["content"],
+                "embedding": embedding,
+                "page_number": item["page"],
+                "report_year": report_year,
+                "metadata": {"source": os.path.basename(filepath)}
+            }
+            try:
+                res = requests.post(f"{API_BASE}/embeddings", json=payload, timeout=10)
+                if res.status_code == 200:
+                    indexed += 1
+            except:
+                pass
+    
+    print(f"    ✅ RAG indexing complete: {indexed}/{len(all_chunks)} chunks stored.")
+    return indexed > 0
+
+
 # ─── FULL PIPELINE ──────────────────────────────────────────────────────────
 
 def process_single_pdf(filepath):
-    """Extract text → Llama 3.2 → Save to DB for a single PDF."""
+    """Extract text → Llama 3.2 → Save to DB → RAG Indexing."""
     filename = os.path.basename(filepath)
 
     print(f"    📖 Extracting text from PDF...")
@@ -389,12 +459,18 @@ def process_single_pdf(filepath):
     data = analyze_with_llama(text, filename)
 
     if data:
-        print(f"    Company: {data.get('company_name')}")
-        print(f"    Year: {data.get('report_year')}")
+        company_name = data.get('company_name')
+        report_year = data.get('report_year')
+        
+        print(f"    Company: {company_name}")
+        print(f"    Year: {report_year}")
         print(f"    CO2: {data.get('co2_estimate')}")
         print(f"    ESG: {data.get('esg_grade')}")
 
         if save_to_db(data, filename):
+            # NEW: RAG Indexing
+            index_pdf_for_rag(filepath, company_name, report_year)
+            
             # Move to Processed
             import shutil
             target = os.path.join(PROCESSED_DIR, filename)
