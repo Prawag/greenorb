@@ -1,0 +1,14 @@
+{
+  "name": "Amazon",
+  "sector": "Retail/Wholesale",
+  "country": "United States",
+  "co2": 50615000.0,
+  "esg": "Unknown",
+  "url": "2024 - Amazon - ESG Report.pdf",
+  "products": "AWS, Devices, Amazon Fresh, Whole Foods Market, Amazon Private Brands, Stores, and Twitch",
+  "methodology": "Amazon is committed to returning more water to communities in India than it uses in all direct operations by 2027",
+  "s1": 45000.0,
+  "s2": 1200000.0,
+  "s3": 50615000.0,
+  "report_year": 2024
+}

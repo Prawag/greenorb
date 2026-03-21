@@ -5,7 +5,8 @@ import time
 import requests
 import fitz  # PyMuPDF
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 API_URL = "http://localhost:5000/api/scout"
 RAW_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "RawData")
 
@@ -51,17 +52,16 @@ def chunk_text(text, chunk_size=3000):
 
 def extract_companies(chunk):
     body = {
-        "model": "llama3.2",
-        "prompt": PROMPT + chunk,
-        "stream": False,
-        "options": {"temperature": 0.1}
+        "contents": [{"role": "user", "parts": [{"text": PROMPT + chunk}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048}
     }
     
     try:
-        response = requests.post(OLLAMA_URL, json=body, timeout=120)
+        response = requests.post(GEMINI_URL, json=body, timeout=120)
         if response.status_code == 200:
-            result = response.json().get("response", "")
-            # Clean up potential markdown formatting from Ollama
+            result_data = response.json()
+            result = result_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            # Clean up potential markdown formatting
             result = result.strip()
             if result.startswith("```json"):
                 result = result[7:]
@@ -75,9 +75,9 @@ def extract_companies(chunk):
                 if isinstance(companies, list):
                     return companies
             except json.JSONDecodeError:
-                print(f"⚠️ Failed to parse JSON from Ollama. Output was: {result[:100]}...")
+                print(f"⚠️ Failed to parse JSON from Gemini. Output was: {result[:100]}...")
     except Exception as e:
-        print(f"❌ Error communicating with Ollama: {e}")
+        print(f"❌ Error communicating with Gemini: {e}")
     return []
 
 def save_to_db(company):

@@ -23,7 +23,8 @@ import argparse
 import requests
 import fitz  # PyMuPDF
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 API_BASE = "http://localhost:5000/api"
 RAW_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "RawData")
 FORBES_PDF = os.path.join(RAW_DATA_DIR, "Forbes Top 2000 - 2025.pdf")
@@ -132,16 +133,15 @@ def enrich_with_llama(company, web_context="No web data available."):
     prompt = build_enrich_prompt(company, web_context)
 
     body = {
-        "model": "llama3.2",
-        "prompt": prompt,
-        "stream": False,
-        "options": {"temperature": 0.1, "num_ctx": 8192}
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048}
     }
 
     try:
-        response = requests.post(OLLAMA_URL, json=body, timeout=120)
+        response = requests.post(GEMINI_URL, json=body, timeout=120)
         if response.status_code == 200:
-            result = response.json().get("response", "")
+            result_data = response.json()
+            result = result_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
             result = result.strip()
             # Clean markdown code fences if present
             if result.startswith("```json"):

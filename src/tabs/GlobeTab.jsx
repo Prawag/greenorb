@@ -1,304 +1,387 @@
-import React, { useState, useRef, useEffect } from "react";
-import * as THREE from "three";
-import { COUNTRIES } from "../data/countries";
-import { COUNTRY_BORDERS } from "../data/countries-geo";
-import { emissToHex, emissToCSS, gradeToBdg } from "../utils";
-import { M, Bdg, Dot, Cd, Rw, PBar } from "../components/primitives";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import Globe from 'react-globe.gl';
+import * as THREE from 'three';
+import { LAYERS, LAYER_IDS, DEFAULT_ON } from '../config/layers.config';
+import { useCompanies, useCountries, useNewsVelocity, useClimateTrace, useAgentStatus } from '../hooks/useGlobeData';
+import { Bdg, M, Rw } from '../components/primitives';
+import './GlobeTab.css';
 
-function latLngToXYZ(lat, lng, r) {
-    const phi = (90 - lat) * Math.PI / 180;
-    const theta = (lng + 180) * Math.PI / 180;
-    return new THREE.Vector3(
-        -r * Math.sin(phi) * Math.cos(theta),
-        r * Math.cos(phi),
-        r * Math.sin(phi) * Math.sin(theta)
-    );
+// ─── Debounce utility ─────────────────────────────────────────────────────────
+function debounce(fn, ms) {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+// ─── Time-ago helper ──────────────────────────────────────────────────────────
+function timeAgo(isoStr) {
+    if (!isoStr) return 'never';
+    const s = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
+    if (s < 60) return `${s}s ago`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    return `${Math.floor(s / 86400)}d ago`;
 }
 
 export default function GlobeTab() {
-    const mountRef = useRef(null);
-    const [selIdx, setSelIdx] = useState(null);
-    const [view, setView] = useState("globe");
+    const globeRef = useRef();
+    const [width, setWidth] = useState(window.innerWidth > 1100 ? 1100 : window.innerWidth);
+    const [selectedCompany, setSelectedCompany] = useState(null);
 
+    // Layer toggle state
+    const [activeLayers, setActiveLayers] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const layersParam = params.get('layers');
+        return layersParam ? layersParam.split(',').filter(l => LAYER_IDS.includes(l)) : [...DEFAULT_ON];
+    });
+    const toggleLayer = (id) => setActiveLayers(prev =>
+        prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]
+    );
+    const isActive = (id) => activeLayers.includes(id);
+
+    // Data hooks — each fetches independently
+    const companies    = useCompanies();
+    const countries    = useCountries();
+    const newsVelocity = useNewsVelocity();
+    const climateTrace = useClimateTrace();
+    const agentStatus  = useAgentStatus();
+
+    // Helper: get layer state by ID
+    const getLayerState = (id) => {
+        const map = { companies, countries, newsVelocity, climateTrace };
+        return map[id] || { loading: false, stale: false, error: null, cached_at: null, data: [] };
+    };
+
+    // Resize
     useEffect(() => {
-        const el = mountRef.current;
-        if (!el) return;
-        const W = el.clientWidth, H = el.clientHeight;
-
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
-        camera.position.z = 3.8;
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(W, H);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setClearColor(0xf8faf9, 0);
-        el.appendChild(renderer.domElement);
-
-        scene.add(new THREE.AmbientLight(0x778877, 2.5));
-        const dLight = new THREE.DirectionalLight(0x10b981, 0.8);
-        dLight.position.set(4, 3, 4);
-        scene.add(dLight);
-        const pLight = new THREE.PointLight(0x10b981, 1.0, 12);
-        pLight.position.set(-3, 1, 2);
-        scene.add(pLight);
-
-        const group = new THREE.Group();
-        scene.add(group);
-
-        // Globe sphere
-        const globeGeo = new THREE.SphereGeometry(1.5, 64, 64);
-        const globeMat = new THREE.MeshPhongMaterial({ color: 0x1a3a2a, shininess: 40, specular: 0x10b981 });
-        group.add(new THREE.Mesh(globeGeo, globeMat));
-
-        // Atmosphere glow
-        const atmosGeo = new THREE.SphereGeometry(1.62, 32, 32);
-        const atmosMat = new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.08, side: THREE.BackSide });
-        group.add(new THREE.Mesh(atmosGeo, atmosMat));
-
-        // Latitude/longitude grid lines
-        for (let lat = -80; lat <= 80; lat += 20) {
-            const pts = [];
-            for (let lng = 0; lng <= 360; lng += 3) pts.push(latLngToXYZ(lat, lng - 180, 1.502));
-            const g = new THREE.BufferGeometry().setFromPoints(pts);
-            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x2a5a3a, transparent: true, opacity: 0.3 })));
-        }
-        for (let lng = 0; lng < 360; lng += 20) {
-            const pts = [];
-            for (let lat = -90; lat <= 90; lat += 3) pts.push(latLngToXYZ(lat, lng - 180, 1.502));
-            const g = new THREE.BufferGeometry().setFromPoints(pts);
-            group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x2a5a3a, transparent: true, opacity: 0.3 })));
-        }
-
-        // *** COUNTRY BORDERS (green outlines) ***
-        const borderMat = new THREE.LineBasicMaterial({
-            color: 0x34d399,
-            transparent: true,
-            opacity: 0.55,
-        });
-        COUNTRY_BORDERS.forEach(ring => {
-            if (ring.length < 3) return;
-            const pts = ring.map(([lng, lat]) => latLngToXYZ(lat, lng, 1.505));
-            const geo = new THREE.BufferGeometry().setFromPoints(pts);
-            group.add(new THREE.Line(geo, borderMat));
-        });
-
-        // Country data markers
-        const markerMeshes = [];
-        COUNTRIES.forEach((c, i) => {
-            const [, lat, lng, mt] = c;
-            const pos = latLngToXYZ(lat, lng, 1.56);
-            const sz = Math.max(0.022, Math.min(0.055, mt / 60000 + 0.022));
-            const color = emissToHex(mt);
-            const geo = new THREE.SphereGeometry(sz, 8, 8);
-            const mat = new THREE.MeshBasicMaterial({ color });
-            const mesh = new THREE.Mesh(geo, mat);
-            mesh.position.copy(pos);
-            mesh.userData = { idx: i };
-            group.add(mesh);
-            markerMeshes.push(mesh);
-
-            const rGeo = new THREE.RingGeometry(sz * 1.6, sz * 2.2, 16);
-            const rMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
-            const ring = new THREE.Mesh(rGeo, rMat);
-            ring.position.copy(pos);
-            ring.lookAt(new THREE.Vector3(0, 0, 0));
-            group.add(ring);
-        });
-
-        // Interaction
-        let dragging = false, moved = 0, autoRot = true;
-        let px = 0, py = 0;
-        const raycaster = new THREE.Raycaster();
-
-        const onDown = (x, y) => { dragging = true; moved = 0; px = x; py = y; autoRot = false; };
-        const onMove = (x, y) => {
-            if (!dragging) return;
-            const dx = x - px, dy = y - py;
-            moved += Math.abs(dx) + Math.abs(dy);
-            group.rotation.y += dx * 0.007;
-            group.rotation.x = Math.max(-1.2, Math.min(1.2, group.rotation.x + dy * 0.007));
-            px = x; py = y;
-        };
-        const onUp = (cx, cy) => {
-            if (moved < 6) {
-                const rect = renderer.domElement.getBoundingClientRect();
-                const mouse = new THREE.Vector2(
-                    ((cx - rect.left) / rect.width) * 2 - 1,
-                    -((cy - rect.top) / rect.height) * 2 + 1
-                );
-                raycaster.setFromCamera(mouse, camera);
-                const hits = raycaster.intersectObjects(markerMeshes);
-                if (hits.length > 0) setSelIdx(hits[0].object.userData.idx);
-            }
-            dragging = false;
-            setTimeout(() => { autoRot = true; }, 4000);
-        };
-
-        const canvas = renderer.domElement;
-        const mouseDown = e => onDown(e.clientX, e.clientY);
-        const mouseMove = e => onMove(e.clientX, e.clientY);
-        const mouseUp = e => onUp(e.clientX, e.clientY);
-        const touchStart = e => { e.preventDefault(); const t = e.touches[0]; onDown(t.clientX, t.clientY); };
-        const touchMove = e => { e.preventDefault(); const t = e.touches[0]; onMove(t.clientX, t.clientY); };
-        const touchEnd = e => { e.preventDefault(); const t = e.changedTouches[0]; onUp(t.clientX, t.clientY); };
-
-        canvas.addEventListener("mousedown", mouseDown);
-        window.addEventListener("mousemove", mouseMove);
-        window.addEventListener("mouseup", mouseUp);
-        canvas.addEventListener("touchstart", touchStart, { passive: false });
-        canvas.addEventListener("touchmove", touchMove, { passive: false });
-        canvas.addEventListener("touchend", touchEnd, { passive: false });
-
-        // Handle resize
-        const onResize = () => {
-            const nW = el.clientWidth, nH = el.clientHeight;
-            camera.aspect = nW / nH;
-            camera.updateProjectionMatrix();
-            renderer.setSize(nW, nH);
-        };
-        window.addEventListener("resize", onResize);
-
-        let raf;
-        const animate = () => {
-            raf = requestAnimationFrame(animate);
-            if (autoRot && !dragging) group.rotation.y += 0.003;
-            renderer.render(scene, camera);
-        };
-        animate();
-
-        return () => {
-            cancelAnimationFrame(raf);
-            canvas.removeEventListener("mousedown", mouseDown);
-            window.removeEventListener("mousemove", mouseMove);
-            window.removeEventListener("mouseup", mouseUp);
-            canvas.removeEventListener("touchstart", touchStart);
-            canvas.removeEventListener("touchmove", touchMove);
-            canvas.removeEventListener("touchend", touchEnd);
-            window.removeEventListener("resize", onResize);
-            renderer.dispose();
-            if (el.contains(canvas)) el.removeChild(canvas);
-        };
+        const handleResize = () => setWidth(window.innerWidth > 1100 ? 1100 : window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const selCountry = selIdx !== null ? COUNTRIES[selIdx] : null;
-    const [name, , , mt, offset, perCap, pop, grade, netZero, sources, dataSource] = selCountry || [];
-    const gc = selCountry ? emissToCSS(mt) : "var(--jade)";
-    const net = selCountry ? mt - offset : 0;
-    const sortedByEmissions = [...COUNTRIES].sort((a, b) => b[3] - a[3]);
+    // Initial camera — face Asia-Pacific; read URL params
+    useEffect(() => {
+        if (!globeRef.current) return;
+        const params = new URLSearchParams(window.location.search);
+        const lat  = parseFloat(params.get('lat')  || '22');
+        const lng  = parseFloat(params.get('lng')  || '95');
+        const zoom = parseFloat(params.get('zoom') || '2.5');
+        globeRef.current.pointOfView({ lat, lng, altitude: zoom }, 1500);
+        globeRef.current.controls().autoRotate = true;
+        globeRef.current.controls().autoRotateSpeed = 0.3;
+    }, []);
+
+    // URL state sync (debounced)
+    const syncURL = useCallback(debounce((pov, layers) => {
+        const params = new URLSearchParams();
+        params.set('lat',    pov.lat.toFixed(4));
+        params.set('lng',    pov.lng.toFixed(4));
+        params.set('zoom',   pov.altitude.toFixed(2));
+        params.set('layers', layers.join(','));
+        window.history.replaceState(null, '', `?${params}`);
+    }, 500), []);
+
+    // Companies with EXTRACTING status get animated pulse
+    const auditingCompanies = useMemo(() =>
+        companies.data.filter(d => d.audit_status === 'EXTRACTING'),
+        [companies.data]
+    );
+
+    // Merge audit rings + news rings
+    const ringsData = useMemo(() => {
+        const newsRings = isActive('newsVelocity')
+            ? newsVelocity.data.filter(d => d.trending).map(d => ({ ...d, _type: 'news' }))
+            : [];
+        const auditRings = auditingCompanies.map(d => ({
+            lat: d.lat, lng: d.lng, company_name: d.name, velocity: 2, _type: 'audit',
+        }));
+        return [...newsRings, ...auditRings];
+    }, [newsVelocity.data, auditingCompanies, activeLayers]);
+
+    // NASA GIBS — dynamic yesterday's date
+    const yesterday = useMemo(() =>
+        new Date(Date.now() - 86400000).toISOString().split('T')[0], []);
+    const GIBS_URL = `https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${yesterday}/250m/{z}/{y}/{x}.jpg`;
+    const globeImageUrl = isActive('nasa_gibs')
+        ? GIBS_URL
+        : '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+
+    // Handle company/asset click
+    const handlePointClick = (d) => {
+        setSelectedCompany(d);
+        if (globeRef.current) {
+            globeRef.current.controls().autoRotate = false;
+            globeRef.current.pointOfView({ lat: d.lat, lng: d.lng, altitude: 1.2 }, 800);
+        }
+    };
+
+    const handleCustomClick = (obj) => {
+        const d = obj?.userData || obj;
+        if (d?.lat && d?.lng) {
+            setSelectedCompany({
+                name: d.name || 'Unknown Asset',
+                country: d.country || 'Unknown',
+                sector: d.sector || d.asset_type || 'Unknown',
+                scope_total: d.co2e_mt || 0,
+                greendex: null,
+                esg_grade: 'N/A',
+                lat: d.lat,
+                lng: d.lng,
+                _isAsset: true,
+            });
+            if (globeRef.current) {
+                globeRef.current.controls().autoRotate = false;
+                globeRef.current.pointOfView({ lat: d.lat, lng: d.lng, altitude: 1.2 }, 800);
+            }
+        }
+    };
 
     return (
-        <div>
-            <div ref={mountRef} style={{ width: "100%", height: 360, background: "var(--bg)", cursor: "grab", touchAction: "none", borderRadius: 16, overflow: "hidden" }} />
-
-            {/* Legend */}
-            <div style={{ display: "flex", gap: 12, padding: "10px 16px", background: "var(--sf)", borderBottom: "1px solid var(--bd)", overflowX: "auto" }}>
-                {[["< 50 Mt", "#10b981"], ["50-200", "#34d399"], ["200-500", "#d97706"], ["500-2k", "#ea580c"], ["> 2000 Mt", "#dc2626"]].map(([l, c]) => (
-                    <Rw key={l} style={{ gap: 5, flexShrink: 0 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: c, boxShadow: `0 0 6px ${c}` }} />
-                        <M size={9} color="var(--tx3)">{l}</M>
-                    </Rw>
-                ))}
-                <M size={9} color="var(--tx3)" style={{ marginLeft: "auto", flexShrink: 0 }}>Tap any dot</M>
+        <div style={{ position: 'relative', width: '100%', height: '100vh', background: 'var(--bg)', overflow: 'hidden' }}>
+            {/* ── LIVE HEADER ── */}
+            <div className="globe-live-header">
+                <div className="globe-live-header__dot" />
+                <span>LIVE</span>
+                <span style={{ opacity: 0.6 }}>·</span>
+                <span>{agentStatus.active_agents} agents</span>
+                <span style={{ opacity: 0.6 }}>·</span>
+                <span>{agentStatus.audits_in_progress} auditing</span>
+                <span style={{ opacity: 0.6 }}>·</span>
+                <span>{agentStatus.total_companies} companies</span>
             </div>
 
-            {/* Toggle */}
-            <div style={{ display: "flex", padding: "10px 16px 0" }}>
-                {["globe", "ranking"].map(v => (
-                    <button key={v} onClick={() => setView(v)} style={{ flex: 1, padding: "9px", background: view === v ? "var(--jg)" : "transparent", border: `1px solid ${view === v ? "rgba(0,232,122,.3)" : "var(--bd)"}`, borderRadius: 8, color: view === v ? "var(--jade)" : "var(--tx3)", fontFamily: "var(--disp)", fontWeight: 700, fontSize: 12, cursor: "pointer", transition: "all .15s", textTransform: "capitalize" }}>
-                        {v === "globe" ? "🌍 Globe Info" : "📊 Rankings"}
-                    </button>
-                ))}
-            </div>
+            {/* ── GLOBE ── */}
+            <Globe
+                ref={globeRef}
+                width={width}
+                height={window.innerHeight - 60}
+                globeImageUrl={globeImageUrl}
+                bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
+                backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
+                atmosphereColor="#00ff88"
+                atmosphereAltitude={0.15}
 
-            <div style={{ padding: "12px 14px" }}>
-                {view === "globe" && (
-                    selCountry ? (
-                        <div style={{ animation: "slideUp .3s ease" }}>
-                            <Cd accent style={{ padding: 18, marginBottom: 14 }}>
-                                <Rw style={{ justifyContent: "space-between", marginBottom: 12 }}>
-                                    <div>
-                                        <div style={{ fontFamily: "var(--disp)", fontWeight: 800, fontSize: 20, color: "var(--tx)", marginBottom: 4 }}>{name}</div>
-                                        <Rw style={{ gap: 8 }}>
-                                            <Bdg color={gradeToBdg(grade)}>{`ESG: ${grade}`}</Bdg>
-                                            <Bdg color="blu">{`Net Zero: ${netZero}`}</Bdg>
-                                        </Rw>
-                                    </div>
-                                    <div style={{ textAlign: "right" }}>
-                                        <div style={{ fontFamily: "var(--mono)", fontSize: 28, color: gc, fontWeight: 500, lineHeight: 1 }}>{mt.toLocaleString()}</div>
-                                        <M size={10} color="var(--tx3)">Mt CO₂e/yr</M>
-                                    </div>
-                                </Rw>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                                    {[
-                                        { l: "Per Capita", v: `${perCap} t/person`, c: gc },
-                                        { l: "Population", v: `${pop}M`, c: "var(--cyan)" },
-                                        { l: "Forest Offset", v: `-${offset} Mt`, c: "#34d399" },
-                                        { l: "NET Emissions", v: `${net.toFixed(0)} Mt`, c: net > 1000 ? "var(--red)" : "var(--amb)" },
-                                    ].map(item => (
-                                        <div key={item.l} style={{ padding: "10px", background: "var(--bg3)", borderRadius: 10, border: "1px solid var(--bd)" }}>
-                                            <M size={9} color="var(--tx3)" style={{ display: "block", marginBottom: 3 }}>{item.l}</M>
-                                            <div style={{ fontFamily: "var(--mono)", fontSize: 14, color: item.c, fontWeight: 500 }}>{item.v}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div style={{ marginBottom: 10 }}>
-                                    <M size={9} color="var(--tx3)" style={{ display: "block", marginBottom: 5, letterSpacing: ".08em", textTransform: "uppercase" }}>Main Emission Sources</M>
-                                    <p style={{ fontSize: 12, color: "var(--tx2)", lineHeight: 1.7 }}>{sources}</p>
-                                </div>
-                                <div style={{ padding: "8px 10px", background: "var(--bg3)", borderRadius: 8, border: "1px solid var(--bd)" }}>
-                                    <M size={9} color="var(--tx3)">Data: </M>
-                                    <M size={9} color="var(--jade)">{dataSource}</M>
-                                </div>
-                                <div style={{ marginTop: 12 }}>
-                                    <M size={9} color="var(--tx3)" style={{ display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: ".08em" }}>Emission Reduction Progress</M>
-                                    <PBar v={grade?.startsWith("A") ? 80 : grade?.startsWith("B") ? 60 : grade?.startsWith("C") ? 35 : 15} color={gc} h={5} animate />
-                                </div>
-                            </Cd>
-                            <Cd style={{ padding: 14 }}>
-                                <M size={10} color="var(--jade)" style={{ display: "block", marginBottom: 8, letterSpacing: ".1em", textTransform: "uppercase" }}>// How CO₂ is calculated</M>
-                                <p style={{ fontSize: 12, color: "var(--tx2)", lineHeight: 1.75 }}>
-                                    National emissions = <span style={{ color: "var(--jade)" }}>Σ(Activity Data × Emission Factor)</span> per sector.<br />
-                                    <span style={{ color: "var(--cyan)" }}>Energy</span>: fossil fuel combustion (IPCC Tier 1-3 factors).<br />
-                                    <span style={{ color: "var(--amb)" }}>Agriculture</span>: enteric fermentation (CH₄×GWP28) + N₂O from soils.<br />
-                                    <span style={{ color: "var(--jade)" }}>Industry</span>: process emissions (cement = 0.53 t CO₂/t clinker).<br />
-                                    <span style={{ color: "#34d399" }}>Offsets</span>: LULUCF sink from forests (UNFCCC inventories).<br />
-                                    Source methodology: IPCC 2006 Guidelines + AR6 GWP100.
-                                </p>
-                            </Cd>
-                        </div>
-                    ) : (
-                        <Cd style={{ padding: 24, textAlign: "center" }}>
-                            <div style={{ fontSize: 32, marginBottom: 10 }}>🌍</div>
-                            <div style={{ fontFamily: "var(--disp)", fontWeight: 700, fontSize: 16, color: "var(--tx)", marginBottom: 6 }}>Tap any country marker</div>
-                            <M size={12} color="var(--tx3)">Drag to rotate · Tap dot for real CO₂ data with sources</M>
-                        </Cd>
-                    )
-                )}
-
-                {view === "ranking" && (
-                    <div style={{ animation: "fadeUp .3s ease" }}>
-                        <M size={10} color="var(--jade)" style={{ display: "block", marginBottom: 12, letterSpacing: ".1em", textTransform: "uppercase" }}>// Countries ranked by total CO₂ emissions (2023)</M>
-                        {sortedByEmissions.map(([cname, , , cmt, coff, cpc, , cgrade], i) => (
-                            <div key={cname} onClick={() => { setSelIdx(COUNTRIES.findIndex(c => c[0] === cname)); setView("globe"); }}
-                                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--sf)", border: "1px solid var(--bd)", borderRadius: 10, marginBottom: 6, cursor: "pointer", transition: "all .15s" }}>
-                                <M size={13} color="var(--tx3)" style={{ width: 24, textAlign: "center", flexShrink: 0 }}>#{i + 1}</M>
-                                <div style={{ width: 10, height: 10, borderRadius: "50%", background: emissToCSS(cmt), boxShadow: `0 0 8px ${emissToCSS(cmt)}`, flexShrink: 0 }} />
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--tx)", marginBottom: 2 }}>{cname}</div>
-                                    <div style={{ display: "flex", gap: 6 }}>
-                                        <M size={10} color="var(--tx3)">{cpc}t/person</M>
-                                        <M size={10} color="#34d399">−{coff}Mt offset</M>
-                                    </div>
-                                </div>
-                                <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                    <M size={12} color={emissToCSS(cmt)} style={{ display: "block", fontWeight: 500 }}>{cmt.toLocaleString()}Mt</M>
-                                    <Bdg color={gradeToBdg(cgrade)}>{cgrade}</Bdg>
-                                </div>
-                            </div>
-                        ))}
+                // === PRIMITIVE 1: POINTS — companies ===
+                pointsData={isActive('companies') ? companies.data : []}
+                pointLat={d => d.lat}
+                pointLng={d => d.lng}
+                pointAltitude={LAYERS.companies.altitude}
+                pointRadius={LAYERS.companies.radius}
+                pointColor={LAYERS.companies.color}
+                pointLabel={d => `
+                    <div class="globe-tooltip">
+                        <strong>${d.name}</strong><br/>
+                        ${d.country} · ${d.sector}<br/>
+                        Greendex: <span style="color:${LAYERS.companies.color(d)}">${d.greendex ?? 'N/A'}</span><br/>
+                        Scope 1+2: ${d.scope_total ? (d.scope_total / 1e6).toFixed(2) + 'Mt' : 'Not disclosed'}<br/>
+                        ${d.has_discrepancy ? '<span style="color:#FF3B3B">⚠ Math discrepancy detected</span><br/>' : ''}
+                        ${d.absence_signals_count > 0 ? `<span style="color:#FF8C00">${d.absence_signals_count} disclosure gaps</span>` : ''}
                     </div>
+                `}
+                onPointClick={handlePointClick}
+                pointsMerge={false}
+
+                // === PRIMITIVE 2: RINGS — news velocity + audit pulse ===
+                ringsData={ringsData}
+                ringLat={d => d.lat}
+                ringLng={d => d.lng}
+                ringMaxRadius={d => d._type === 'audit' ? 3 : (d.velocity || 1) * 1.5}
+                ringPropagationSpeed={d => d._type === 'audit' ? 3 : 2}
+                ringRepeatPeriod={d => d._type === 'audit' ? 600 : 800}
+                ringColor={d => () => d._type === 'audit' ? '#10B981' : '#A78BFA'}
+                ringLabel={d => d._type === 'news' ?
+                    `<div class="globe-tooltip"><strong>${d.company_name}</strong><br/>${d.velocity} ESG mentions today<br/>${d.latest_headline || ''}</div>` : ''}
+
+                // === PRIMITIVE 3: POLYGONS — country choropleth ===
+                polygonsData={isActive('countries') ? countries.data : []}
+                polygonGeoJsonGeometry={d => d.geometry}
+                polygonCapColor={d => LAYERS.countries.color(d)}
+                polygonSideColor={() => 'rgba(0,0,0,0)'}
+                polygonAltitude={0.001}
+                polygonLabel={d => `
+                    <div class="globe-tooltip">
+                        <strong>${d.country}</strong><br/>
+                        Avg Greendex: ${d.avg_greendex?.toFixed(1) ?? 'N/A'}<br/>
+                        ${d.company_count} companies tracked<br/>
+                        Disclosure rate: ${((d.disclosure_rate || 0) * 100).toFixed(0)}%
+                    </div>
+                `}
+
+                // === PRIMITIVE 4: ARCS — future supply chain ===
+                arcsData={[]}
+
+                // === PRIMITIVE 5: CUSTOM — Climate TRACE assets ===
+                customLayerData={isActive('climateTrace') ? climateTrace.data : []}
+                customThreeObject={d => {
+                    const geo  = new THREE.SphereGeometry(LAYERS.climateTrace.radius);
+                    const mat  = new THREE.MeshLambertMaterial({
+                        color: LAYERS.climateTrace.color(d),
+                        transparent: true,
+                        opacity: 0.85,
+                    });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.userData = d;
+                    return mesh;
+                }}
+                customThreeObjectUpdate={(obj, d) => {
+                    if (globeRef.current?.getCoords) {
+                        Object.assign(obj.position, globeRef.current.getCoords(
+                            d.lat, d.lng, LAYERS.climateTrace.altitude(d)
+                        ) ?? {});
+                    }
+                }}
+                onCustomLayerClick={handleCustomClick}
+
+                onGlobeReady={() => {
+                    if (globeRef.current) {
+                        const pov = globeRef.current.pointOfView();
+                        syncURL(pov, activeLayers);
+                    }
+                }}
+            />
+
+            {/* ── LAYER PANEL (left) ── */}
+            <div className="globe-layer-panel">
+                <div className="globe-layer-panel__header">
+                    <span>Layers</span>
+                    <span className="globe-layer-panel__count">
+                        {companies.data.length} cos
+                    </span>
+                </div>
+                {LAYER_IDS.map(id => {
+                    const st = getLayerState(id);
+                    const isNasa = id === 'nasa_gibs';
+                    return (
+                        <button
+                            key={id}
+                            className={`globe-layer-pill ${isActive(id) ? 'active' : ''}`}
+                            onClick={() => {
+                                toggleLayer(id);
+                                if (globeRef.current) {
+                                    const pov = globeRef.current.pointOfView();
+                                    const next = isActive(id)
+                                        ? activeLayers.filter(l => l !== id)
+                                        : [...activeLayers, id];
+                                    syncURL(pov, next);
+                                }
+                            }}
+                        >
+                            <span
+                                className="globe-layer-pill__dot"
+                                style={{
+                                    background: isNasa ? '#3b82f6'
+                                        : typeof LAYERS[id].color === 'function'
+                                            ? LAYERS[id].color({ greendex: 60, asset_type: 'power-plant', velocity: 5 })
+                                            : '#6b7280'
+                                }}
+                            />
+                            {LAYERS[id].label}
+                            {!isNasa && st.stale && <span className="stale-icon" title="Stale data">↻</span>}
+                            {!isNasa && st.loading && <span className="loading-dot" />}
+                            {!isNasa && st.error && <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* ── COMPANY DETAIL PANEL (right) ── */}
+            <div className={`globe-detail-panel ${selectedCompany ? 'open' : ''}`}>
+                {selectedCompany && (
+                    <>
+                        <button className="globe-detail-panel__close" onClick={() => {
+                            setSelectedCompany(null);
+                            if (globeRef.current) globeRef.current.controls().autoRotate = true;
+                        }}>✕</button>
+
+                        <div className="globe-detail-panel__name">{selectedCompany.name}</div>
+                        <div className="globe-detail-panel__meta">
+                            <Bdg color="blu">{selectedCompany.country}</Bdg>
+                            <Bdg color="amb">{selectedCompany.sector}</Bdg>
+                            {selectedCompany.esg_grade && selectedCompany.esg_grade !== 'N/A' && (
+                                <Bdg color="jade">ESG {selectedCompany.esg_grade}</Bdg>
+                            )}
+                        </div>
+
+                        {/* Greendex Score */}
+                        {selectedCompany.greendex != null && (
+                            <div className="globe-detail-panel__greendex">
+                                <div className="globe-detail-panel__greendex-score" style={{ color: LAYERS.companies.color(selectedCompany) }}>
+                                    {selectedCompany.greendex}
+                                </div>
+                                <M size={10} color="var(--tx3)">Greendex Score</M>
+                            </div>
+                        )}
+
+                        {/* Discrepancy warning */}
+                        {selectedCompany.has_discrepancy && (
+                            <div className="globe-detail-panel__warning">
+                                ⚠ Math discrepancy detected in this company's ESG report
+                            </div>
+                        )}
+
+                        {/* Scope bars */}
+                        <M size={10} color="var(--tx3)" style={{ display: 'block', marginBottom: 8, letterSpacing: '.05em', textTransform: 'uppercase' }}>
+                            Emissions Breakdown
+                        </M>
+                        {[
+                            { label: 'Scope 1', value: selectedCompany.scope_1 || selectedCompany.co2e_mt || 0, color: '#10b981' },
+                            { label: 'Scope 2', value: selectedCompany.scope_2 || 0, color: '#06b6d4' },
+                            { label: 'Scope 3', value: selectedCompany.scope_3 || 0, color: '#f59e0b' },
+                        ].map(s => {
+                            const maxVal = Math.max(selectedCompany.scope_1 || 0, selectedCompany.scope_2 || 0, selectedCompany.scope_3 || 0, 1);
+                            return (
+                                <div key={s.label} className="globe-detail-panel__scope-row">
+                                    <M size={10} color="var(--tx3)" style={{ width: 50 }}>{s.label}</M>
+                                    <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: 3, height: 6, overflow: 'hidden' }}>
+                                        <div className="globe-detail-panel__scope-bar"
+                                            style={{ width: `${Math.min((s.value / maxVal) * 100, 100)}%`, background: s.color }} />
+                                    </div>
+                                    <M size={10} mono color="var(--tx2)" style={{ width: 60, textAlign: 'right' }}>
+                                        {s.value > 0 ? (s.value / 1e6).toFixed(2) + 'Mt' : '—'}
+                                    </M>
+                                </div>
+                            );
+                        })}
+
+                        {/* Absence signals */}
+                        {selectedCompany.absence_signals_count > 0 && (
+                            <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8 }}>
+                                <M size={11} color="#f59e0b" style={{ fontWeight: 600 }}>
+                                    {selectedCompany.absence_signals_count} disclosure gaps detected
+                                </M>
+                            </div>
+                        )}
+
+                        {/* Action button */}
+                        <button
+                            className="globe-detail-panel__action"
+                            onClick={() => {
+                                // Navigate to Audit tab (trigger via URL or state)
+                                window.dispatchEvent(new CustomEvent('greenorb:navigate', { detail: { tab: 'audit', company: selectedCompany.name } }));
+                            }}
+                        >
+                            Open full audit →
+                        </button>
+                    </>
                 )}
+            </div>
+
+            {/* ── SOURCE HEALTH BAR (bottom) ── */}
+            <div className="globe-source-bar">
+                {[
+                    { label: 'Companies', state: companies },
+                    { label: 'Countries', state: countries },
+                    { label: 'Climate TRACE', state: climateTrace },
+                    { label: 'RSS', state: newsVelocity },
+                ].map(src => (
+                    <div key={src.label} className="globe-source-bar__item">
+                        <div className={`globe-source-bar__dot ${
+                            src.state.error ? 'globe-source-bar__dot--error'
+                            : src.state.stale ? 'globe-source-bar__dot--stale'
+                            : 'globe-source-bar__dot--fresh'
+                        }`} />
+                        <span>{src.label} ({timeAgo(src.state.cached_at)})</span>
+                    </div>
+                ))}
             </div>
         </div>
     );

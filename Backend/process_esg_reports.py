@@ -17,7 +17,8 @@ import argparse
 import requests
 import fitz  # PyMuPDF
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 API_BASE = "http://localhost:5000/api"
 RAW_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "RawData", "ESG_Reports")
 PROCESSED_DIR = os.path.join(RAW_DATA_DIR, "Processed")
@@ -59,20 +60,19 @@ def build_analyze_prompt(text):
     )
 
 def analyze_with_llama(text, filename):
-    """Use Llama 3.2 to extract the factual data from the report text."""
+    """Use Gemini 1.5 Flash to extract the factual data from the report text."""
     prompt = build_analyze_prompt(text)
 
     body = {
-        "model": "llama3.2",
-        "prompt": prompt,
-        "stream": False,
-        "options": {"temperature": 0.0, "num_ctx": 8192}
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 2048}
     }
 
     try:
-        response = requests.post(OLLAMA_URL, json=body, timeout=120)
+        response = requests.post(GEMINI_URL, json=body, timeout=120)
         if response.status_code == 200:
-            result = response.json().get("response", "")
+            result_data = response.json()
+            result = result_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
             result = result.strip()
             
             # Clean markdown code fences if present

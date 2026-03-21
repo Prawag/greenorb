@@ -59,124 +59,12 @@ export const storage = {
 };
 
 export const API_BASE = "http://localhost:5000/api";
-export const OLLAMA_BASE = "http://localhost:11434/api";
-
-const PREFER_LOCAL_AI = true; // Set to true to use Llama 3.2 locally
 
 // Gemini API caller
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 export async function geminiGenerate(prompt, systemPrompt = "", stream = false) {
-    // If local preference is on, try Ollama first
-    if (PREFER_LOCAL_AI) {
-        try {
-            // Check if Ollama is responsive (2s timeout to avoid hanging UI)
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 2000);
-            const check = await fetch(`${OLLAMA_BASE}/tags`, { signal: controller.signal }).catch((err) => {
-                console.warn("Ollama Health Check Failed (CORS or Server Down?):", err);
-                return null;
-            });
-            clearTimeout(timeout);
-
-            if (check && check.ok) {
-                if (!stream) {
-                    const ollamaRes = await ollamaGenerate(prompt, systemPrompt);
-                    const ollamaData = await ollamaRes.json();
-                    if (ollamaData.response) {
-                        console.log("Using Local AI (Non-Streaming)");
-                        return {
-                            ok: true,
-                            json: async () => ({
-                                candidates: [{ content: { parts: [{ text: ollamaData.response }] } }]
-                            }),
-                            text: async () => JSON.stringify({
-                                candidates: [{ content: { parts: [{ text: ollamaData.response }] } }]
-                            })
-                        };
-                    }
-                } else {
-                    // Streaming mode: Ollama streams newline-delimited JSON
-                    console.log("Attempting Local AI Streaming...");
-                    const ollamaRes = await fetch(`${OLLAMA_BASE}/generate`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            model: "llama3.2",
-                            prompt: systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt,
-                            stream: true,
-                        }),
-                    }).catch(err => {
-                        console.error("Local AI Stream Fetch Error:", err);
-                        throw err;
-                    });
-
-                    if (ollamaRes.ok) {
-                        console.log("Local AI Stream established.");
-                        // Shim: Convert Ollama's newline-delimited JSON into Gemini-compatible SSE
-                        const reader = ollamaRes.body.getReader();
-                        const encoder = new TextEncoder();
-                        const decoder = new TextDecoder();
-                        let buffer = "";
-
-                        const shimStream = new ReadableStream({
-                            async start(controller) {
-                                try {
-                                    while (true) {
-                                        const { done, value } = await reader.read();
-                                        if (done) {
-                                            // Flush remaining buffer
-                                            if (buffer.trim()) {
-                                                try {
-                                                    const json = JSON.parse(buffer.trim());
-                                                    if (json.response) {
-                                                        const fmt = { candidates: [{ content: { parts: [{ text: json.response }] } }] };
-                                                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(fmt)}\n\n`));
-                                                    }
-                                                } catch { }
-                                            }
-                                            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                                            controller.close();
-                                            break;
-                                        }
-                                        // Ollama streams newline-delimited JSON objects
-                                        buffer += decoder.decode(value, { stream: true });
-                                        const lines = buffer.split("\n");
-                                        buffer = lines.pop() || ""; // Keep incomplete line in buffer
-                                        for (const line of lines) {
-                                            if (!line.trim()) continue;
-                                            try {
-                                                const json = JSON.parse(line);
-                                                if (json.response) {
-                                                    const fmt = { candidates: [{ content: { parts: [{ text: json.response }] } }] };
-                                                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(fmt)}\n\n`));
-                                                }
-                                            } catch { }
-                                        }
-                                    }
-                                } catch (e) {
-                                    console.error("Shim Stream Error:", e);
-                                    controller.error(e);
-                                }
-                            }
-                        });
-
-                        return new Response(shimStream, {
-                            headers: { 'Content-Type': 'text/event-stream' }
-                        });
-                    } else {
-                        console.warn("Ollama /generate returned non-ok status:", ollamaRes.status);
-                    }
-                }
-            } else if (check) {
-                console.warn("Ollama health check returned non-ok:", check.status);
-            }
-        } catch (e) {
-            console.warn("Local Ollama unavailable or errored, falling back to Gemini:", e.message);
-        }
-    }
-
     const model = "gemini-2.0-flash";
     const url = stream
         ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`
@@ -202,26 +90,8 @@ export async function geminiGenerate(prompt, systemPrompt = "", stream = false) 
     return res;
 }
 
-export async function ollamaGenerate(prompt, systemPrompt = "") {
-    const body = {
-        model: "llama3.2",
-        prompt: systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt,
-        stream: false,
-        options: { temperature: 0.7 }
-    };
-
-    return await fetch(`${OLLAMA_BASE}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-    });
-}
 
 export async function geminiGeneratePDF(pdfBase64, prompt, systemPrompt = "", stream = false) {
-    if (PREFER_LOCAL_AI) {
-        console.log("PDF Scan requested. Redirecting to Local AI (Note: Text-only model will not see PDF content).");
-        return await geminiGenerate(`[PDF ATTACHED] ${prompt}`, systemPrompt, stream);
-    }
     const model = "gemini-2.0-flash";
     const url = stream
         ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`
@@ -280,10 +150,6 @@ export async function* parseGeminiStream(response) {
 
 // Gemini image analysis (for mobile photo uploads)
 export async function geminiGenerateImage(imageBase64, mimeType, prompt, systemPrompt = "", stream = false) {
-    if (PREFER_LOCAL_AI) {
-        console.log("Image Scan requested. Redirecting to Local AI (Note: Text-only model will not see Image content).");
-        return await geminiGenerate(`[IMAGE ATTACHED] ${prompt}`, systemPrompt, stream);
-    }
     const model = "gemini-2.0-flash";
     const url = stream
         ? `${GEMINI_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`

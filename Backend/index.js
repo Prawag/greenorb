@@ -4,6 +4,13 @@ import dotenv from 'dotenv';
 import { neon } from '@neondatabase/serverless';
 import { execFile } from 'child_process';
 import path from 'path';
+import NodeCache from 'node-cache';
+
+// Globe API route modules
+import mountGlobePoints from './api/globe-points.js';
+import mountCountryChoropleth from './api/country-choropleth.js';
+import mountEsgNews from './api/esg-news.js';
+import mountClimateTrace from './api/climate-trace.js';
 
 dotenv.config();
 
@@ -24,6 +31,9 @@ app.use(express.json());
 // ─── INITIALIZE DATABASE ─────────────────────────────────────────────────────
 const initDb = async () => {
     try {
+        // Enable pgvector extension
+        await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+
         await sql`
             CREATE TABLE IF NOT EXISTS companies (
                 name TEXT PRIMARY KEY,
@@ -37,9 +47,24 @@ const initDb = async () => {
                 s1 NUMERIC,
                 s2 NUMERIC,
                 s3 NUMERIC,
+                report_year INTEGER,
                 ts TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
         `;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS embeddings (
+                id SERIAL PRIMARY KEY,
+                company_name TEXT REFERENCES companies(name) ON DELETE CASCADE,
+                content TEXT,
+                embedding VECTOR(768),
+                page_number INTEGER,
+                report_year INTEGER,
+                metadata JSONB,
+                ts TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
+
         await sql`
             CREATE TABLE IF NOT EXISTS analysis (
                 company TEXT PRIMARY KEY REFERENCES companies(name) ON DELETE CASCADE,
@@ -200,6 +225,105 @@ app.post('/api/strategy', async (req, res) => {
     }
 });
 
+// POST Vector Embeddings
+app.post('/api/embeddings', async (req, res) => {
+    const { company_name, content, embedding, page_number, report_year, metadata, is_first_chunk } = req.body;
+    try {
+        // If it's the first chunk of a new report, clear old embeddings for this company
+        if (is_first_chunk) {
+            await sql`DELETE FROM embeddings WHERE company_name = ${company_name}`;
+        }
+
+        // Format embedding as [0.1, 0.2, ...] string for pgvector
+        const vectorStr = `[${embedding.join(',')}]`;
+        await sql`
+            INSERT INTO embeddings (company_name, content, embedding, page_number, report_year, metadata)
+            VALUES (${company_name}, ${content}, ${vectorStr}, ${page_number}, ${report_year}, ${JSON.stringify(metadata)})
+        `;
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Vector save error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Ask a question about a company (RAG)
+app.post('/api/ask', async (req, res) => {
+    const { company, question } = req.body;
+    if (!company || !question) return res.status(400).json({ error: "Company and question are required" });
+
+    const GEMINI_KEY = process.env.GEMINI_API_KEY || "AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s";
+
+    try {
+        // 1. Generate embedding for the question using Gemini
+        const embedRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GEMINI_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: "models/text-embedding-004",
+                content: { parts: [{ text: question }] }
+            })
+        });
+        const embedData = await embedRes.json();
+        const embedding = embedData?.embedding?.values;
+        if (!embedding) {
+            return res.status(500).json({ error: "Failed to generate embedding for question" });
+        }
+        const vectorStr = `[${embedding.join(',')}]`;
+
+        // 2. Perform Vector Similarity Search (Semantic Search)
+        const chunks = await sql`
+            SELECT content, page_number, report_year
+            FROM embeddings
+            WHERE company_name = ${company}
+            ORDER BY embedding <=> ${vectorStr}::vector
+            LIMIT 5
+        `;
+
+        if (chunks.length === 0) {
+            return res.json({
+                answer: `I don't have enough specific data indexed for ${company} to answer that. Try running the discovery agent first.`
+            });
+        }
+
+        // 3. Build context for Gemini
+        const context = chunks.map(c => `[Page ${c.page_number}, ${c.report_year} Report]: ${c.content}`).join("\n\n");
+
+        // 4. Generate answer with Gemini 1.5 Flash
+        const prompt = `
+            You are "GreenOrb Intelligence", an ESG analyst. Use the following context from ${company}'s official reports to answer the user's question.
+            Be extremely precise and factual. Cite the page numbers if available.
+            If the answer is not in the context, say "Based on the official reports I have, I cannot find that specific information."
+
+            CONTEXT:
+            ${context}
+
+            USER QUESTION:
+            ${question}
+        `;
+
+        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
+            })
+        });
+        const geminiData = await geminiRes.json();
+        const answer = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "Unable to generate response.";
+
+        res.json({
+            answer,
+            sources: chunks.map(c => ({ page: c.page_number, year: c.report_year }))
+        });
+
+    } catch (err) {
+        console.error("RAG Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // POST Crawl URL using Crawl4AI Python script
 app.post('/api/crawl', (req, res) => {
     const { url } = req.body;
@@ -226,6 +350,88 @@ app.post('/api/crawl', (req, res) => {
             res.status(500).json({ error: "Failed to parse crawler output", raw: stdout });
         }
     });
+});
+// ─── Globe emission points (live from DB) ─────────────────
+// GlobeTab can call this to render real emission dots from audited companies
+app.get('/api/emissions/globe-points', async (req, res) => {
+    try {
+        const companies = await sql`
+            SELECT name, country, co2, s1, s2, s3
+            FROM companies
+            WHERE co2 IS NOT NULL OR s1 IS NOT NULL
+            ORDER BY co2 DESC NULLS LAST
+            LIMIT 500
+        `;
+        // Map countries to approximate lat/lng (simplified lookup)
+        const COUNTRY_COORDS = {
+            'India': [20.5937, 78.9629], 'USA': [37.0902, -95.7129],
+            'China': [35.8617, 104.1954], 'United Arab Emirates': [23.4241, 53.8478],
+            'South Africa': [-30.5595, 22.9375], 'Brazil': [-14.2350, -51.9253],
+            'United Kingdom': [55.3781, -3.4360], 'Germany': [51.1657, 10.4515],
+            'Japan': [36.2048, 139.6917], 'Australia': [-25.2744, 133.7751],
+            'Switzerland': [46.8182, 8.2275], 'Netherlands': [52.1326, 5.2913],
+        };
+        const points = companies.map(c => {
+            const coords = COUNTRY_COORDS[c.country] || [0, 0];
+            const total = parseFloat(c.co2) || ((parseFloat(c.s1) || 0) + (parseFloat(c.s2) || 0));
+            return {
+                lat: coords[0] + (Math.random() - 0.5) * 2,
+                lng: coords[1] + (Math.random() - 0.5) * 2,
+                size: Math.min(1, Math.max(0.1, total / 5000)),
+                color: total > 2000 ? '#ef4444' : total > 500 ? '#f97316' : total > 200 ? '#f59e0b' : total > 50 ? '#22c55e' : '#10b981',
+                company: c.name,
+                scopeTotal: total
+            };
+        }).filter(p => p.scopeTotal > 0);
+        res.json(points);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Verdict submission (human-in-the-loop) ───────────────
+app.post('/api/verdicts', async (req, res) => {
+    const { auditId, verdict, company } = req.body;
+    console.log(`[Verdicts] ${company || auditId}: ${verdict}`);
+    // In production: write to audit_results table
+    res.json({ success: true, auditId, verdict });
+});
+
+// ─── GLOBE API ROUTES ─────────────────────────────────────────────────────────
+mountGlobePoints(app, sql);
+mountCountryChoropleth(app, sql);
+mountEsgNews(app, sql);
+mountClimateTrace(app);
+
+// ─── AGENT STATUS (30s cache) ─────────────────────────────────────────────────
+const agentCache = new NodeCache({ stdTTL: 30, checkperiod: 10 });
+app.get('/api/agent/status', async (req, res) => {
+    const cached = agentCache.get('agent_status');
+    if (cached) return res.json(cached);
+
+    try {
+        const [countResult] = await sql`SELECT COUNT(*) as total FROM companies`;
+        const totalCompanies = parseInt(countResult?.total || '0');
+
+        const result = {
+            active_agents: 4,
+            audits_in_progress: 0,
+            audits_completed_today: totalCompanies,
+            total_companies: totalCompanies,
+            last_audit_completed_at: new Date().toISOString(),
+        };
+
+        agentCache.set('agent_status', result);
+        res.json(result);
+    } catch (err) {
+        res.json({
+            active_agents: 4,
+            audits_in_progress: 0,
+            audits_completed_today: 0,
+            total_companies: 0,
+            last_audit_completed_at: null,
+        });
+    }
 });
 
 app.listen(port, () => {

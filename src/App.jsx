@@ -2,21 +2,17 @@ import React, { useState, useRef, useEffect } from "react";
 import TopBar from "./components/TopBar";
 import BottomNav from "./components/BottomNav";
 import GlobeTab from "./tabs/GlobeTab";
-import CompaniesTab from "./tabs/CompaniesTab";
+import CompaniesTab from "./tabs/CompaniesTab"; // UI label: Audit
 import CompareTab from "./tabs/CompareTab";
-import ScanTab from "./tabs/ScanTab";
-import AgentTab from "./tabs/AgentTab";
-import TokenTab from "./tabs/TokenTab";
-import AboutTab from "./tabs/AboutTab";
+import TrustDashboard from "./tabs/TrustDashboard";
+import CityDashboard from "./tabs/CityDashboard";
 
 const TABS = [
     { key: "globe", Component: GlobeTab },
-    { key: "companies", Component: CompaniesTab },
+    { key: "audit", Component: CompaniesTab },
     { key: "compare", Component: CompareTab },
-    { key: "scan", Component: ScanTab },
-    { key: "agent", Component: AgentTab },
-    { key: "token", Component: TokenTab },
-    { key: "about", Component: AboutTab },
+    { key: "trust", Component: TrustDashboard },
+    { key: "indore", Component: CityDashboard },
 ];
 
 export default function App() {

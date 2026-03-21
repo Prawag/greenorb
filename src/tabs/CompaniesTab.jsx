@@ -142,11 +142,29 @@ export default function CompaniesTab() {
 
                         {isOpen && (
                             <div style={{ background: "var(--bg2)", border: "1px solid rgba(0,232,122,.15)", borderTop: "none", borderRadius: "0 0 12px 12px", padding: 14, animation: "pop .3s ease" }}>
+                                {/* Scope metrics grid with framework badges */}
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 12 }}>
-                                    {[["Scope 1", s1, "jade"], ["Scope 2", s2, "cyan"], ["Scope 3", s3, "amb"]].map(([l, v, col]) => (
+                                    {[
+                                        ["Scope 1", s1, "jade", { BRSR: "P6/EI-1", GRI: "305-1", CSRD: "E1-4" }],
+                                        ["Scope 2", s2, "cyan", { BRSR: "P6/EI-1", GRI: "305-2", CSRD: "E1-4" }],
+                                        ["Scope 3", s3, "amb",  { BRSR: "P6/LI-1", GRI: "305-3" }]
+                                    ].map(([l, v, col, tags]) => (
                                         <div key={l} style={{ padding: "8px", background: "var(--sf)", borderRadius: 8, border: "1px solid var(--bd)", textAlign: "center" }}>
                                             <M size={8} color="var(--tx3)" style={{ display: "block", marginBottom: 2 }}>{l}</M>
                                             <M size={11} color={`var(--${col})`} style={{ fontWeight: 500 }}>{v}Mt</M>
+                                            {v > 0 && tags && (
+                                                <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center", marginTop: 4 }}>
+                                                    {Object.entries(tags).map(([fw, ind]) => (
+                                                        <span key={fw} title={`${fw} Indicator: ${ind}`} style={{
+                                                            fontSize: 7, padding: "1px 5px", borderRadius: 4,
+                                                            background: fw === "BRSR" ? "rgba(16,185,129,.1)" : fw === "GRI" ? "rgba(59,130,246,.1)" : "rgba(139,92,246,.1)",
+                                                            color: fw === "BRSR" ? "#10b981" : fw === "GRI" ? "#3b82f6" : "#8b5cf6",
+                                                            border: `1px solid ${fw === "BRSR" ? "rgba(16,185,129,.25)" : fw === "GRI" ? "rgba(59,130,246,.25)" : "rgba(139,92,246,.25)"}`,
+                                                            fontWeight: 700, fontFamily: "var(--mono)", cursor: "help"
+                                                        }}>{fw}</span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

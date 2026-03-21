@@ -3,12 +3,10 @@ import { M } from "./primitives";
 
 const TABS = [
     { id: "globe", icon: "🌍", label: "Globe" },
-    { id: "companies", icon: "🏢", label: "ESG DB" },
+    { id: "audit", icon: "🏢", label: "Audit" },
     { id: "compare", icon: "⚖️", label: "Compare" },
-    { id: "scan", icon: "📄", label: "Scan" },
-    { id: "agent", icon: "🤖", label: "Agents" },
-    { id: "token", icon: "🪙", label: "Token" },
-    { id: "about", icon: "💡", label: "About" },
+    { id: "trust", icon: "🔍", label: "Trust UI" },
+    { id: "indore", icon: "🏙️", label: "Indore" },
 ];
 
 export default function BottomNav({ active, set }) {

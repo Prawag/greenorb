@@ -168,20 +168,11 @@ export default function AgentTab() {
         // Polling for network collaboration
         const inv = setInterval(fetchAllData, 30000);
 
-        // Check AI Provider
-        const checkAI = async () => {
-            try {
-                const res = await fetch("http://localhost:11434/api/tags");
-                if (res.ok) setAiProvider("Local Llama 3.2");
-                else setAiProvider("Cloud Gemini 2.0");
-            } catch { setAiProvider("Cloud Gemini 2.0"); }
-        };
-        checkAI();
-        const aiInv = setInterval(checkAI, 10000);
+        // AI Provider is now always Gemini
+        setAiProvider("Cloud Gemini 2.0 Flash");
 
         return () => {
             clearInterval(inv);
-            clearInterval(aiInv);
         };
     }, []);
 

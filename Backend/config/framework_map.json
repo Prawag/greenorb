@@ -1,0 +1,53 @@
+{
+  "scope_1": {
+    "label": "Scope 1 direct emissions",
+    "unit": "tCO2e",
+    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 1", "description": "GHG emissions (Scope I)" },
+    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "GHG emissions — direct" },
+    "GRI":  { "standard": "GRI 305", "indicator": "305-1", "description": "Direct (Scope 1) GHG emissions" },
+    "TCFD": { "pillar": "Metrics & Targets", "indicator": "a", "description": "Scope 1 emissions" }
+  },
+  "scope_2": {
+    "label": "Scope 2 energy indirect emissions",
+    "unit": "tCO2e",
+    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 1", "description": "GHG emissions (Scope II)" },
+    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "GHG emissions — energy indirect" },
+    "GRI":  { "standard": "GRI 305", "indicator": "305-2", "description": "Energy indirect (Scope 2) GHG emissions" },
+    "TCFD": { "pillar": "Metrics & Targets", "indicator": "a", "description": "Scope 2 emissions" }
+  },
+  "scope_3": {
+    "label": "Scope 3 value chain emissions",
+    "unit": "tCO2e",
+    "BRSR": { "principle": "P6", "indicator": "Leadership Indicator 1", "description": "GHG emissions (Scope III)" },
+    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "GHG emissions — value chain" },
+    "GRI":  { "standard": "GRI 305", "indicator": "305-3", "description": "Other indirect (Scope 3) GHG emissions" }
+  },
+  "energy_consumption": {
+    "label": "Total energy consumption",
+    "unit": "GJ",
+    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 2", "description": "Energy consumption (in Joules)" },
+    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "Energy consumption and mix" },
+    "GRI":  { "standard": "GRI 302", "indicator": "302-1", "description": "Energy consumption within the organization" }
+  },
+  "water_withdrawal": {
+    "label": "Total water withdrawal",
+    "unit": "KL",
+    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 3", "description": "Water withdrawal (in KL)" },
+    "CSRD": { "standard": "ESRS E3", "indicator": "E3-4", "description": "Water consumption" },
+    "GRI":  { "standard": "GRI 303", "indicator": "303-3", "description": "Water withdrawal" }
+  },
+  "waste_generated": {
+    "label": "Total waste generated",
+    "unit": "MT",
+    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 5", "description": "Total waste generated (in metric tonnes)" },
+    "CSRD": { "standard": "ESRS E5", "indicator": "E5-4", "description": "Resource outflows — waste" },
+    "GRI":  { "standard": "GRI 306", "indicator": "306-3", "description": "Waste generated" }
+  },
+  "renewable_energy_pct": {
+    "label": "Renewable energy percentage",
+    "unit": "%",
+    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 2", "description": "Energy from renewable sources (%)" },
+    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "Share of renewable energy" },
+    "GRI":  { "standard": "GRI 302", "indicator": "302-1", "description": "Renewable energy consumption share" }
+  }
+}

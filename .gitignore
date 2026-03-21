@@ -7,3 +7,7 @@ dist
 .DS_Store
 Backend/venv/
 ollama_log.txt
+Claude Conversation/
+*.zip
+*.pdf
+

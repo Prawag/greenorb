@@ -2,13 +2,11 @@ import React from "react";
 import { Rw, Dot, M } from "./primitives";
 
 const T = {
-    globe: "Carbon Globe",
-    companies: "ESG Database",
-    compare: "Compare Products",
-    scan: "AI Analyzer",
-    agent: "Agent HQ",
-    token: "$GORB Token",
-    about: "About",
+    globe: "NASA GIBS Globe",
+    audit: "Deep AI Audit",
+    compare: "LCA Comparison",
+    trust: "Agent Observability",
+    indore: "Indore Smart City",
 };
 
 export default function TopBar({ tab }) {
