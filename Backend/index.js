@@ -11,6 +11,25 @@ import mountGlobePoints from './api/globe-points.js';
 import mountCountryChoropleth from './api/country-choropleth.js';
 import mountEsgNews from './api/esg-news.js';
 import mountClimateTrace from './api/climate-trace.js';
+import mountGdelt from './api/gdelt.js';
+import mountGreenwashVelocity from './api/greenwash-velocity.js';
+import mountNasaFirms from './api/nasa-firms.js';
+import mountGridCarbon from './api/grid-carbon.js';
+import mountAirQuality from './api/air-quality.js';
+import mountEarthquakes from './api/earthquakes.js';
+import mountFloods from './api/floods.js';
+import mountCyclones from './api/cyclones.js';
+import mountVolcanoes from './api/volcanoes.js';
+import mountNasaEonet from './api/nasa-eonet.js';
+import mountDisastersProximity from './api/disasters-proximity.js';
+import mountGpmImerg from './api/gpm-imerg.js';
+import mountSentinel5p from './api/sentinel-5p.js';
+import mountBiodiversity from './api/biodiversity.js';
+import mountOceanCurrents from './api/ocean-currents.js';
+import mountWaterStress from './api/water-stress.js';
+import mountForestLoss from './api/forest-loss.js';
+import mountCoralBleaching from './api/coral-bleaching.js';
+import mountFishingWatch from './api/fishing-watch.js';
 
 dotenv.config();
 
@@ -48,6 +67,10 @@ const initDb = async () => {
                 s2 NUMERIC,
                 s3 NUMERIC,
                 report_year INTEGER,
+                lat NUMERIC,
+                lng NUMERIC,
+                audit_status TEXT DEFAULT 'PENDING',
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 ts TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
         `;
@@ -398,10 +421,42 @@ app.post('/api/verdicts', async (req, res) => {
 });
 
 // ─── GLOBE API ROUTES ─────────────────────────────────────────────────────────
+
 mountGlobePoints(app, sql);
 mountCountryChoropleth(app, sql);
 mountEsgNews(app, sql);
 mountClimateTrace(app);
+mountDisastersProximity(app, sql);
+app.use('/api/globe/fires', mountNasaFirms);
+app.use('/api/globe/grid', mountGridCarbon);
+app.use('/api/globe/air-quality', mountAirQuality);
+app.use('/api/disasters/earthquakes', mountEarthquakes);
+app.use('/api/disasters/floods', mountFloods);
+app.use('/api/disasters/cyclones', mountCyclones);
+app.use('/api/disasters/volcanoes', mountVolcanoes);
+app.use('/api/disasters/eonet', mountNasaEonet);
+
+// ==========================================
+// MOUNT NEW SPRINT 2 APIS
+// ==========================================
+app.use('/api/gdelt', mountGdelt(sql));
+app.use('/api/greenwash-velocity', mountGreenwashVelocity(sql));
+
+// ==========================================
+// MOUNT NEW SPRINT 3 APIS
+// ==========================================
+app.use('/api/gpm-imerg', mountGpmImerg(sql));
+app.use('/api/sentinel-5p', mountSentinel5p(sql));
+app.use('/api/biodiversity', mountBiodiversity(sql));
+
+// ==========================================
+// MOUNT NEW SPRINT 4 APIS
+// ==========================================
+app.use('/api/ocean-currents', mountOceanCurrents(sql));
+app.use('/api/water-stress', mountWaterStress(sql));
+app.use('/api/forest-loss', mountForestLoss(sql));
+app.use('/api/coral-bleaching', mountCoralBleaching(sql));
+app.use('/api/fishing-watch', mountFishingWatch(sql));
 
 // ─── AGENT STATUS (30s cache) ─────────────────────────────────────────────────
 const agentCache = new NodeCache({ stdTTL: 30, checkperiod: 10 });
@@ -410,23 +465,32 @@ app.get('/api/agent/status', async (req, res) => {
     if (cached) return res.json(cached);
 
     try {
-        const [countResult] = await sql`SELECT COUNT(*) as total FROM companies`;
-        const totalCompanies = parseInt(countResult?.total || '0');
-
+        const [countResult] = await sql`
+            SELECT 
+                COUNT(*) FILTER (WHERE audit_status = 'EXTRACTING') AS in_progress,
+                COUNT(*) FILTER (WHERE audit_status = 'FAILED') AS failed,
+                COUNT(*) FILTER (WHERE audit_status = 'COMPLETED' AND created_at >= NOW() - INTERVAL '24 hours') AS completed_today,
+                COUNT(*) AS total
+            FROM companies
+        `;
+        
         const result = {
             active_agents: 4,
-            audits_in_progress: 0,
-            audits_completed_today: totalCompanies,
-            total_companies: totalCompanies,
+            audits_in_progress: parseInt(countResult?.in_progress || '0'),
+            audits_failed: parseInt(countResult?.failed || '0'),
+            audits_completed_today: parseInt(countResult?.completed_today || '0'),
+            total_companies: parseInt(countResult?.total || '0'),
             last_audit_completed_at: new Date().toISOString(),
         };
 
         agentCache.set('agent_status', result);
         res.json(result);
     } catch (err) {
+        console.error('[agent_status] Error querying DB:', err.message);
         res.json({
             active_agents: 4,
             audits_in_progress: 0,
+            audits_failed: 0,
             audits_completed_today: 0,
             total_companies: 0,
             last_audit_completed_at: null,

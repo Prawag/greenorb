@@ -277,3 +277,18 @@ textarea {
         border-color: rgba(16, 185, 129, .4)
     }
 }
+
+/* === Scope Value Formatting === */
+.scope-unknown {
+  color: var(--tx2);
+  font-style: italic;
+  font-size: 12px;
+}
+.scope-zero {
+  color: var(--tx2);
+  font-size: 13px;
+}
+.scope-value {
+  color: inherit;
+  font-weight: 500;
+}

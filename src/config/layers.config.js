@@ -9,14 +9,88 @@ export const LAYERS = {
     ttl: 300_000,        // 5 min in ms
     primitive: 'points',
     defaultOn: true,
+    h3: {
+      enabled: true,
+      globalResolution: 3,   // ~500km cells at world view
+      regionalResolution: 5, // ~50km cells when zoomed in
+      breakAltitude: 1.8,    // altitude threshold to switch modes
+    },
     color: (d) => {
       if (d.has_discrepancy)           return '#FF3B3B';  // red = fraud flag
       if (d.greendex < 30)             return '#FF8C00';  // orange = poor
       if (d.greendex < 60)             return '#FFD700';  // yellow = moderate
       return '#00FA9A';                                    // green = good
     },
-    altitude: (d) => Math.min(Math.sqrt((d.scope_total || 0)) / 8000, 0.6),
-    radius: 0.5,
+    altitude: (d) => Math.max(0.02, Math.min(Math.sqrt((d.scope_total || 0)) / 8000, 0.6)),
+    radius: (d) => d.scope_total ? 0.5 : 0.35,
+  },
+
+  fires: {
+    id: 'fires',
+    label: 'Active fires (NASA VIIRS)',
+    endpoint: '/api/globe/fires',
+    ttl: 3_600_000,    // 1h
+    primitive: 'points',
+    defaultOn: false,
+    color: (d) => {
+      if (d.brightness > 380) return '#FF0000';   // extreme
+      if (d.brightness > 350) return '#FF4444';   // high
+      return '#FF8C00';                            // moderate
+    },
+    altitude: (d) => Math.min(d.frp / 500, 0.4),
+    radius: (d) => Math.max(d.frp / 200, 0.3),
+  },
+
+  earthquakes: {
+    id: 'earthquakes', label: 'Earthquakes (USGS)', endpoint: '/api/disasters/earthquakes', ttl: 300_000, primitive: 'points', defaultOn: true,
+  },
+  floods: {
+    id: 'floods', label: 'Floods (GDACS)', endpoint: '/api/disasters/floods', ttl: 1800_000, primitive: 'points', defaultOn: true,
+  },
+  cyclones: {
+    id: 'cyclones', label: 'Cyclones (GDACS)', endpoint: '/api/disasters/cyclones', ttl: 1800_000, primitive: 'points', defaultOn: true,
+  },
+  volcanoes: {
+    id: 'volcanoes', label: 'Active Volcanoes (GVP)', endpoint: '/api/disasters/volcanoes', ttl: 1800_000, primitive: 'points', defaultOn: true,
+  },
+  eonet: {
+    id: 'eonet', label: 'NASA EONET Fallback', endpoint: '/api/disasters/eonet', ttl: 1800_000, primitive: 'points', defaultOn: false,
+  },
+
+  gridCarbon: {
+    id: 'gridCarbon',
+    label: 'Grid carbon intensity',
+    endpoint: '/api/globe/grid',
+    ttl: 900_000,    // 15min
+    primitive: 'points',
+    defaultOn: false,
+    color: (d) => {
+      const ci = d.carbon_intensity || 0;
+      if (ci > 600) return '#FF3B3B';   // very dirty (coal-heavy)
+      if (ci > 400) return '#FF8C00';   // moderate
+      if (ci > 200) return '#FFD700';   // mixed
+      return '#00FA9A';                  // clean (mostly renewable)
+    },
+    altitude: () => 0.05,
+    radius: 1.2,
+  },
+
+  airQuality: {
+    id: 'airQuality',
+    label: 'Air quality (PM2.5)',
+    endpoint: '/api/globe/air-quality',
+    ttl: 3_600_000,
+    primitive: 'points',
+    defaultOn: false,
+    color: (d) => {
+      const pm25 = d.avg_pm25 || 0;
+      if (pm25 > 55)  return '#7E0023';   // hazardous (maroon)
+      if (pm25 > 35)  return '#FF3B3B';   // unhealthy
+      if (pm25 > 15)  return '#FF8C00';   // WHO threshold exceeded
+      return '#00FA9A';                    // within WHO guideline
+    },
+    altitude: (d) => Math.min((d.avg_pm25 || 0) / 100, 0.4),
+    radius: 1.5,
   },
 
   countries: {
@@ -65,6 +139,16 @@ export const LAYERS = {
     radius: 0.15,  // geometry radius 0.15 per user spec
   },
 
+  satellites: {
+    id: 'satellites',
+    label: 'Satellites (SGP4)',
+    icon: '🛰️',
+    defaultOn: false,
+    workerPowered: true,
+    ttl: 180,
+    source: 'CelesTrak'
+  },
+
   nasa_gibs: {
     id: 'nasa_gibs',
     label: 'NASA satellite (CO₂)',
@@ -73,7 +157,94 @@ export const LAYERS = {
     primitive: 'tile',
     defaultOn: true,
   },
+  
+  gdelt: {
+    id: 'gdelt',
+    label: 'News Intel (GDELT)',
+    color: () => '#a855f7',
+    defaultOn: false,
+  },
+
+  greenwashVelocity: {
+    id: 'greenwashVelocity',
+    label: 'Greenwash Velocity',
+    color: () => '#ef4444',
+    defaultOn: false,
+  },
+  gpm_precipitation: {
+    id: 'gpm_precipitation',
+    label: 'Precipitation (GPM)',
+    color: () => '#3b82f6',
+    defaultOn: false,
+  },
+  sentinel_atmosphere: {
+    id: 'sentinel_atmosphere',
+    label: 'Atmosphere (Sentinel)',
+    color: () => '#a78bfa',
+    defaultOn: false,
+  },
+  biodiversity_index: {
+    id: 'biodiversity_index',
+    label: 'Biodiversity (GBIF)',
+    color: () => '#22c55e',
+    defaultOn: false,
+  },
+  ocean_currents: {
+    id: 'ocean_currents',
+    label: 'Ocean Currents',
+    color: () => '#06b6d4',
+    defaultOn: false,
+  },
+  water_stress: {
+    id: 'water_stress',
+    label: 'Water Stress (WRI)',
+    color: () => '#f59e0b',
+    defaultOn: false,
+  },
+  forest_loss: {
+    id: 'forest_loss',
+    label: 'Forest Loss (GFW)',
+    color: () => '#22c55e',
+    defaultOn: false,
+  },
+  coral_bleaching: {
+    id: 'coral_bleaching',
+    label: 'Coral Bleaching',
+    color: () => '#f97316',
+    defaultOn: false,
+  },
+  fishing_watch: {
+    id: 'fishing_watch',
+    label: 'Illegal Fishing (GFW)',
+    color: () => '#a855f7',
+    defaultOn: false,
+  }
 };
 
-export const LAYER_IDS = Object.keys(LAYERS);
-export const DEFAULT_ON = LAYER_IDS.filter(id => LAYERS[id].defaultOn);
+export const LAYER_IDS = [
+    'companies',
+    'nasa_gibs',
+    'earthquakes',
+    'floods',
+    'cyclones',
+    'volcanoes',
+    'eonet',
+    'gridCarbon',
+    'airQuality',
+    'countries',
+    'newsVelocity',
+    'climateTrace',
+    'satellites',
+    'gdelt',
+    'greenwashVelocity',
+    'gpm_precipitation',
+    'sentinel_atmosphere',
+    'biodiversity_index',
+    'ocean_currents',
+    'water_stress',
+    'forest_loss',
+    'coral_bleaching',
+    'fishing_watch'
+];
+
+export const DEFAULT_ON = LAYER_IDS.filter(id => LAYERS[id] && LAYERS[id].defaultOn && LAYERS[id].label);

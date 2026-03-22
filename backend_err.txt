@@ -1,0 +1,74 @@
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[esg-news] Feed failed: https://feeds.reuters.com/reuters/environment — getaddrinfo ENOTFOUND feeds.reuters.com
+[esg-news] Feed failed: https://rss.cnn.com/rss/edition_world.rss — Client network socket disconnected before secure TLS connection was established
+[esg-news] Feed failed: https://feeds.feedburner.com/businessgreen — Status code 404
+[esg-news] Feed failed: https://feeds.feedburner.com/ndtv/environmental-news — Status code 404
+[esg-news] Feed failed: https://www.environmentalleader.com/feed/ — Status code 404
+[esg-news] Feed failed: https://www.greenbiz.com/feed — Invalid character in entity name
+Line: 17
+Column: 47
+Char: =
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[globe-points] DB error: column "updated_at" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: Error connecting to database: TypeError: fetch failed
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: Error connecting to database: TypeError: fetch failed
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist
+[agent_status] Error querying DB: column "audit_status" does not exist

@@ -297,3 +297,52 @@
     padding: 4px 10px;
   }
 }
+
+/* ══════ Timeline Scrubber ══════ */
+.timeline-scrubber {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--sf);
+  border: 1px solid var(--bd);
+  border-radius: 20px;
+  font-size: 12px;
+  min-width: 400px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+.timeline-scrubber button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--bd);
+  background: transparent;
+  color: var(--tx);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+.timeline-scrubber button:hover {
+  background: var(--bg2);
+}
+.timeline-scrubber button.active {
+  background: var(--tx);
+  color: var(--sf);
+}
+.timeline-scrubber__track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.timeline-scrubber__track input[type=range] {
+  accent-color: var(--jade);
+  cursor: pointer;
+}
+.timeline-scrubber__date {
+  min-width: 80px;
+  text-align: right;
+  color: var(--tx2);
+  font-size: 11px;
+  font-family: var(--mono);
+}

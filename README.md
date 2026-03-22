@@ -181,6 +181,25 @@ erDiagram
 
 There is no single database of carbon footprints. ESG reports are scattered across thousands of PDFs. GreenOrb's AI agent reads them all.
 
+## 🔐 API Key Security
+
+Never commit API keys to git. All keys live in `Backend/.env` only.
+
+If you see a 403 error from Gemini ("API key reported as leaked"):
+1. Go to https://aistudio.google.com/app/apikey
+2. Delete the revoked key
+3. Generate a new key
+4. Update `Backend/.env` (never commit this file)
+
+**Required env vars:**
+| Variable | Source |
+|----------|--------|
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) (free) |
+| `DATABASE_URL` | [Neon](https://neon.tech) PostgreSQL |
+| `NASA_FIRMS_KEY` | [FIRMS API](https://firms.modaps.eosdis.nasa.gov/api/area/) (free) |
+| `ELECTRICITY_MAPS_KEY` | [electricitymaps.com](https://electricitymaps.com) (free) |
+
 ---
 
 Built with ❤️ and data by [@prawa](https://github.com/prawa)

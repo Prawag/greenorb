@@ -51,21 +51,35 @@ const COUNTRY_CENTROIDS = {
 export default function mountGlobePoints(app, sql) {
   app.get('/api/globe/companies', async (req, res) => {
     const start = Date.now();
+    const date = req.query.date;
+    const cacheKey = date ? `${CACHE_KEY}_${date}` : CACHE_KEY;
 
     // Check cache first
-    const cached = cache.get(CACHE_KEY);
+    const cached = cache.get(cacheKey);
     if (cached) {
       console.log(`[globe-points] Cache HIT · ${cached.data.length} companies · ${Date.now() - start}ms`);
       return res.json({ ...cached, stale: false });
     }
 
     try {
-      const rows = await sql`
-        SELECT
-          name, sector, country, co2, esg, s1, s2, s3, report_year,
-          url, products, methodology
-        FROM companies
-      `;
+      let rows;
+      if (date) {
+        rows = await sql`
+          SELECT
+            name, sector, country, co2, esg, s1, s2, s3, report_year,
+            url, products, methodology
+          FROM companies
+          WHERE DATE(updated_at) <= ${date}
+          ORDER BY updated_at DESC
+        `;
+      } else {
+        rows = await sql`
+          SELECT
+            name, sector, country, co2, esg, s1, s2, s3, report_year,
+            url, products, methodology
+          FROM companies
+        `;
+      }
 
       const data = rows.map((r, i) => {
         const centroid = COUNTRY_CENTROIDS[r.country] || [0, 0];

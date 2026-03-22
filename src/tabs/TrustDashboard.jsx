@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Cd, M, Rw, Bdg, Dot, Spin, SHd, GlassBtn } from "../components/primitives";
 import { submitVerdict as apiSubmitVerdict } from "../hooks/useEmissionsData";
 
@@ -88,6 +88,29 @@ export default function TrustDashboard() {
     const [selAudit, setSelAudit] = useState(null);
     const [viewMode, setViewMode] = useState("developer");
     const [verdicts, setVerdicts] = useState({});
+    const [proximityAlerts, setProximityAlerts] = useState([]);
+
+    useEffect(() => {
+        let alive = true;
+        const fetchPx = async () => {
+            try {
+                const res = await fetch('http://localhost:5000/api/disasters-proximity');
+                const data = await res.json();
+                if (alive && Array.isArray(data)) setProximityAlerts(data);
+            } catch (e) {}
+        };
+        fetchPx();
+        const t = setInterval(fetchPx, 15000);
+        return () => { alive = false; clearInterval(t); };
+    }, []);
+
+    const resetPxAlert = async (id, e) => {
+        if (e) e.stopPropagation();
+        try {
+            await fetch(`http://localhost:5000/api/disasters-proximity/${id}/resolve`, { method: 'POST' });
+            setProximityAlerts(prev => prev.filter(a => a.id !== id));
+        } catch (err) {}
+    };
 
     const submitVerdict = async (auditId, verdict) => {
         const audit = MOCK_AUDITS.find(a => a.id === auditId);
@@ -138,6 +161,33 @@ export default function TrustDashboard() {
                         </Cd>
                     </div>
 
+                    {proximityAlerts.length > 0 && (
+                        <div style={{ marginBottom: 24 }}>
+                            <SHd tag="Disaster Signal" title="Physical Proximity Warnings" sub="Live real-time alerts from orbital and global telemetry" />
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                {proximityAlerts.map(pa => (
+                                    <Cd key={pa.id} style={{ padding: '16px 20px', background: "rgba(239,68,68,.05)", border: pa.severity === 'CRITICAL' ? "1px solid #ef4444" : "1px solid rgba(239,68,68,.3)", borderRadius: 8 }}>
+                                        <Rw style={{ justifyContent: "space-between", alignItems: 'center' }}>
+                                            <Rw style={{ gap: 16 }}>
+                                                <div style={{ fontSize: 24, animation: pa.severity === 'CRITICAL' ? 'pulse 2s infinite' : 'none' }}>🚨</div>
+                                                <div>
+                                                    <div style={{ fontFamily: "var(--disp)", fontWeight: 700, fontSize: 16, color: "#ef4444", marginBottom: 2 }}>{pa.company_name}</div>
+                                                    <M size={13} color="var(--tx2)">
+                                                        <strong>{pa.disaster_title}</strong> is approx {(pa.distance_km || 0).toFixed(1)}km away.<br/>
+                                                        DIS Score: <strong>{pa.dis_score}/100</strong> · Severity: <strong style={{ color: pa.severity === 'CRITICAL' ? '#ef4444' : '#f97316' }}>{pa.severity}</strong>
+                                                    </M>
+                                                </div>
+                                            </Rw>
+                                            <GlassBtn onClick={(e) => resetPxAlert(pa.id, e)} style={{ color: "var(--tx)", border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', padding: '6px 12px' }}>
+                                                Acknowledge
+                                            </GlassBtn>
+                                        </Rw>
+                                    </Cd>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                         {MOCK_AUDITS.map(a => (
                             <Cd key={a.id} style={{ padding: 16, cursor: a.status === "processing" ? "default" : "pointer", transition: "all .2s" }} onClick={() => a.status !== "processing" && setSelAudit(a)}>
@@ -186,6 +236,15 @@ export default function TrustDashboard() {
                     </div>
 
                     <Cd style={{ padding: 20, marginBottom: 24, background: viewMode === "compliance" ? "#ffffff" : "var(--sf)" }}>
+                        {selAudit.sanctions_check?.found && (
+                            <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 8, padding: "12px 16px", marginBottom: 16, display: "flex", gap: 12, alignItems: "center" }}>
+                                <div style={{ fontSize: 24 }}>🚨</div>
+                                <div style={{ flex: 1 }}>
+                                    <h4 style={{ color: "#ef4444", margin: 0, fontSize: 14 }}>OpenSanctions Match: {selAudit.company}</h4>
+                                    <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--tx2)" }}>{selAudit.sanctions_check.message} <strong style={{ color: "#ef4444"}}>(Risk: {selAudit.sanctions_check.risk_level})</strong></p>
+                                </div>
+                            </div>
+                        )}
                         <Rw style={{ justifyContent: "space-between", marginBottom: 16 }}>
                             <div>
                                 <h2 style={{ fontFamily: "var(--disp)", fontSize: 22, fontWeight: 700, color: "var(--tx)", marginBottom: 4 }}>

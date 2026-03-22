@@ -23,15 +23,38 @@ export default function CompaniesTab() {
             // Map Neon backend data to COMPANIES format
             // [name, sector, country, co2, esg, employees, url, products, methodology, s1, s2, s3]
             const mapped = data.map(c => [
-                c.name, c.sector || "N/A", c.country || "N/A", c.co2 || 0, c.esg || "N/A",
+                c.name, c.sector || "N/A", c.country || "N/A", c.co2, c.esg || "N/A",
                 "N/A", c.url || "N/A", c.products || "N/A", c.methodology || "N/A",
-                c.s1 || 0, c.s2 || 0, c.s3 || 0, c.report_year
+                c.s1, c.s2, c.s3, c.report_year
             ]);
             setLiveCompanies(mapped);
         } catch (e) {
             console.error("CompaniesTab Sync Error:", e);
         }
     };
+
+    function parseApiError(errorStr) {
+        if (!errorStr) return '';
+        if (errorStr.includes('403'))
+            return '⚠ Gemini API key invalid or revoked. Using Groq fallback.';
+        if (errorStr.includes('429'))
+            return '⚠ Gemini rate limited. Using Groq fallback.';
+        if (errorStr.includes('Timeout') || errorStr.includes('504'))
+            return '⚠ PDF too large for single request. Chunking and retrying.';
+        return `⚠ ${errorStr.slice(0, 80)}...`;
+    }
+
+    // Helper function to display scope value properly
+    function displayScope(value) {
+        if (value === null || value === undefined || value === "N/A" || Number.isNaN(Number(value))) {
+            return <span className="scope-unknown">Not disclosed</span>;
+        }
+        if (value === 0) {
+            return <span className="scope-zero">0 Mt (reported zero)</span>;
+        }
+        const mt = (value / 1_000_000).toFixed(2);
+        return <span className="scope-value">{mt} Mt</span>;
+    }
 
     React.useEffect(() => {
         fetchNeonData();
@@ -82,7 +105,7 @@ export default function CompaniesTab() {
                 setAiData(prev => ({ ...prev, [key]: { news: text.substring(0, 200) } }));
             }
         } catch (err) {
-            setAiData(prev => ({ ...prev, [key]: { news: `Error: ${err.message.slice(0, 100)}` } }));
+            setAiData(prev => ({ ...prev, [key]: { news: `LIVE Error: ${parseApiError(err.message)}` } }));
         }
         setLoading(null);
     };
@@ -133,7 +156,9 @@ export default function CompaniesTab() {
                                     </Rw>
                                 </div>
                                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                    <div style={{ fontFamily: "var(--mono)", fontSize: 18, color: gradeToColor(esg), fontWeight: 500 }}>{co2}Mt</div>
+                                    <div style={{ fontFamily: "var(--mono)", fontSize: 16, color: gradeToColor(esg), fontWeight: 500 }}>
+                                        {co2 === null || co2 === undefined ? <span className="scope-unknown" style={{fontSize: 12}}>Audit pending</span> : displayScope(co2)}
+                                    </div>
                                     <M size={9} color="var(--tx3)">Scope 1+2</M>
                                 </div>
                             </Rw>
@@ -151,7 +176,7 @@ export default function CompaniesTab() {
                                     ].map(([l, v, col, tags]) => (
                                         <div key={l} style={{ padding: "8px", background: "var(--sf)", borderRadius: 8, border: "1px solid var(--bd)", textAlign: "center" }}>
                                             <M size={8} color="var(--tx3)" style={{ display: "block", marginBottom: 2 }}>{l}</M>
-                                            <M size={11} color={`var(--${col})`} style={{ fontWeight: 500 }}>{v}Mt</M>
+                                            <div style={{ color: `var(--${col})`, fontWeight: 500 }}>{displayScope(v)}</div>
                                             {v > 0 && tags && (
                                                 <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center", marginTop: 4 }}>
                                                     {Object.entries(tags).map(([fw, ind]) => (

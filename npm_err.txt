@@ -1,0 +1,151 @@
+[2m8:01:30 am[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\prawa\Desktop\GreenOrb\src\tabs\GlobeTab.jsx: Identifier 'selectedAlert' has already been declared. (80:11)
+
+[0m [90m 78 |[31m
+ [90m 79 |[31m     [36mconst[31m [historyDate[33m,[31m setHistoryDate] [33m=[31m useState([36mnull[31m)[33m;[31m
+[31m[1m>[22m[31m[90m 80 |[31m     [36mconst[31m [selectedAlert[33m,[31m setSelectedAlert] [33m=[31m useState([36mnull[31m)[33m;[31m
+ [90m    |[31m            [31m[1m^[22m[31m
+ [90m 81 |[31m
+ [90m 82 |[31m     [90m// Data hooks — each fetches independently[31m
+ [90m 83 |[31m     [36mconst[31m companies    [33m=[31m useCompanies(historyDate)[33m;[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/prawa/Desktop/GreenOrb/src/tabs/GlobeTab.jsx[39m:80:11
+[33m  78 |  
+  79 |      const [historyDate, setHistoryDate] = useState(null);
+  80 |      const [selectedAlert, setSelectedAlert] = useState(null);
+     |             ^
+  81 |  
+  82 |      // Data hooks — each fetches independently[39m
+      at constructor (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:6599:19)
+      at ScopeHandler.checkRedeclarationInScope (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:1619:19)
+      at ScopeHandler.declareName (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:1585:12)
+      at JSXParserMixin.declareNameFromIdentifier (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:7567:16)
+      at JSXParserMixin.checkIdentifier (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:7563:12)
+      at JSXParserMixin.checkLVal (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:7500:12)
+      at JSXParserMixin.checkLVal (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:7540:16)
+      at JSXParserMixin.parseVarId (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13412:10)
+      at JSXParserMixin.parseVar (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13383:12)
+      at JSXParserMixin.parseVarStatement (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13230:10)
+      at JSXParserMixin.parseStatementContent (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12851:23)
+      at JSXParserMixin.parseStatementLike (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12767:17)
+      at JSXParserMixin.parseStatementListItem (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12747:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13316:61)
+      at JSXParserMixin.parseBlockBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13309:10)
+      at JSXParserMixin.parseBlock (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13297:10)
+      at JSXParserMixin.parseFunctionBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12100:24)
+      at JSXParserMixin.parseFunctionBodyAndFinish (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12086:10)
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13445:12
+      at JSXParserMixin.withSmartMixTopicForbiddingContext (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12403:14)
+      at JSXParserMixin.parseFunction (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13444:10)
+      at JSXParserMixin.parseExportDefaultExpression (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13907:19)
+      at JSXParserMixin.parseExport (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13828:25)
+      at JSXParserMixin.parseStatementContent (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12878:27)
+      at JSXParserMixin.parseStatementLike (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12767:17)
+      at JSXParserMixin.parseModuleItem (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12744:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13316:36)
+      at JSXParserMixin.parseBlockBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13309:10)
+      at JSXParserMixin.parseProgram (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12622:10)
+      at JSXParserMixin.parseTopLevel (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12612:25)
+      at JSXParserMixin.parse (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:14488:25)
+      at parse (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:14522:38)
+      at parser (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\parser\index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\transformation\normalize-file.js:64:37)
+      at normalizeFile.next (<anonymous>)
+      at run (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\transformation\index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:261:32)
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:223:11)
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:189:28
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\gensync-utils\async.js:67:7
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:113:33
+      at step (C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:287:14)
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:223:11)
+[2m8:01:53 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: C:\Users\prawa\Desktop\GreenOrb\src\tabs\GlobeTab.jsx: Identifier 'selectedAlert' has already been declared. (80:11)
+
+[0m [90m 78 |[39m
+ [90m 79 |[39m     [36mconst[39m [historyDate[33m,[39m setHistoryDate] [33m=[39m useState([36mnull[39m)[33m;[39m
+[31m[1m>[22m[39m[90m 80 |[39m     [36mconst[39m [selectedAlert[33m,[39m setSelectedAlert] [33m=[39m useState([36mnull[39m)[33m;[39m
+ [90m    |[39m            [31m[1m^[22m[39m
+ [90m 81 |[39m
+ [90m 82 |[39m     [90m// Data hooks — each fetches independently[39m
+ [90m 83 |[39m     [36mconst[39m companies    [33m=[39m useCompanies(historyDate)[33m;[39m[0m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/prawa/Desktop/GreenOrb/src/tabs/GlobeTab.jsx[39m:80:11
+[33m  78 |  
+  79 |      const [historyDate, setHistoryDate] = useState(null);
+  80 |      const [selectedAlert, setSelectedAlert] = useState(null);
+     |             ^
+  81 |  
+  82 |      // Data hooks — each fetches independently[39m
+[2m8:01:54 am[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\prawa\Desktop\GreenOrb\src\tabs\GlobeTab.jsx: Identifier 'selectedAlert' has already been declared. (80:11)
+
+[0m [90m 78 |[31m
+ [90m 79 |[31m     [36mconst[31m [historyDate[33m,[31m setHistoryDate] [33m=[31m useState([36mnull[31m)[33m;[31m
+[31m[1m>[22m[31m[90m 80 |[31m     [36mconst[31m [selectedAlert[33m,[31m setSelectedAlert] [33m=[31m useState([36mnull[31m)[33m;[31m
+ [90m    |[31m            [31m[1m^[22m[31m
+ [90m 81 |[31m
+ [90m 82 |[31m     [90m// Data hooks — each fetches independently[31m
+ [90m 83 |[31m     [36mconst[31m companies    [33m=[31m useCompanies(historyDate)[33m;[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/prawa/Desktop/GreenOrb/src/tabs/GlobeTab.jsx[39m:80:11
+[33m  78 |  
+  79 |      const [historyDate, setHistoryDate] = useState(null);
+  80 |      const [selectedAlert, setSelectedAlert] = useState(null);
+     |             ^
+  81 |  
+  82 |      // Data hooks — each fetches independently[39m
+      at constructor (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:6599:19)
+      at ScopeHandler.checkRedeclarationInScope (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:1619:19)
+      at ScopeHandler.declareName (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:1585:12)
+      at JSXParserMixin.declareNameFromIdentifier (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:7567:16)
+      at JSXParserMixin.checkIdentifier (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:7563:12)
+      at JSXParserMixin.checkLVal (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:7500:12)
+      at JSXParserMixin.checkLVal (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:7540:16)
+      at JSXParserMixin.parseVarId (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13412:10)
+      at JSXParserMixin.parseVar (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13383:12)
+      at JSXParserMixin.parseVarStatement (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13230:10)
+      at JSXParserMixin.parseStatementContent (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12851:23)
+      at JSXParserMixin.parseStatementLike (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12767:17)
+      at JSXParserMixin.parseStatementListItem (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12747:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13316:61)
+      at JSXParserMixin.parseBlockBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13309:10)
+      at JSXParserMixin.parseBlock (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13297:10)
+      at JSXParserMixin.parseFunctionBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12100:24)
+      at JSXParserMixin.parseFunctionBodyAndFinish (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12086:10)
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13445:12
+      at JSXParserMixin.withSmartMixTopicForbiddingContext (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12403:14)
+      at JSXParserMixin.parseFunction (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13444:10)
+      at JSXParserMixin.parseExportDefaultExpression (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13907:19)
+      at JSXParserMixin.parseExport (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13828:25)
+      at JSXParserMixin.parseStatementContent (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12878:27)
+      at JSXParserMixin.parseStatementLike (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12767:17)
+      at JSXParserMixin.parseModuleItem (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12744:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13316:36)
+      at JSXParserMixin.parseBlockBody (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:13309:10)
+      at JSXParserMixin.parseProgram (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12622:10)
+      at JSXParserMixin.parseTopLevel (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:12612:25)
+      at JSXParserMixin.parse (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:14488:25)
+      at parse (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\parser\lib\index.js:14522:38)
+      at parser (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\parser\index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\transformation\normalize-file.js:64:37)
+      at normalizeFile.next (<anonymous>)
+      at run (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\transformation\index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:261:32)
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:223:11)
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:189:28
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\@babel\core\lib\gensync-utils\async.js:67:7
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:113:33
+      at step (C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:287:14)
+      at C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\Users\prawa\Desktop\GreenOrb\node_modules\gensync\index.js:223:11)

@@ -9,10 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "cesium": "^1.139.1",
+    "h3-js": "^4.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-globe.gl": "^2.37.0",
-    "three": "^0.172.0"
+    "satellite.js": "^6.0.2",
+    "three": "^0.172.0",
+    "vite-plugin-cesium": "^1.2.23"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

@@ -85,18 +85,38 @@ async def _call_gemini(prompt: str, system: str) -> str:
     return text
 
 
+GROQ_ESG_ADDENDUM = """
+
+CRITICAL EXTRACTION RULES:
+1. Return ONLY valid JSON. No markdown. No prose. No backticks.
+2. All numeric values must be raw numbers (float or int), NEVER strings with units.
+3. If a number has "Mt" suffix: multiply by 1,000,000 before returning.
+4. If a number has "Kt" suffix: multiply by 1,000 before returning.
+5. If a number has "tCO2e" or "tonnes CO2e": return as-is (already in tonnes).
+6. If a metric is not found or not disclosed: return null (NOT 0, NOT "N/A").
+7. Scope 1 = direct emissions. Scope 2 = energy/electricity indirect. 
+   Scope 3 = value chain/supply chain.
+8. Look for "GHG emissions", "carbon emissions", "greenhouse gas" sections.
+"""
+
 async def _call_groq(prompt: str, system: str) -> str:
     import requests
     messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
+    
+    is_esg_task = any(kw in prompt.lower() for kw in 
+                      ['scope', 'emissions', 'ghg', 'carbon', 'sustainability'])
+    enhanced_system = system + (GROQ_ESG_ADDENDUM if is_esg_task else "")
+    
+    if enhanced_system:
+        messages.append({"role": "system", "content": enhanced_system})
     messages.append({"role": "user", "content": prompt})
 
     body = {
         "model": GROQ_MODEL,
         "messages": messages,
-        "temperature": 0.1,
-        "max_tokens": 4096
+        "temperature": 0.05,
+        "max_tokens": 2048,
+        "response_format": {"type": "json_object"}
     }
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
