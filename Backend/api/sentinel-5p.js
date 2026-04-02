@@ -3,59 +3,68 @@ import NodeCache from 'node-cache';
 const cache = new NodeCache({ stdTTL: 86400 });
 
 export default function mountSentinel5p(sql) {
-    return async (req, res) => {
-        const cached = cache.get('sentinel5p');
-        if (cached) return res.json(cached);
-
-        try {
-            const hasCreds = process.env.COPERNICUS_CLIENT_ID && process.env.COPERNICUS_CLIENT_SECRET;
-            let data = [];
-
-            if (hasCreds) {
-                // Actual Copernicus OData query would go here
-                // e.g., POST https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token
-                console.log('Copernicus keys found. (Mocking actual OData parse)');
-            }
-
-            // Generate representative global atmospheric data
-            // NO2 is high near industrial sectors, CH4 near agriculture/pipelines
-            for (let i = 0; i < 400; i++) {
-                const lat = (Math.random() - 0.5) * 160;
-                const lng = (Math.random() - 0.5) * 360;
-                
-                // NO2 values in mol/m^2 (usually very small, e.g., 0.0001)
-                const no2 = Math.random() * 0.0002;
-                // CH4 is mixed globally, around 1800-1900 ppb
-                const ch4 = 1800 + Math.random() * 200;
-                // CO values in mol/m^2
-                const co = 0.02 + Math.random() * 0.05;
-
-                data.push({ lat, lng, no2, ch4, co, unit: 'mol/m2 / ppb' });
-            }
-
-            const responsePayload = {
-                data,
-                cached_at: new Date().toISOString(),
-                stale: false,
-                source: 'ESA Sentinel-5P (Mocked)',
-                ttl: 86400
-            };
-
-            cache.set('sentinel5p', responsePayload);
-            cache.set('sentinel_fallback', { ...responsePayload, stale: true });
-            
-            res.json(responsePayload);
-        } catch (error) {
-            console.error('Sentinel-5P API Error:', error);
-            const fallback = cache.get('sentinel_fallback') || { data: [] };
-            res.json({
-                ...fallback,
-                cached_at: new Date().toISOString(),
-                stale: true,
-                error: error.message,
-                source: 'ESA Sentinel-5P',
-                ttl: 86400
-            });
+  return async (req, res) => {
+    const hasCreds = process.env.COPERNICUS_CLIENT_ID && 
+                     process.env.COPERNICUS_CLIENT_SECRET;
+    
+    if (!hasCreds) {
+      return res.json({
+        data: [],
+        cached_at: new Date().toISOString(),
+        stale: true,
+        source: 'ESA Sentinel-5P',
+        ttl: 86400,
+        error: 'Copernicus credentials required. ' +
+               'Register free at dataspace.copernicus.eu ' +
+               'then add COPERNICUS_CLIENT_ID and ' +
+               'COPERNICUS_CLIENT_SECRET to Backend/.env',
+      });
+    }
+    
+    if (hasCreds) {
+      // Get token
+      const tokenRes = await fetch(
+        'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `client_id=cdse-public&username=${encodeURIComponent(process.env.COPERNICUS_USERNAME)}&password=${encodeURIComponent(process.env.COPERNICUS_PASSWORD)}&grant_type=password`
         }
-    };
+      );
+      const tokenData = await tokenRes.json();
+      const token = tokenData.access_token;
+
+      const endDate = new Date().toISOString();
+      const startDate = new Date(Date.now() - 7 * 86400000).toISOString();
+
+      const odataUrl = `https://catalogue.dataspace.copernicus.eu/odata/v1/Products?` +
+        `$filter=Collection/Name eq 'SENTINEL-5P' and ` +
+        `Attributes/OData.CSC.StringAttribute/any(att:att/Name eq 'productType' ` +
+        `and att/OData.CSC.StringAttribute/Value eq 'L2__NO2___') and ` +
+        `ContentDate/Start gt ${startDate}&$top=10`;
+
+      const productRes = await fetch(odataUrl, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const products = await productRes.json();
+      const data = (products.value || []).map(p => ({
+        lat: parseFloat(p.GeoFootprint?.coordinates?.[0]?.[0]?.[1] || 0),
+        lng: parseFloat(p.GeoFootprint?.coordinates?.[0]?.[0]?.[0] || 0),
+        no2: null,
+        ch4: null,
+        co: null,
+        product_id: p.Id,
+        name: p.Name,
+        unit: 'mol/m2'
+      }));
+      
+      return res.json({
+        data,
+        cached_at: new Date().toISOString(),
+        stale: false,
+        source: 'ESA Sentinel-5P (CDSE OData)',
+        ttl: 86400
+      });
+    }
+  };
 }

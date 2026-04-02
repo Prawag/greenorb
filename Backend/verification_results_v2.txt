@@ -1,0 +1,342 @@
+
+--- FETCHING: http://localhost:5000/api/globe/companies ---
+Sample data (first 3): [
+  {
+    "name": "India",
+    "lat": 21.169451347985433,
+    "lng": 79.26956902305153,
+    "city": "Unknown",
+    "geocoding_source": "country_centroid"
+  },
+  {
+    "name": "DEFRA",
+    "lat": 55.516748526097075,
+    "lng": -3.9475496437288338,
+    "city": "Unknown",
+    "geocoding_source": "country_centroid"
+  },
+  {
+    "name": "EPA",
+    "lat": 0.07538083831928105,
+    "lng": -0.36332776008150697,
+    "city": "Unknown",
+    "geocoding_source": "country_centroid"
+  }
+]
+Total companies: 920
+
+--- FETCHING: http://localhost:5000/api/sentinel-5p ---
+{
+  "data": [],
+  "cached_at": "2026-03-23T02:33:24.322Z",
+  "stale": true,
+  "source": "ESA Sentinel-5P",
+  "ttl": 86400,
+  "error": "Copernicus credentials required. Register free at dataspace.copernicus.eu then add COPERNICUS_CLIENT_ID and COPERNICUS_CLIENT_SECRET to Backend/.env"
+}
+
+--- FETCHING: http://localhost:5000/api/water-stress ---
+{
+  "data": [
+    {
+      "lat": 31.5,
+      "lng": 72,
+      "basin_name": "Indus",
+      "stress_score": 4.9,
+      "stress_label": "Extremely High (>80%)",
+      "category": 5
+    },
+    {
+      "lat": 36,
+      "lng": -112,
+      "basin_name": "Colorado",
+      "stress_score": 4.8,
+      "stress_label": "Extremely High (>80%)",
+      "category": 5
+    },
+    {
+      "lat": 36,
+      "lng": 105,
+      "basin_name": "Yellow River",
+      "stress_score": 4.6,
+      "stress_label": "Extremely High (>80%)",
+      "category": 5
+    },
+    {
+      "lat": 33,
+      "lng": 44,
+      "basin_name": "Tigris-Euphrates",
+      "stress_score": 4.5,
+      "stress_label": "Extremely High (>80%)",
+      "category": 5
+    },
+    {
+      "lat": 40,
+      "lng": 61,
+      "basin_name": "Amu Darya",
+      "stress_score": 4.7,
+      "stress_label": "Extremely High (>80%)",
+      "category": 5
+    },
+    {
+      "lat": -22,
+      "lng": 29,
+      "basin_name": "Limpopo",
+      "stress_score": 3.8,
+      "stress_label": "High (40-80%)",
+      "category": 4
+    },
+    {
+      "lat": -29,
+      "lng": 25,
+      "basin_name": "Orange",
+      "stress_score": 4.1,
+      "stress_label": "Extremely High (>80%)",
+      "category": 5
+    },
+    {
+      "lat": -34,
+      "lng": 143,
+      "basin_name": "Murray-Darling",
+      "stress_score": 3.5,
+      "stress_label": "High (40-80%)",
+      "category": 4
+    },
+    {
+      "lat": 29,
+      "lng": -103,
+      "basin_name": "Rio Grande",
+      "stress_score": 4.3,
+      "stress_label": "Extremely High (>80%)",
+      "category": 5
+    },
+    {
+      "lat": 25,
+      "lng": 83,
+      "basin_name": "Ganges",
+      "stress_score": 3.9,
+      "stress_label": "High (40-80%)",
+      "category": 4
+    },
+    {
+      "lat": 20,
+      "lng": 32,
+      "basin_name": "Nile",
+      "stress_score": 4.4,
+      "stress_label": "Extremely High (>80%)",
+      "category": 5
+    },
+    {
+      "lat": 32,
+      "lng": 35.5,
+      "basin_name": "Jordan",
+      "stress_score": 4.8,
+      "stress_label": "Extremely High (>80%)",
+      "category": 5
+    },
+    {
+      "lat": 23,
+      "lng": 113,
+      "basin_name": "Pearl River",
+      "stress_score": 2.1,
+      "stress_label": "Medium-High (20-40%)",
+      "category": 3
+    },
+    {
+      "lat": 16,
+      "lng": 102,
+      "basin_name": "Mekong",
+      "stress_score": 1.8,
+      "stress_label": "Low-Medium (10-20%)",
+      "category": 2
+    },
+    {
+      "lat": -5,
+      "lng": -60,
+      "basin_name": "Amazon",
+      "stress_score": 0.1,
+      "stress_label": "Low (<10%)",
+      "category": 1
+    },
+    {
+      "lat": -3,
+      "lng": 22,
+      "basin_name": "Congo",
+      "stress_score": 0.2,
+      "stress_label": "Low (<10%)",
+      "category": 1
+    },
+    {
+      "lat": 51,
+      "lng": 7,
+      "basin_name": "Rhine",
+      "stress_score": 2.8,
+      "stress_label": "Medium-High (20-40%)",
+      "category": 3
+    },
+    {
+      "lat": 45,
+      "lng": 20,
+      "basin_name": "Danube",
+      "stress_score": 1.5,
+      "stress_label": "Low-Medium (10-20%)",
+      "category": 2
+    },
+    {
+      "lat": 30,
+      "lng": 110,
+      "basin_name": "Yangtze",
+      "stress_score": 1.2,
+      "stress_label": "Low-Medium (10-20%)",
+      "category": 2
+    },
+    {
+      "lat": 38,
+      "lng": -91,
+      "basin_name": "Mississippi",
+      "stress_score": 1.6,
+      "stress_label": "Low-Medium (10-20%)",
+      "category": 2
+    }
+  ],
+  "cached_at": "2026-03-23T02:33:24.326Z",
+  "stale": false,
+  "source": "WRI Aqueduct 3.0 (CC-BY 4.0)",
+  "ttl": 86400
+}
+
+--- FETCHING: http://localhost:5000/api/coral-bleaching ---
+{
+  "data": [],
+  "cached_at": "2026-03-23T02:33:26.965Z",
+  "stale": false,
+  "source": "NOAA CoralWatch (Satellite CSV)",
+  "ttl": 86400
+}
+
+--- FETCHING: http://localhost:5000/api/globe/assets ---
+{
+  "data": [],
+  "cached_at": "2026-03-23T02:33:27.864Z",
+  "stale": true,
+  "source": "climate_trace_api",
+  "ttl": 86400,
+  "total": 0,
+  "error": "Climate TRACE API: 404"
+}
+
+--- FETCHING: http://localhost:5000/api/biodiversity ---
+{
+  "data": [
+    {
+      "lat": -3.46,
+      "lng": -62.21,
+      "zone_name": "Amazon Basin",
+      "species_count": 0,
+      "threatened_count": 0,
+      "iucn_categories": {
+        "CR": 0,
+        "EN": 0,
+        "VU": 0
+      }
+    },
+    {
+      "lat": -0.68,
+      "lng": 21.91,
+      "zone_name": "Congo Basin",
+      "species_count": 0,
+      "threatened_count": 0,
+      "iucn_categories": {
+        "CR": 0,
+        "EN": 0,
+        "VU": 0
+      }
+    },
+    {
+      "lat": 0.96,
+      "lng": 114.55,
+      "zone_name": "Southeast Asia (Borneo)",
+      "species_count": 0,
+      "threatened_count": 0,
+      "iucn_categories": {
+        "CR": 0,
+        "EN": 0,
+        "VU": 0
+      }
+    },
+    {
+      "lat": -18.28,
+      "lng": 147.69,
+      "zone_name": "Great Barrier Reef",
+      "species_count": 0,
+      "threatened_count": 0,
+      "iucn_categories": {
+        "CR": 0,
+        "EN": 0,
+        "VU": 0
+      }
+    },
+    {
+      "lat": -18.76,
+      "lng": 46.86,
+      "zone_name": "Madagascar",
+      "species_count": 0,
+      "threatened_count": 0,
+      "iucn_categories": {
+        "CR": 0,
+        "EN": 0,
+        "VU": 0
+      }
+    },
+    {
+      "lat": 15,
+      "lng": -89,
+      "zone_name": "Mesoamerica",
+      "species_count": 1151,
+      "threatened_count": 92,
+      "iucn_categories": {
+        "CR": 13,
+        "EN": 32,
+        "VU": 46
+      }
+    },
+    {
+      "lat": -23,
+      "lng": -45,
+      "zone_name": "Atlantic Forest",
+      "species_count": 561,
+      "threatened_count": 44,
+      "iucn_categories": {
+        "CR": 6,
+        "EN": 15,
+        "VU": 22
+      }
+    },
+    {
+      "lat": 28,
+      "lng": 84,
+      "zone_name": "Himalayas",
+      "species_count": 103,
+      "threatened_count": 8,
+      "iucn_categories": {
+        "CR": 1,
+        "EN": 2,
+        "VU": 4
+      }
+    }
+  ],
+  "cached_at": "2026-03-23T02:33:34.500Z",
+  "stale": false,
+  "source": "GBIF + IUCN",
+  "ttl": 86400
+}
+
+--- FETCHING: http://localhost:5000/api/globe/air-quality ---
+{
+  "data": [],
+  "cached_at": "2026-03-23T02:33:34.702Z",
+  "stale": false,
+  "source": "openaq_v3",
+  "ttl": 3600,
+  "who_threshold": 15
+}

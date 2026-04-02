@@ -1,50 +1,56 @@
 import NodeCache from 'node-cache';
-const cache = new NodeCache({ stdTTL: 1800 });
-let lastGoodData = null;
+
+const cache = new NodeCache({ stdTTL: 3600 });
 
 export default async function cyclonesHandler(req, res) {
   const cached = cache.get('cyclones');
   if (cached) return res.json({ ...cached, stale: false });
 
   try {
-    const response = await fetch('https://www.gdacs.org/xml/rss_tc_14d.xml', { signal: AbortSignal.timeout(15000) });
-    if (!response.ok) throw new Error(`GDACS API: ${response.status}`);
-    const xml = await response.text();
+    const today = new Date().toISOString().split('T')[0];
+    const from = new Date();
+    from.setDate(from.getDate() - 30);
+    const fromStr = from.toISOString().split('T')[0];
     
-    // Parse using regex
-    const items = xml.split('<item>').slice(1);
-    const data = items.map(item => {
-      const title = (item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || item.match(/<title>(.*?)<\/title>/))?.[1] || 'Cyclone';
-      const latMatch = item.match(/<geo:lat>([\d.-]+)<\/geo:lat>/);
-      const lngMatch = item.match(/<geo:long>([\d.-]+)<\/geo:long>/);
-      const severityMatch = item.match(/<gdacs:severity>(.*?)<\/gdacs:severity>/);
-      
-      if (!latMatch || !lngMatch) return null;
+    const url = 'https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?eventlist=TC' +
+      '&fromdate=' + fromStr + '&todate=' + today + '&pagenumber=1';
 
-      const severity = severityMatch ? parseFloat(severityMatch[1]) : 1;
-      let color = '#c084fc'; // default violet
-      if (severity >= 1.5) color = '#a855f7'; // darker
-      if (severity >= 2.5) color = '#7e22ce'; // intense
+    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error(`GDACS API: ${response.status}`);
+    
+    const json = await response.json();
+    const features = json.features || [];
 
-      return {
-        id: title,
-        name: title,
-        title: title,
-        lat: parseFloat(latMatch[1]),
-        lng: parseFloat(lngMatch[1]),
-        severity,
-        color,
-        type: 'disaster',
-        disaster_type: 'cyclone'
-      };
-    }).filter(d => d !== null);
+    const data = features.map(f => ({
+      id: f.properties.eventid,
+      name: f.properties.name,
+      title: f.properties.name,
+      lat: f.geometry.coordinates[1],
+      lng: f.geometry.coordinates[0],
+      severity: f.properties.alertlevel,
+      country: f.properties.country,
+      disaster_type: 'cyclone',
+      source: 'GDACS REST API v2'
+    }));
 
-    const result = { data, cached_at: new Date().toISOString(), stale: false, source: 'GDACS Cyclones', ttl: 1800, total: data.length };
-    lastGoodData = result;
+    const result = { 
+      data, 
+      cached_at: new Date().toISOString(), 
+      stale: false, 
+      source: 'GDACS REST API v2', 
+      ttl: 3600, 
+      total: data.length 
+    };
+    
     cache.set('cyclones', result);
     res.json(result);
   } catch (err) {
-    if (lastGoodData) return res.json({ ...lastGoodData, stale: true, source: 'GDACS Cyclones (cached)', ttl: 600 });
-    res.json({ data: [], cached_at: null, stale: true, source: 'GDACS Cyclones (unavailable)', ttl: 60, error: err.message });
+    console.error('[CYCLONES] Error:', err.message);
+    res.json({ 
+      data: [], 
+      stale: true, 
+      source: 'GDACS REST API v2 (Error)',
+      error: err.message
+    });
   }
 }

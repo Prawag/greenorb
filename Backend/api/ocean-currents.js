@@ -1,65 +1,25 @@
-import NodeCache from 'node-cache';
+const fetch = (...args) => import('node-fetch').then(m => m.default(...args));
 
-const cache = new NodeCache({ stdTTL: 21600 }); // 6 hours
+export default async (req, res) => {
+  try {
+    const liveRes = await fetch(
+      'https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplOscarv2.json?' +
+      'u[(last)][(0.0)][(0.0):(5.0):(360.0)][(-80.0):(5.0):(80.0)],' +
+      'v[(last)][(0.0)][(0.0):(5.0):(360.0)][(-80.0):(5.0):(80.0)]',
+      { signal: AbortSignal.timeout(15000) }
+    );
+    if (!liveRes.ok) throw new Error(`ERDDAP HTTP ${liveRes.status}`);
+    const json = await liveRes.json();
+    const rows = json.table?.rows || [];
+    const data = rows.map(row => ({
+      lat: parseFloat(row[3]),
+      lng: parseFloat(row[2]) > 180 ? parseFloat(row[2]) - 360 : parseFloat(row[2]),
+      speed_ms: Math.sqrt(Math.pow(parseFloat(row[4]) || 0, 2) + Math.pow(parseFloat(row[5]) || 0, 2)),
+      direction_deg: Math.atan2(parseFloat(row[5]) || 0, parseFloat(row[4]) || 0) * 180 / Math.PI
+    })).filter(d => !isNaN(d.lat) && !isNaN(d.lng) && d.speed_ms > 0.05);
 
-export default function mountOceanCurrents(sql) {
-    return async (req, res) => {
-        const cached = cache.get('ocean-currents');
-        if (cached) return res.json(cached);
-
-        try {
-            const apiKey = process.env.COPERNICUS_MARINE_KEY;
-            let data = [];
-            let isStale = false;
-
-            if (apiKey) {
-                // Attempt live fetch if key is provided
-                const liveRes = await fetch('https://data.marine.copernicus.eu/api/fake-marine-trajectory', {
-                    headers: { 'Authorization': `Bearer ${apiKey}` }
-                });
-                if (liveRes.ok) {
-                    const json = await liveRes.json();
-                    data = json.currents || []; // map real schema here
-                } else {
-                    throw new Error(`Copernicus API failed: ${liveRes.status}`);
-                }
-            } else {
-                throw new Error("Missing COPERNICUS_MARINE_KEY");
-            }
-
-            const payload = {
-                data,
-                cached_at: new Date().toISOString(),
-                stale: isStale,
-                source: 'Copernicus Marine',
-                ttl: 21600
-            };
-            cache.set('ocean-currents', payload);
-            cache.set('ocean-currents_fallback', { ...payload, stale: true, source: 'Copernicus Marine (Fallback)' });
-            res.json(payload);
-        } catch (error) {
-            console.error('Ocean Currents Error:', error.message);
-            // Fallback generation
-            let fallbackData = [];
-            for(let i=0; i<300; i++) {
-                fallbackData.push({
-                    lat: (Math.random() - 0.5) * 160,
-                    lng: (Math.random() - 0.5) * 360,
-                    speed_ms: parseFloat((Math.random() * 2.5).toFixed(2)), // 0 to 2.5 m/s
-                    direction_deg: Math.floor(Math.random() * 360) 
-                });
-            }
-            
-            const payload = {
-                data: fallbackData,
-                cached_at: new Date().toISOString(),
-                stale: true,
-                error: error.message,
-                source: 'Copernicus Marine',
-                ttl: 21600
-            };
-            cache.set('ocean-currents_fallback', payload);
-            res.json(payload);
-        }
-    };
-}
+    res.json({ data, cached_at: new Date().toISOString(), stale: false, source: 'NOAA ERDDAP OSCAR (keyless)', ttl: 86400 });
+  } catch (err) {
+    res.status(500).json({ error: err.message, data: [], stale: true, source: 'NOAA ERDDAP', ttl: 0 });
+  }
+};

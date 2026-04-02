@@ -1,0 +1,9 @@
+ALTER TABLE facilities
+  ADD COLUMN IF NOT EXISTS ndvi_mean       NUMERIC(5,4),
+  ADD COLUMN IF NOT EXISTS ndvi_verdict    VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS ndvi_date       DATE,
+  ADD COLUMN IF NOT EXISTS no2_column      NUMERIC(10,6),
+  ADD COLUMN IF NOT EXISTS no2_verdict     VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS no2_date        DATE,
+  ADD COLUMN IF NOT EXISTS cloud_coverage_pct NUMERIC(5,2),
+  ADD COLUMN IF NOT EXISTS satellite_updated_at TIMESTAMPTZ;

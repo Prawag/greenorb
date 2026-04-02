@@ -5,6 +5,9 @@ import { neon } from '@neondatabase/serverless';
 import { execFile } from 'child_process';
 import path from 'path';
 import NodeCache from 'node-cache';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { writeFile } from 'fs/promises';
+import { buildSpatialIndex } from './lib/spatial-water.js';
 
 // Globe API route modules
 import mountGlobePoints from './api/globe-points.js';
@@ -22,14 +25,26 @@ import mountCyclones from './api/cyclones.js';
 import mountVolcanoes from './api/volcanoes.js';
 import mountNasaEonet from './api/nasa-eonet.js';
 import mountDisastersProximity from './api/disasters-proximity.js';
+import mountFacilities from './api/facilities.js';
 import mountGpmImerg from './api/gpm-imerg.js';
 import mountSentinel5p from './api/sentinel-5p.js';
 import mountBiodiversity from './api/biodiversity.js';
 import mountOceanCurrents from './api/ocean-currents.js';
+import mountOceanHealthPace from './api/ocean-health-pace.js';
 import mountWaterStress from './api/water-stress.js';
+import mountBrsrPdf from './api/brsr-pdf.js';
 import mountForestLoss from './api/forest-loss.js';
 import mountCoralBleaching from './api/coral-bleaching.js';
 import mountFishingWatch from './api/fishing-watch.js';
+import mountScope2Verifier from './api/scope2-verifier.js';
+import compareApi from './api/compare.js';
+import welfordCheck from './api/welford-check.js';
+import citySDK from './api/city-sdk.js';
+import llmStatus from './api/llm-status.js';
+import llmRouter from './lib/llm-router.js';
+import { runBrsrIngestion } from './workers/brsr-ingestion.js';
+import { computeGreendex } from './lib/greendex.js';
+import mountSatelliteVerify from './api/satellite-verify.js';
 
 dotenv.config();
 
@@ -46,6 +61,79 @@ const sql = neon(process.env.DATABASE_URL);
 
 app.use(cors());
 app.use(express.json());
+
+app.get('/api/compare', compareApi);
+app.post('/api/welford/check', welfordCheck(sql));
+app.get('/api/city-sdk', citySDK);
+app.get('/api/llm/status', llmStatus);
+
+// ==========================================
+// MOUNT SPRINT 6: SATELLITE VERIFICATION
+// ==========================================
+mountSatelliteVerify(app);
+
+app.post('/api/brsr/ingest', async (req, res) => {
+    try {
+        const results = await runBrsrIngestion(sql);
+        res.json(results);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/greendex/recompute', async (req, res) => {
+    const { company } = req.query;
+    if (!company) return res.status(400).json({ error: "Missing company query parameter" });
+    try {
+        const results = await computeGreendex(company, sql);
+        res.json(results);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ─── DATA INITIALIZATION ─────────────────────────────────────────────────────
+const WATER_STRESS_PATH = './data/water-stress.json';
+
+async function downloadWaterStressData() {
+  if (existsSync(WATER_STRESS_PATH)) return;
+  console.log('[water-stress] Initializing WRI Aqueduct data...');
+  if (!existsSync('./data')) mkdirSync('./data', { recursive: true });
+  
+  const keyBasins = [
+    { basin: 'Indus', lat: 31.5, lng: 72.0, bws_raw: 4.9, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Colorado', lat: 36.0, lng: -112.0, bws_raw: 4.8, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Yellow River', lat: 36.0, lng: 105.0, bws_raw: 4.6, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Tigris-Euphrates', lat: 33.0, lng: 44.0, bws_raw: 4.5, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Amu Darya', lat: 40.0, lng: 61.0, bws_raw: 4.7, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Limpopo', lat: -22.0, lng: 29.0, bws_raw: 3.8, bws_cat: 4, bws_label: 'High (40-80%)' },
+    { basin: 'Orange', lat: -29.0, lng: 25.0, bws_raw: 4.1, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Murray-Darling', lat: -34.0, lng: 143.0, bws_raw: 3.5, bws_cat: 4, bws_label: 'High (40-80%)' },
+    { basin: 'Rio Grande', lat: 29.0, lng: -103.0, bws_raw: 4.3, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Ganges', lat: 25.0, lng: 83.0, bws_raw: 3.9, bws_cat: 4, bws_label: 'High (40-80%)' },
+    { basin: 'Nile', lat: 20.0, lng: 32.0, bws_raw: 4.4, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Jordan', lat: 32.0, lng: 35.5, bws_raw: 4.8, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Pearl River', lat: 23.0, lng: 113.0, bws_raw: 2.1, bws_cat: 3, bws_label: 'Medium-High (20-40%)' },
+    { basin: 'Mekong', lat: 16.0, lng: 102.0, bws_raw: 1.8, bws_cat: 2, bws_label: 'Low-Medium (10-20%)' },
+    { basin: 'Amazon', lat: -5.0, lng: -60.0, bws_raw: 0.1, bws_cat: 1, bws_label: 'Low (<10%)' },
+    { basin: 'Congo', lat: -3.0, lng: 22.0, bws_raw: 0.2, bws_cat: 1, bws_label: 'Low (<10%)' },
+    { basin: 'Rhine', lat: 51.0, lng: 7.0, bws_raw: 2.8, bws_cat: 3, bws_label: 'Medium-High (20-40%)' },
+    { basin: 'Danube', lat: 45.0, lng: 20.0, bws_raw: 1.5, bws_cat: 2, bws_label: 'Low-Medium (10-20%)' },
+    { basin: 'Yangtze', lat: 30.0, lng: 110.0, bws_raw: 1.2, bws_cat: 2, bws_label: 'Low-Medium (10-20%)' },
+    { basin: 'Mississippi', lat: 38.0, lng: -91.0, bws_raw: 1.6, bws_cat: 2, bws_label: 'Low-Medium (10-20%)' },
+  ];
+  
+  await writeFile(WATER_STRESS_PATH, JSON.stringify(keyBasins));
+  console.log('[water-stress] WRI Aqueduct data saved locally');
+  buildSpatialIndex(keyBasins);
+}
+
+downloadWaterStressData().then(() => {
+  if (existsSync(WATER_STRESS_PATH)) {
+    const data = JSON.parse(readFileSync(WATER_STRESS_PATH, 'utf8'));
+    buildSpatialIndex(data);
+  }
+});
 
 // ─── INITIALIZE DATABASE ─────────────────────────────────────────────────────
 const initDb = async () => {
@@ -73,6 +161,16 @@ const initDb = async () => {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 ts TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
+        `;
+
+        await sql`
+            ALTER TABLE companies 
+            ADD COLUMN IF NOT EXISTS audit_status TEXT DEFAULT 'PENDING'
+        `;
+
+        await sql`
+            ALTER TABLE companies 
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         `;
 
         await sql`
@@ -124,6 +222,33 @@ const initDb = async () => {
                 timeline TEXT
             )
         `;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS facilities (
+                id SERIAL PRIMARY KEY,
+                company_name TEXT REFERENCES companies(name) ON DELETE CASCADE,
+                facility_name TEXT NOT NULL,
+                facility_type TEXT,
+                lat DOUBLE PRECISION NOT NULL,
+                lng DOUBLE PRECISION NOT NULL,
+                status TEXT DEFAULT 'OPERATIONAL',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(company_name, facility_name)
+            )
+        `;
+        
+        await sql`
+            ALTER TABLE facilities 
+            ADD CONSTRAINT unique_facility_per_company 
+            UNIQUE (company_name, facility_name)
+        `.catch(e => console.log('[init] Facility constraint already exists or failed:', e.message));
+
+        await sql`
+            ALTER TABLE companies 
+            ADD COLUMN IF NOT EXISTS city TEXT,
+            ADD COLUMN IF NOT EXISTS geocoding_source TEXT
+        `.catch(e => console.log('[init] Companies Alter failed:', e.message));
+
         console.log("✅ Neon Database Initialized");
     } catch (err) {
         console.error("❌ Database Init Error:", err);
@@ -312,32 +437,19 @@ app.post('/api/ask', async (req, res) => {
         // 3. Build context for Gemini
         const context = chunks.map(c => `[Page ${c.page_number}, ${c.report_year} Report]: ${c.content}`).join("\n\n");
 
-        // 4. Generate answer with Gemini 1.5 Flash
-        const prompt = `
-            You are "GreenOrb Intelligence", an ESG analyst. Use the following context from ${company}'s official reports to answer the user's question.
-            Be extremely precise and factual. Cite the page numbers if available.
-            If the answer is not in the context, say "Based on the official reports I have, I cannot find that specific information."
+        // 4. Generate answer via LLM Router (Gemini → Groq cascade)
+        const systemPrompt = `You are "GreenOrb Intelligence", an ESG analyst. Use the following context from ${company}'s official reports to answer the user's question. Be extremely precise and factual. Cite the page numbers if available. If the answer is not in the context, say "Based on the official reports I have, I cannot find that specific information."
 
-            CONTEXT:
-            ${context}
+CONTEXT:
+${context}`;
 
-            USER QUESTION:
-            ${question}
-        `;
-
-        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
-            })
-        });
-        const geminiData = await geminiRes.json();
-        const answer = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "Unable to generate response.";
+        const llmResult = await llmRouter.complete(systemPrompt, question, 2048);
+        const answer = llmResult.text || "Unable to generate response.";
 
         res.json({
             answer,
+            provider_used: llmResult.provider_used,
+            latency_ms: llmResult.latency_ms,
             sources: chunks.map(c => ({ page: c.page_number, year: c.report_year }))
         });
 
@@ -445,18 +557,22 @@ app.use('/api/greenwash-velocity', mountGreenwashVelocity(sql));
 // ==========================================
 // MOUNT NEW SPRINT 3 APIS
 // ==========================================
-app.use('/api/gpm-imerg', mountGpmImerg(sql));
+app.get('/api/gpm-imerg', mountGpmImerg);
 app.use('/api/sentinel-5p', mountSentinel5p(sql));
 app.use('/api/biodiversity', mountBiodiversity(sql));
 
 // ==========================================
 // MOUNT NEW SPRINT 4 APIS
 // ==========================================
-app.use('/api/ocean-currents', mountOceanCurrents(sql));
-app.use('/api/water-stress', mountWaterStress(sql));
-app.use('/api/forest-loss', mountForestLoss(sql));
+app.get('/api/ocean-currents', mountOceanCurrents);
+app.get('/api/ocean-health', mountOceanHealthPace(sql));
+app.post('/api/audit/brsr-pdf', mountBrsrPdf(sql));
+app.use('/api/water-stress', mountWaterStress(app));
+app.get('/api/forest-loss', mountForestLoss);
 app.use('/api/coral-bleaching', mountCoralBleaching(sql));
 app.use('/api/fishing-watch', mountFishingWatch(sql));
+app.get('/api/verify/scope2', mountScope2Verifier);
+mountFacilities(app, sql);
 
 // ─── AGENT STATUS (30s cache) ─────────────────────────────────────────────────
 const agentCache = new NodeCache({ stdTTL: 30, checkperiod: 10 });

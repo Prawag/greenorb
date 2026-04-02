@@ -26,33 +26,36 @@ export default async function airQualityHandler(req, res) {
     const results = await Promise.allSettled(
       SAMPLE_LOCATIONS.map(async loc => {
         const url = `https://api.openaq.org/v3/locations?` +
-          `coordinates=${loc.lat},${loc.lng}&radius=30000&limit=5` +
-          `&parameters=pm25,no2,so2&order_by=lastUpdated&sort=desc`;
+          `parameters_id=2` +
+          `&coordinates=${loc.lat},${loc.lng}` +
+          `&radius=30000&limit=5` +
+          `&order_by=lastUpdated&sort_order=desc`;
+          
         const r = await fetch(url, {
-          headers: { 'X-API-Key': process.env.OPENAQ_KEY || '' },
+          headers: { 'X-API-Key': process.env.OPENAQ_API_KEY || '' },
           signal: AbortSignal.timeout(10000)
         });
+        if (!r.ok) return null;
+        
         const json = await r.json();
-        if (!json.results?.length) return null;
-
-        // Average the PM2.5 readings from nearby sensors
-        const pm25_readings = json.results
+        const pm25_readings = (json.results || [])
           .flatMap(s => s.sensors || [])
-          .filter(s => s.parameter === 'pm25' && s.lastValue != null)
-          .map(s => s.lastValue);
+          .filter(s => (s.parameter?.name === 'pm25' || s.parameter?.id === 2) && 
+                       s.latest?.value != null)
+          .map(s => s.latest.value);
 
-        const avg_pm25 = pm25_readings.length
-          ? pm25_readings.reduce((a, b) => a + b, 0) / pm25_readings.length
-          : null;
+        if (pm25_readings.length === 0) return null;
+        
+        const avg_pm25 = pm25_readings.reduce((a, b) => a + b, 0) / pm25_readings.length;
 
         return {
           name:     loc.name,
           lat:      loc.lat,
           lng:      loc.lng,
-          avg_pm25: avg_pm25 ? Math.round(avg_pm25 * 10) / 10 : null,
-          exceeds_who: avg_pm25 ? avg_pm25 > WHO_PM25_THRESHOLD : false,
-          sensor_count: json.results.length,
-          last_updated: json.results[0]?.datetimeLast?.local,
+          avg_pm25: Math.round(avg_pm25 * 10) / 10,
+          exceeds_who: avg_pm25 > WHO_PM25_THRESHOLD,
+          sensor_count: pm25_readings.length,
+          last_updated: new Date().toISOString(),
         };
       })
     );

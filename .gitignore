@@ -10,5 +10,6 @@ ollama_log.txt
 Claude Conversation/
 *.zip
 *.pdf
+.env
 Backend/.env
 *.env

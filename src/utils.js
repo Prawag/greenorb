@@ -60,6 +60,16 @@ export const storage = {
 
 export const API_BASE = "http://localhost:5000/api";
 
+export async function fetchApi(endpoint, options = {}) {
+    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+    const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options
+    });
+    if (!res.ok) throw new Error(`API Error ${res.status}: ${res.statusText}`);
+    return res.json();
+}
+
 // Gemini API caller
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";

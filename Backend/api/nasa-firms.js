@@ -1,17 +1,24 @@
-
 import NodeCache from 'node-cache';
 const cache = new NodeCache({ stdTTL: 3600 }); // 1h cache
 
-const FIRMS_KEY = process.env.NASA_FIRMS_KEY || 'DEMO_KEY';
-// DEMO_KEY works for testing (rate-limited to 30 requests/day)
-// Real key is free, get from firms.modaps.eosdis.nasa.gov/api/area/
-
+const FIRMS_KEY = process.env.NASA_FIRMS_KEY;
 let lastGoodData = null;
 
 export default async function firmsHandler(req, res) {
   const cached = cache.get('firms_data');
   if (cached) {
     return res.json({ ...cached, stale: false });
+  }
+
+  if (!FIRMS_KEY) {
+    console.warn('[FIRMS] NASA_FIRMS_KEY not set in .env');
+    return res.json({ 
+      data: [], 
+      cached_at: new Date().toISOString(), 
+      stale: true, 
+      source: 'NASA FIRMS (Key missing)', 
+      ttl: 3600 
+    });
   }
 
   try {
@@ -26,9 +33,13 @@ export default async function firmsHandler(req, res) {
 
     const fires = lines
       .map(line => {
+        const parts = line.split(',');
+        if (parts.length < 13) return null;
+        
         const [lat, lng, brightness, scan, track, acq_date, acq_time,
                satellite, instrument, confidence, version, bright_t31,
-               frp, daynight] = line.split(',');
+               frp, daynight] = parts;
+               
         return {
           lat: parseFloat(lat),
           lng: parseFloat(lng),
@@ -40,10 +51,11 @@ export default async function firmsHandler(req, res) {
         };
       })
       .filter(f =>
+        f &&
         !isNaN(f.lat) &&
         !isNaN(f.brightness) &&
         f.brightness > 320 &&           // filter noise
-        ['nominal', 'high'].includes(f.confidence?.toLowerCase())
+        ['nominal', 'high', 'h', 'n'].includes(f.confidence?.toLowerCase())
       );
 
     const result = {
@@ -52,7 +64,6 @@ export default async function firmsHandler(req, res) {
       stale: false,
       source: 'nasa_firms_viirs',
       ttl: 3600,
-      total: fires.length,
     };
 
     lastGoodData = result;
@@ -60,6 +71,7 @@ export default async function firmsHandler(req, res) {
     res.json(result);
 
   } catch (err) {
+    console.error('[FIRMS] Error:', err.message);
     if (lastGoodData) {
       return res.json({ 
         ...lastGoodData, 
@@ -70,7 +82,7 @@ export default async function firmsHandler(req, res) {
     }
     res.json({ 
       data: [], 
-      cached_at: null, 
+      cached_at: new Date().toISOString(), 
       stale: true,
       source: 'NASA FIRMS (unavailable)', 
       ttl: 60, 

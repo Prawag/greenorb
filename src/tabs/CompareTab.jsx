@@ -1,111 +1,162 @@
-import React, { useState } from "react";
-import { PRODUCTS } from "../data/products";
+import React, { useState, useEffect } from "react";
 import { M, Bdg, Cd, Rw, PBar, SHd } from "../components/primitives";
 
 export default function CompareTab() {
-    const brands = [...new Set(PRODUCTS.map(p => p[2]))];
-    const cats = [...new Set(PRODUCTS.map(p => p[1]))];
+    const [topCompanies, setTopCompanies] = useState([]);
+    const [compareList, setCompareList] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [loading, setLoading] = useState(true);
 
-    const [cat, setCat] = useState("Smartphone");
-    const [selA, setSelA] = useState(0);
-    const [selB, setSelB] = useState(1);
+    useEffect(() => {
+        fetchTopCompanies();
+    }, []);
 
-    const inCat = PRODUCTS.filter(p => p[1] === cat);
-    const maxCO2 = Math.max(...inCat.map(p => parseFloat(p[3])));
-    const A = inCat[selA] || inCat[0];
-    const B = inCat[selB] || inCat[Math.min(1, inCat.length - 1)];
+    const fetchTopCompanies = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch("http://localhost:5000/api/compare");
+            const json = await res.json();
+            setTopCompanies(json.data || []);
+            setCompareList(json.data.slice(0, 3) || []); // Default to top 3
+        } catch (err) {
+            console.error("Failed to fetch comparisons:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSearch = async () => {
+        if (!searchTerm.trim()) return;
+        try {
+            const res = await fetch(`http://localhost:5000/api/compare?companies=${searchTerm}`);
+            const json = await res.json();
+            if (json.data && json.data.length > 0) {
+                // Add to list if not already there, max 5
+                setCompareList(prev => {
+                    const newList = [...prev];
+                    json.data.forEach(c => {
+                        if (!newList.find(x => x.name === c.name)) {
+                            newList.push(c);
+                        }
+                    });
+                    return newList.slice(-5);
+                });
+                setSearchTerm("");
+            }
+        } catch (err) {
+            console.error("Search failed:", err);
+        }
+    };
+
+    const removeCompany = (name) => {
+        setCompareList(prev => prev.filter(c => c.name !== name));
+    };
+
+    const getScoreColor = (score) => {
+        if (score >= 70) return "var(--jade)";
+        if (score >= 40) return "var(--amb)";
+        return "var(--red)";
+    };
 
     return (
-        <div style={{ padding: "16px 14px" }}>
-            <SHd tag="product carbon comparison" title="Compare Carbon Footprints" sub="Real LCA data with full calculation methodology and sources" />
+        <div style={{ padding: "16px 14px", height: "100%", overflowY: "auto" }}>
+            <SHd tag="peer intelligence" title="ESG Multi-Company Comparison" sub="Comparative benchmarks across Scope 1-3, Environmental, Social, and Governance metrics." />
 
-            <div style={{ display: "flex", gap: 7, overflowX: "auto", marginBottom: 16, paddingBottom: 4 }}>
-                {cats.map(c => (
-                    <button key={c} onClick={() => { setCat(c); setSelA(0); setSelB(Math.min(1, PRODUCTS.filter(p => p[1] === c).length - 1)); }}
-                        style={{ whiteSpace: "nowrap", padding: "7px 14px", borderRadius: 20, border: `1px solid ${cat === c ? "rgba(0,232,122,.4)" : "var(--bd2)"}`, background: cat === c ? "var(--jg)" : "var(--sf)", color: cat === c ? "var(--jade)" : "var(--tx2)", fontFamily: "var(--body)", fontSize: 12, cursor: "pointer", minHeight: 36 }}>{c}</button>
-                ))}
-            </div>
+            <Cd style={{ padding: 16, marginBottom: 20 }}>
+                <M size={10} color="var(--jade)" style={{ display: "block", marginBottom: 12, letterSpacing: ".08em", textTransform: "uppercase" }}>Compare Organizations</M>
+                <Rw style={{ gap: 8, marginBottom: 16 }}>
+                    <input 
+                        type="text" 
+                        placeholder="Type company names (e.g. Tata Steel, Reliance)..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                        style={{ flex: 1, background: "var(--sf)", border: "1px solid var(--bd)", borderRadius: 6, padding: "8px 12px", color: "var(--tx)", fontSize: 13 }}
+                    />
+                    <button onClick={handleSearch} style={{ background: "var(--jg)", border: "1px solid var(--jade)", borderRadius: 6, padding: "0 16px", color: "var(--jade)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Add</button>
+                </Rw>
 
-            <Cd style={{ padding: 16, marginBottom: 14 }}>
-                <M size={10} color="var(--jade)" style={{ display: "block", marginBottom: 12, letterSpacing: ".08em", textTransform: "uppercase" }}>All {cat}s Ranked</M>
-                {[...inCat].sort((a, b) => parseFloat(a[3]) - parseFloat(b[3])).map(p => {
-                    const co2 = parseFloat(p[3]);
-                    const pct = (co2 / maxCO2) * 100;
-                    const color = pct < 35 ? "var(--jade)" : pct < 65 ? "var(--cyan)" : pct < 85 ? "var(--amb)" : "var(--red)";
-                    return (
-                        <div key={p[0]} style={{ marginBottom: 10 }}>
-                            <Rw style={{ justifyContent: "space-between", marginBottom: 4 }}>
-                                <Rw style={{ gap: 8 }}>
-                                    <M size={11} color="var(--tx2)">{p[0]}</M>
-                                    <Bdg color="blu" style={{ fontSize: 9 }}>{p[2]}</Bdg>
-                                </Rw>
-                                <M size={11} color={color} style={{ fontWeight: 500 }}>{co2.toLocaleString()} kg</M>
-                            </Rw>
-                            <PBar v={pct} color={color} h={6} animate />
-                            <M size={9} color="var(--tx3)" style={{ display: "block", marginTop: 2 }}>Source: {p[6]}</M>
-                        </div>
-                    );
-                })}
-                <div style={{ marginTop: 12, padding: "8px 10px", background: "var(--bg3)", borderRadius: 8, border: "1px solid var(--bd)" }}>
-                    <M size={9} color="var(--tx3)">Unit: kgCO₂e {inCat[0]?.[4] || ""} · LCA methodology</M>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                    {compareList.map(c => (
+                        <Bdg key={c.name} color="blu" style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px" }}>
+                            {c.name}
+                            <span onClick={() => removeCompany(c.name)} style={{ cursor: "pointer", opacity: 0.6 }}>✕</span>
+                        </Bdg>
+                    ))}
+                    {compareList.length === 0 && <M size={11} color="var(--tx3)">Select companies to start comparison</M>}
+                </div>
+
+                <div style={{ width: "100%", overflowX: "auto", border: "1px solid var(--bd)", borderRadius: 8 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                        <thead>
+                            <tr style={{ background: "var(--sf)", borderBottom: "1px solid var(--bd)" }}>
+                                <th style={{ padding: "12px 16px", color: "var(--tx3)", fontWeight: 500, minWidth: 150 }}>Company</th>
+                                <th style={{ padding: "12px 16px", color: "var(--tx3)", fontWeight: 500 }}>Sector</th>
+                                <th style={{ padding: "12px 16px", color: "var(--tx3)", fontWeight: 500 }}>ESG Score</th>
+                                <th style={{ padding: "12px 16px", color: "var(--tx3)", fontWeight: 500 }}>E</th>
+                                <th style={{ padding: "12px 16px", color: "var(--tx3)", fontWeight: 500 }}>S</th>
+                                <th style={{ padding: "12px 16px", color: "var(--tx3)", fontWeight: 500 }}>G</th>
+                                <th style={{ padding: "12px 16px", color: "var(--tx3)", fontWeight: 500 }}>Scope 1</th>
+                                <th style={{ padding: "12px 16px", color: "var(--tx3)", fontWeight: 500 }}>Scope 2</th>
+                                <th style={{ padding: "12px 16px", color: "var(--tx3)", fontWeight: 500 }}>Total CO2</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {compareList.map(c => (
+                                <tr key={c.name} style={{ borderBottom: "1px solid var(--bd)" }}>
+                                    <td style={{ padding: "12px 16px", color: "var(--tx)", fontWeight: 600 }}>{c.name}</td>
+                                    <td style={{ padding: "12px 16px", color: "var(--tx2)" }}>{c.sector}</td>
+                                    <td style={{ padding: "12px 16px" }}>
+                                        <div style={{ display: "inline-block", background: getScoreColor(c.score), color: "#000", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>
+                                            {c.score || "N/A"}
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: "12px 16px", color: getScoreColor(c.e_score), fontWeight: 600 }}>{c.e_score || "—"}</td>
+                                    <td style={{ padding: "12px 16px", color: getScoreColor(c.s_score), fontWeight: 600 }}>{c.s_score || "—"}</td>
+                                    <td style={{ padding: "12px 16px", color: getScoreColor(c.g_score), fontWeight: 600 }}>{c.g_score || "—"}</td>
+                                    <td style={{ padding: "12px 16px", color: "var(--tx2)", fontFamily: "var(--mono)" }}>{(parseFloat(c.s1) / 1e6).toFixed(2)}M</td>
+                                    <td style={{ padding: "12px 16px", color: "var(--tx2)", fontFamily: "var(--mono)" }}>{(parseFloat(c.s2) / 1e6).toFixed(2)}M</td>
+                                    <td style={{ padding: "12px 16px", color: "var(--jade)", fontWeight: 600, fontFamily: "var(--mono)" }}>{(parseFloat(c.co2) / 1e6).toFixed(2)} Mt</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </Cd>
 
-            <M size={10} color="var(--jade)" style={{ display: "block", marginBottom: 10, letterSpacing: ".08em", textTransform: "uppercase" }}>Head-to-Head Comparison</M>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-                {[["A", selA, setSelA], ["B", selB, setSelB]].map(([side, selVal, setSel]) => (
-                    <div key={side}>
-                        <M size={9} color="var(--tx3)" style={{ display: "block", marginBottom: 5 }}>Product {side}</M>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                            {inCat.map((p, i) => (
-                                <button key={p[0]} onClick={() => setSel(i)} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${selVal === i ? "rgba(0,232,122,.35)" : "var(--bd)"}`, background: selVal === i ? "var(--jg)" : "var(--sf)", color: selVal === i ? "var(--jade)" : "var(--tx2)", fontFamily: "var(--body)", fontSize: 11, cursor: "pointer", textAlign: "left", transition: "all .15s" }}>{p[0]}</button>
-                            ))}
-                        </div>
-                    </div>
+            <M size={10} color="var(--jade)" style={{ display: "block", marginBottom: 12, letterSpacing: ".08em", textTransform: "uppercase" }}>Industry Top Performers</M>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                {topCompanies.map(c => (
+                    <Cd key={c.name} style={{ padding: 14, cursor: "pointer" }} onClick={() => setSearchTerm(c.name)}>
+                        <Rw style={{ justifyContent: "space-between", marginBottom: 8 }}>
+                            <M size={12} color="var(--tx)" style={{ fontWeight: 700 }}>{c.name}</M>
+                            <div style={{ background: getScoreColor(c.score), color: "#000", padding: "1px 6px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                                {c.score}
+                            </div>
+                        </Rw>
+                        <M size={11} color="var(--tx3)" style={{ display: "block", marginBottom: 10 }}>{c.sector}</M>
+                        <Rw style={{ gap: 12 }}>
+                            <div>
+                                <M size={9} color="var(--tx3)" style={{ display: "block" }}>E</M>
+                                <M size={11} color={getScoreColor(c.e_score)} style={{ fontWeight: 600 }}>{c.e_score}</M>
+                            </div>
+                            <div>
+                                <M size={9} color="var(--tx3)" style={{ display: "block" }}>S</M>
+                                <M size={11} color={getScoreColor(c.s_score)} style={{ fontWeight: 600 }}>{c.s_score}</M>
+                            </div>
+                            <div>
+                                <M size={9} color="var(--tx3)" style={{ display: "block" }}>G</M>
+                                <M size={11} color={getScoreColor(c.g_score)} style={{ fontWeight: 600 }}>{c.g_score}</M>
+                            </div>
+                            <div style={{ marginLeft: "auto", textAlign: "right" }}>
+                                <M size={9} color="var(--tx3)" style={{ display: "block" }}>Total Emissions</M>
+                                <M size={11} color="var(--tx)" style={{ fontWeight: 600 }}>{(parseFloat(c.co2) / 1e6).toFixed(1)} Mt</M>
+                            </div>
+                        </Rw>
+                    </Cd>
                 ))}
             </div>
-
-            {A && B && (
-                <div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                        {[A, B].map((p, pi) => {
-                            const co2 = parseFloat(p[3]);
-                            const otherCo2 = parseFloat(pi === 0 ? B[3] : A[3]);
-                            const isWinner = co2 <= otherCo2;
-                            return (
-                                <Cd key={p[0]} accent={isWinner} style={{ padding: 14 }}>
-                                    {isWinner && <Bdg color="jade" style={{ fontSize: 9, marginBottom: 8, display: "block" }}>✓ LOWER</Bdg>}
-                                    <div style={{ fontFamily: "var(--disp)", fontWeight: 700, fontSize: 14, color: "var(--tx)", marginBottom: 4 }}>{p[0]}</div>
-                                    <Bdg color="blu" style={{ marginBottom: 10 }}>{p[2]}</Bdg>
-                                    <div style={{ fontFamily: "var(--mono)", fontSize: 22, color: isWinner ? "var(--jade)" : "var(--amb)", fontWeight: 500, marginBottom: 4, marginTop: 8 }}>{co2.toLocaleString()}</div>
-                                    <M size={10} color="var(--tx3)">kgCO₂e {p[4]}</M>
-                                    <div style={{ marginTop: 12 }}>
-                                        {[["🏭 Mfg", p[8].mfg, "jade"], ["✈ Trans", p[8].trans, "cyan"], ["💡 Use", p[8].use, "amb"], ["♻ EoL", p[8].eol, "red"]].map(([l, v, col]) => (
-                                            <div key={l} style={{ marginBottom: 5 }}>
-                                                <Rw style={{ justifyContent: "space-between", marginBottom: 2 }}>
-                                                    <M size={9} color="var(--tx3)">{l}</M>
-                                                    <M size={9} color={`var(--${col})`}>{v}%</M>
-                                                </Rw>
-                                                <PBar v={v} color={`var(--${col})`} h={3} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <a href={p[7]} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginTop: 10, fontSize: 10, color: "var(--jd)", textDecoration: "underline", wordBreak: "break-all" }}>{p[6]}</a>
-                                </Cd>
-                            );
-                        })}
-                    </div>
-
-                    <Cd style={{ padding: 14, marginBottom: 14 }}>
-                        <M size={10} color="var(--jade)" style={{ display: "block", marginBottom: 8, letterSpacing: ".08em", textTransform: "uppercase" }}>📐 LCA Methodology — {A[0]}</M>
-                        <p style={{ fontSize: 12, color: "var(--tx2)", lineHeight: 1.75 }}>{A[9]}</p>
-                    </Cd>
-                    <Cd style={{ padding: 14 }}>
-                        <M size={10} color="var(--jade)" style={{ display: "block", marginBottom: 8, letterSpacing: ".08em", textTransform: "uppercase" }}>📐 LCA Methodology — {B[0]}</M>
-                        <p style={{ fontSize: 12, color: "var(--tx2)", lineHeight: 1.75 }}>{B[9]}</p>
-                    </Cd>
-                </div>
-            )}
+            {loading && <M size={12} color="var(--tx2)" style={{ padding: 20, textAlign: "center" }}>Synchronizing intelligence data...</M>}
         </div>
     );
 }

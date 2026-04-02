@@ -2,14 +2,14 @@ import React, { useState, useRef, useEffect } from "react";
 import TopBar from "./components/TopBar";
 import BottomNav from "./components/BottomNav";
 import GlobeTab from "./tabs/GlobeTab";
-import CompaniesTab from "./tabs/CompaniesTab"; // UI label: Audit
+import AuditTab from "./tabs/AuditTab"; // UI label: Audit
 import CompareTab from "./tabs/CompareTab";
 import TrustDashboard from "./tabs/TrustDashboard";
 import CityDashboard from "./tabs/CityDashboard";
 
 const TABS = [
     { key: "globe", Component: GlobeTab },
-    { key: "audit", Component: CompaniesTab },
+    { key: "audit", Component: AuditTab },
     { key: "compare", Component: CompareTab },
     { key: "trust", Component: TrustDashboard },
     { key: "indore", Component: CityDashboard },

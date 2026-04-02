@@ -86,7 +86,8 @@ textarea {
     background: var(--bg);
     position: relative;
     overflow: hidden;
-    margin: 0 auto;
+    margin: 0;
+    width: 100%;
 }
 
 .app-content {
@@ -97,24 +98,25 @@ textarea {
     background: var(--bg);
 }
 
-/* Phone (default — up to 767px) */
-@media (max-width: 767px) {
-    .app-shell {
-        max-width: 100%;
-    }
+/* Force EVERYTHING to be 100% width and no margin */
+html, body, #root, .app-shell {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 /* Tablet (768px – 1023px) */
 @media (min-width: 768px) {
     .app-shell {
-        max-width: 720px;
+        max-width: 100% !important;
     }
 }
 
 /* Desktop (1024px+) */
 @media (min-width: 1024px) {
     .app-shell {
-        max-width: 960px;
+        max-width: 100% !important;
     }
 
     .app-content {
@@ -125,7 +127,7 @@ textarea {
 /* Large Desktop (1440px+) */
 @media (min-width: 1440px) {
     .app-shell {
-        max-width: 1100px;
+        max-width: 100% !important;
     }
 }
 
@@ -280,15 +282,17 @@ textarea {
 
 /* === Scope Value Formatting === */
 .scope-unknown {
-  color: var(--tx2);
-  font-style: italic;
-  font-size: 12px;
+    color: var(--tx2);
+    font-style: italic;
+    font-size: 12px;
 }
+
 .scope-zero {
-  color: var(--tx2);
-  font-size: 13px;
+    color: var(--tx2);
+    font-size: 13px;
 }
+
 .scope-value {
-  color: inherit;
-  font-weight: 500;
+    color: inherit;
+    font-weight: 500;
 }

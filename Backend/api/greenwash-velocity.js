@@ -9,47 +9,53 @@ export default function mountGreenwashVelocity(sql) {
 
         try {
             const port = process.env.PORT || 5000;
-            // Calls /api/gdelt internally as specified
             const response = await fetch(`http://localhost:${port}/api/gdelt`);
             const gdeltRes = await response.json();
             const articles = gdeltRes.data || [];
 
-            // Group articles by matched company_id
+            // Group articles by matched company
             const byCompany = {};
             for (const article of articles) {
                 const c = article.matchedCompany;
                 if (!c) continue;
                 if (!byCompany[c]) byCompany[c] = { count: 0, sentiment: 0, latestSeen: 0, headlines: [] };
-                
                 byCompany[c].count++;
                 byCompany[c].sentiment += (article.sentiment_score || 0);
                 byCompany[c].headlines.push(article.title);
-                
-                // Track recency (simple string comparison for GDELT format)
                 if (article.seendate && article.seendate > byCompany[c].latestSeen) {
                     byCompany[c].latestSeen = article.seendate;
                 }
             }
 
+            // Look up company coordinates from DB
+            const companyNames = Object.keys(byCompany);
+            let companyCoords = {};
+            if (companyNames.length > 0) {
+                try {
+                    const rows = await sql`
+                        SELECT name, latitude, longitude 
+                        FROM companies 
+                        WHERE name = ANY(${companyNames})
+                    `;
+                    for (const r of rows) {
+                        if (r.latitude && r.longitude) {
+                            companyCoords[r.name] = { lat: parseFloat(r.latitude), lng: parseFloat(r.longitude) };
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[GVI] Company coord lookup failed:', e.message);
+                }
+            }
+
             const results = [];
-            
             for (const [company_id, stats] of Object.entries(byCompany)) {
-                // article_count score -> 40% weight
                 const countScore = Math.min(stats.count * 10, 100) * 0.40;
-                
-                // negative sentiment -> 40% weight
-                // Assuming sentiment ranges from -1 to 1. Negative is riskier.
                 const avgSentiment = stats.sentiment / stats.count;
                 let sentimentScore = 0;
-                if (avgSentiment < 0) {
-                    sentimentScore = Math.abs(avgSentiment) * 100 * 0.40;
-                }
-                
-                // recency -> 20% weight (dummy calc: 100 points for presence in recent pull)
-                const recencyScore = 100 * 0.20; 
-
+                if (avgSentiment < 0) sentimentScore = Math.abs(avgSentiment) * 100 * 0.40;
+                const recencyScore = 100 * 0.20;
                 const gvi = Math.round(countScore + sentimentScore + recencyScore);
-                
+
                 let risk_band = 'LOW';
                 if (gvi >= 70) risk_band = 'CRITICAL';
                 else if (gvi >= 45) risk_band = 'HIGH';
@@ -64,13 +70,15 @@ export default function mountGreenwashVelocity(sql) {
                     console.error("GVI DB Insert Error:", e.message);
                 }
 
+                const coords = companyCoords[company_id] || {};
                 results.push({
                     company_id,
                     gvi,
                     risk_band,
                     article_count: stats.count,
                     latest_headline: stats.headlines[0],
-                    // include lat/lng if we need it on frontend, but we can match by name
+                    lat: coords.lat || null,
+                    lng: coords.lng || null,
                 });
             }
 
@@ -81,10 +89,8 @@ export default function mountGreenwashVelocity(sql) {
                 source: 'GreenOrb GVI Engine v1',
                 ttl: 900
             };
-
             cache.set('gvi', responsePayload);
             cache.set('gvi_fallback', { ...responsePayload, stale: true });
-            
             res.json(responsePayload);
         } catch (error) {
             console.error('GVI Engine Error:', error);

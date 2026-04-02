@@ -19,14 +19,11 @@ const COUNTRY_CENTROIDS = {
 };
 
 const RSS_FEEDS = [
-  'https://www.greenbiz.com/feed',
-  'https://feeds.feedburner.com/businessgreen',
-  'https://www.edie.net/feed/',
-  'https://www.environmentalleader.com/feed/',
-  'https://feeds.reuters.com/reuters/environment',
-  'https://rss.cnn.com/rss/edition_world.rss',
-  'https://feeds.feedburner.com/ndtv/environmental-news',
-  'https://timesofindia.indiatimes.com/rssfeeds/2647163.cms',
+  'https://www.theguardian.com/environment/rss',
+  'https://insideclimatenews.org/feed/',
+  'https://e360.yale.edu/feed',
+  'https://www.carbonbrief.org/feed',
+  'https://news.mongabay.com/feed/'
 ];
 
 async function fetchFeed(url) {
@@ -114,9 +111,6 @@ export default function mountEsgNews(app, sql) {
         stale: anyFailed,
         source: 'rss_feeds',
         ttl: 900,
-        total: data.length,
-        feeds_polled: RSS_FEEDS.length,
-        articles_scanned: allArticles.length,
       };
 
       cache.set(CACHE_KEY, response);

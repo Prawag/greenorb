@@ -25,6 +25,13 @@ export const LAYERS = {
     radius: (d) => d.scope_total ? 0.5 : 0.35,
   },
 
+  nasa_gibs: {
+    id: 'nasa_gibs',
+    label: 'NASA GIBS Global',
+    color: () => '#3b82f6',
+    defaultOn: false,
+  },
+
   fires: {
     id: 'fires',
     label: 'Active fires (NASA VIIRS)',
@@ -149,15 +156,6 @@ export const LAYERS = {
     source: 'CelesTrak'
   },
 
-  nasa_gibs: {
-    id: 'nasa_gibs',
-    label: 'NASA satellite (CO₂)',
-    endpoint: null,   // tile-based, not point-based
-    ttl: 86_400_000,
-    primitive: 'tile',
-    defaultOn: true,
-  },
-  
   gdelt: {
     id: 'gdelt',
     label: 'News Intel (GDELT)',
@@ -174,48 +172,64 @@ export const LAYERS = {
   gpm_precipitation: {
     id: 'gpm_precipitation',
     label: 'Precipitation (GPM)',
+    endpoint: '/api/gpm-imerg',
+    ttl: 1800000,
     color: () => '#3b82f6',
     defaultOn: false,
   },
   sentinel_atmosphere: {
     id: 'sentinel_atmosphere',
     label: 'Atmosphere (Sentinel)',
+    endpoint: '/api/sentinel-5p',
+    ttl: 86400000,
     color: () => '#a78bfa',
     defaultOn: false,
   },
   biodiversity_index: {
     id: 'biodiversity_index',
     label: 'Biodiversity (GBIF)',
+    endpoint: '/api/biodiversity',
+    ttl: 86400000,
     color: () => '#22c55e',
     defaultOn: false,
   },
   ocean_currents: {
     id: 'ocean_currents',
     label: 'Ocean Currents',
+    endpoint: '/api/ocean-currents',
+    ttl: 21600000,
     color: () => '#06b6d4',
     defaultOn: false,
   },
   water_stress: {
     id: 'water_stress',
     label: 'Water Stress (WRI)',
+    endpoint: '/api/water-stress',
+    ttl: 86400000,
     color: () => '#f59e0b',
     defaultOn: false,
   },
   forest_loss: {
     id: 'forest_loss',
     label: 'Forest Loss (GFW)',
+    endpoint: '/api/forest-loss',
+    ttl: 3600000,
     color: () => '#22c55e',
     defaultOn: false,
   },
   coral_bleaching: {
     id: 'coral_bleaching',
     label: 'Coral Bleaching',
+    endpoint: '/api/coral-bleaching',
+    ttl: 86400000,
     color: () => '#f97316',
     defaultOn: false,
   },
   fishing_watch: {
     id: 'fishing_watch',
     label: 'Illegal Fishing (GFW)',
+    endpoint: '/api/fishing-watch',
+    ttl: 3600000,
     color: () => '#a855f7',
     defaultOn: false,
   }
@@ -223,6 +237,7 @@ export const LAYERS = {
 
 export const LAYER_IDS = [
     'companies',
+    'fires',
     'nasa_gibs',
     'earthquakes',
     'floods',

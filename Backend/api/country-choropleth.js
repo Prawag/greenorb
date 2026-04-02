@@ -25,11 +25,13 @@ const COUNTRY_ISO3 = {
 async function fetchGeoJson() {
   if (geoJsonCache) return geoJsonCache;
   try {
-    const res = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
-    const topo = await res.json();
-    geoJsonCache = topo;
+    const res = await fetch(
+      'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson'
+    );
+    const geo = await res.json();
+    geoJsonCache = geo;
     console.log('[country-choropleth] GeoJSON loaded and cached permanently');
-    return topo;
+    return geo;
   } catch (e) {
     console.error('[country-choropleth] Failed to fetch GeoJSON:', e.message);
     return null;

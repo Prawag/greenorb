@@ -116,6 +116,7 @@ export default function AgentTab() {
     const [sectorIdx, setSectorIdx] = useState(0);
     const [searchesRemaining, setSearchesRemaining] = useState(0);
     const [aiProvider, setAiProvider] = useState("Checking...");
+    const [llmStatus, setLlmStatus] = useState({});
     const stopRefs = useRef({ scout: false, analyst: false, risk: false, strategy: false });
     const feedRef = useRef(null);
 
@@ -168,11 +169,23 @@ export default function AgentTab() {
         // Polling for network collaboration
         const inv = setInterval(fetchAllData, 30000);
 
-        // AI Provider is now always Gemini
-        setAiProvider("Cloud Gemini 2.0 Flash");
+        // LLM Status polling (30s)
+        const fetchLlmStatus = async () => {
+            try {
+                const r = await fetch(`${API_BASE}/llm/status`);
+                const j = await r.json();
+                setLlmStatus(j.data || {});
+                // Set primary provider name
+                const primary = Object.entries(j.data || {}).find(([, v]) => v === 'ok');
+                setAiProvider(primary ? { gemini: 'Gemini 2.0 Flash', groq_70b: 'Groq Llama 70B', groq_8b: 'Groq Llama 8B', ollama: 'Ollama Local' }[primary[0]] || 'Unknown' : 'Checking...');
+            } catch { setAiProvider('Offline'); }
+        };
+        fetchLlmStatus();
+        const llmInv = setInterval(fetchLlmStatus, 30000);
 
         return () => {
             clearInterval(inv);
+            clearInterval(llmInv);
         };
     }, []);
 
@@ -501,12 +514,21 @@ export default function AgentTab() {
         <div style={{ padding: "16px 14px" }}>
             <SHd tag="Multi-Agent ESG Intelligence" title="Agent Command Center" sub="4 specialized AI agents that collaborate to discover, analyze, assess, and strategize ESG data" />
 
-            <Cd glass style={{ padding: "8px 12px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", borderLeft: `4px solid ${aiProvider.includes("Local") ? "var(--jade)" : "var(--pur)"}` }}>
+            <Cd glass style={{ padding: "8px 12px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", borderLeft: `4px solid var(--pur)` }}>
                 <Rw style={{ gap: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: aiProvider.includes("Local") ? "var(--jade)" : "var(--pur)", boxShadow: `0 0 10px ${aiProvider.includes("Local") ? "var(--jade)" : "var(--pur)"}` }}></div>
-                    <M size={11} color="var(--tx2)" style={{ fontWeight: 600 }}>Active Intelligence:</M>
+                    <M size={11} color="var(--tx2)" style={{ fontWeight: 600 }}>AI Engine:</M>
+                    {[{id:'gemini',label:'Gemini'}, {id:'groq_70b',label:'Groq 70B'}, {id:'groq_8b',label:'Groq 8B'}].map(p => {
+                        const st = llmStatus[p.id] || 'unknown';
+                        const dotColor = st === 'ok' ? '#10b981' : st === 'rate_limited' ? '#f59e0b' : st === 'error' ? '#ef4444' : '#666';
+                        return (
+                            <Rw key={p.id} style={{ gap: 4, alignItems: 'center' }}>
+                                <div style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, boxShadow: `0 0 6px ${dotColor}` }} />
+                                <M size={10} color="var(--tx3)">{p.label}</M>
+                            </Rw>
+                        );
+                    })}
                 </Rw>
-                <Bdg color={aiProvider.includes("Local") ? "jade" : "pur"}>{aiProvider}</Bdg>
+                <Bdg color={aiProvider.includes('Offline') ? 'red' : 'pur'}>{aiProvider}</Bdg>
             </Cd>
 
             {/* Agent Overview Grid */}

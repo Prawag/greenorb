@@ -92,7 +92,7 @@ class GlobeDataStore {
     // Defines priority groups
     const t1 = ['earthquakes', 'fires', 'floods', 'cyclones', 'volcanoes', 'eonet']; 
     const t2 = ['companies', 'countries', 'airQuality', 'gridCarbon'];
-    const t3 = ['newsVelocity', 'climateTrace', 'gdelt', 'greenwashVelocity'];
+    const t3 = ['newsVelocity', 'climateTrace', 'gdelt', 'greenwashVelocity', 'gpm_precipitation', 'sentinel_atmosphere', 'biodiversity_index', 'ocean_currents', 'water_stress', 'forest_loss', 'coral_bleaching', 'fishing_watch'];
 
     const fireTier = (tierList) => {
       Promise.all(
@@ -161,16 +161,16 @@ export const useGdelt = () => useDataSource('gdelt', '', 900000); // 15 mins
 export const useGreenwashVelocity = () => useDataSource('greenwashVelocity', '', 900000); // 15 mins
 
 // ─── SPRINT 3: ENVIRONMENTAL & ATMOSPHERIC LAYERS ─────────────────────────────
-export const useGpmImerg = () => useDataSource('gpmImerg', '', 1800000); // 30 mins
-export const useSentinel = () => useDataSource('sentinel', '', 86400000); // 24 hours
-export const useBiodiversity = () => useDataSource('biodiversity', '', 86400000); // 24 hours
+export const useGpmImerg = () => useDataSource('gpm_precipitation');
+export const useSentinel = () => useDataSource('sentinel_atmosphere');
+export const useBiodiversity = () => useDataSource('biodiversity_index');
 
 // ─── SPRINT 4: OCEAN & LAND INTELLIGENCE ──────────────────────────────────────
-export const useOceanCurrents = () => useDataSource('oceanCurrents', '', 21600000); // 6 hours
-export const useWaterStress = () => useDataSource('waterStress', '', 86400000); // 24 hours
-export const useForestLoss = () => useDataSource('forestLoss', '', 3600000); // 1 hour
-export const useCoralBleaching = () => useDataSource('coralBleaching', '', 86400000); // 24 hours
-export const useFishingWatch = () => useDataSource('fishingWatch', '', 3600000); // 1 hour
+export const useOceanCurrents = () => useDataSource('ocean_currents');
+export const useWaterStress = () => useDataSource('water_stress');
+export const useForestLoss = () => useDataSource('forest_loss');
+export const useCoralBleaching = () => useDataSource('coral_bleaching');
+export const useFishingWatch = () => useDataSource('fishing_watch');
 
 export function useAgentStatus() {
   const [status, setStatus] = useState({

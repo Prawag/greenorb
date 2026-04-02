@@ -1,72 +1,100 @@
-
 import NodeCache from 'node-cache';
-const cache = new NodeCache({ stdTTL: 900 }); // 15min
+import fetch from 'node-fetch';
 
-// Static zone-to-coordinates mapping for major grids
-// (Electricity Maps uses zone codes like "IN-NO", "DE", "US-CAL-CISO")
+const cache = new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hour
+
 const GRID_ZONES = [
-  { zone: 'IN-NO', name: 'India North Grid', lat: 28.7, lng: 77.1 },
-  { zone: 'IN-SO', name: 'India South Grid', lat: 13.1, lng: 80.3 },
-  { zone: 'IN-WE', name: 'India West Grid',  lat: 19.1, lng: 72.9 },
-  { zone: 'IN-EA', name: 'India East Grid',  lat: 22.6, lng: 88.4 },
-  { zone: 'DE',    name: 'Germany',          lat: 51.2, lng: 10.4 },
-  { zone: 'GB',    name: 'Great Britain',    lat: 52.5, lng: -1.8 },
-  { zone: 'US-CAL-CISO', name: 'California', lat: 36.7, lng: -119.4 },
-  { zone: 'SG',    name: 'Singapore',        lat: 1.35, lng: 103.8 },
-  { zone: 'JP-TK', name: 'Japan Tokyo',      lat: 35.7, lng: 139.7 },
-  { zone: 'CN-SO', name: 'China South',      lat: 23.1, lng: 113.3 },
-  { zone: 'AE',    name: 'UAE',              lat: 24.5, lng: 54.4 },
-  { zone: 'BR-CS', name: 'Brazil Central',   lat: -15.8, lng: -47.9 },
+  { zone: 'IN-MH', name: 'Maharashtra (India)', lat: 19.75, lng: 75.71 },
+  { zone: 'IN-KA', name: 'Karnataka (India)', lat: 15.31, lng: 75.71 },
+  { zone: 'IN-GJ', name: 'Gujarat (India)', lat: 22.25, lng: 71.19 },
+  { zone: 'IN-TN', name: 'Tamil Nadu (India)', lat: 11.12, lng: 78.65 },
+  { zone: 'IN-UP', name: 'Uttar Pradesh (India)', lat: 26.84, lng: 80.94 },
+  { zone: 'GB', name: 'Great Britain', lat: 55.37, lng: -3.43 },
+  { zone: 'FR', name: 'France', lat: 46.22, lng: 2.21 },
+  { zone: 'DE', name: 'Germany', lat: 51.16, lng: 10.45 },
+  { zone: 'ES', name: 'Spain', lat: 40.46, lng: -3.74 },
+  { zone: 'IT-NO', name: 'Italy (North)', lat: 45.46, lng: 9.19 },
+  { zone: 'NL', name: 'Netherlands', lat: 52.13, lng: 5.29 },
+  { zone: 'SE-SE1', name: 'Sweden (SE1)', lat: 67.85, lng: 20.22 },
+  { zone: 'US-CAL-CISO', name: 'California (CAISO)', lat: 36.77, lng: -119.41 },
+  { zone: 'US-TEX-ERCO', name: 'Texas (ERCOT)', lat: 31.96, lng: -99.90 },
+  { zone: 'US-FLA-FPL', name: 'Florida (FPL)', lat: 27.66, lng: -81.51 },
+  { zone: 'AU-NSW', name: 'New South Wales (Aus)', lat: -31.25, lng: 146.92 },
+  { zone: 'AU-SA', name: 'South Australia', lat: -30.00, lng: 136.20 },
+  { zone: 'JP-TK', name: 'Tokyo (Japan)', lat: 35.67, lng: 139.65 }
 ];
 
-export default async function gridHandler(req, res) {
-  const cached = cache.get('grid_data');
-  if (cached) return res.json({ ...cached, stale: false });
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-  const key = process.env.ELECTRICITY_MAPS_KEY;
-  if (!key) {
-    return res.json({
-      data: [], cached_at: null, stale: true,
-      source: 'electricity_maps', ttl: 900,
-      error: 'ELECTRICITY_MAPS_KEY not set'
-    });
-  }
+export default async function (req, res) {
+    const cached = cache.get('grid_carbon_live');
+    if (cached) {
+      return res.json({
+        data: cached,
+        cached_at: new Date().toISOString(),
+        stale: false,
+        source: 'ELECTRICITY_MAPS_GRID_AWARE_FREE',
+        ttl: 3600
+      });
+    }
 
-  try {
-    const results = await Promise.allSettled(
-      GRID_ZONES.map(async zone => {
-        const r = await fetch(
-          `https://api.electricitymap.org/v3/carbon-intensity/latest?zone=${zone.zone}`,
-          { headers: { 'auth-token': key }, signal: AbortSignal.timeout(8000) }
-        );
-        const json = await r.json();
-        return {
-          ...zone,
-          carbon_intensity: json.carbonIntensity,  // gCO2eq/kWh
-          fossil_free_pct: json.fossilFreePercentage,
-          renewable_pct:   json.renewablePercentage,
-          datetime:        json.datetime,
-        };
-      })
-    );
+    try {
+      const results = [];
+      const timestamp = new Date().toISOString();
 
-    const data = results
-      .filter(r => r.status === 'fulfilled')
-      .map(r => r.value)
-      .filter(d => d.carbon_intensity != null);
+      for (const zoneInfo of GRID_ZONES) {
+        try {
+          const res = await fetch(`https://api-access.electricitymaps.com/free-tier/carbon-intensity/relative?zone=${zoneInfo.zone}`, {
+              signal: AbortSignal.timeout(5000)
+          });
+          
+          if (!res.ok) {
+              console.warn(`[grid] EM HTTP ${res.status} for ${zoneInfo.zone}`);
+              continue; // skip silently
+          }
 
-    const result = {
-      data,
-      cached_at: new Date().toISOString(),
-      stale: false, source: 'electricity_maps', ttl: 900,
-    };
-    cache.set('grid_data', result);
-    res.json(result);
+          const relativeData = await res.json();
+          let synthetic_carbon_intensity = 400; // default moderate
+          if (relativeData.level === 'low') synthetic_carbon_intensity = 150;
+          if (relativeData.level === 'high') synthetic_carbon_intensity = 700;
 
-  } catch (err) {
-    const stale = cache.get('grid_data');
-    if (stale) return res.json({ ...stale, stale: true });
-    res.json({ data: [], stale: true, source: 'electricity_maps',
-               ttl: 900, error: err.message });
-  }
+          results.push({
+            zone: zoneInfo.zone,
+            name: zoneInfo.name,
+            lat: zoneInfo.lat,
+            lng: zoneInfo.lng,
+            carbon_intensity: synthetic_carbon_intensity,
+            fossil_free_pct: null,
+            renewable_pct: null,
+            datetime: timestamp
+          });
+
+          await sleep(100);
+
+        } catch (e) {
+            console.warn(`[grid] Fetch failed for ${zoneInfo.zone}: ${e.message}`);
+        }
+      }
+
+      cache.set('grid_carbon_live', results);
+
+      res.json({
+        data: results,
+        cached_at: new Date().toISOString(),
+        stale: false,
+        source: 'ELECTRICITY_MAPS_GRID_AWARE_FREE',
+        ttl: 3600
+      });
+
+    } catch (err) {
+      console.error('[grid-carbon] API Error:', err.message);
+      res.json({
+        data: cache.get('grid_carbon_live') || [],
+        cached_at: new Date().toISOString(),
+        stale: true,
+        source: 'ELECTRICITY_MAPS_GRID_AWARE_FREE',
+        ttl: 0,
+        error: err.message
+      });
+    }
 }
