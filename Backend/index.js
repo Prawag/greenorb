@@ -52,6 +52,31 @@ import mountOsmFacilities from './api/osm-facilities.js';
 import mountWikidataFacilities from './api/wikidata-facilities.js';
 import mountProductLca from './api/product-lca.js';
 
+// Track B Imports
+import mountImportYeti from './api/importyeti.js';
+import mountOshFacilities from './api/osh-facilities.js';
+import mountVesselTracking from './api/vessel-tracking.js';
+import mountLogisticsEmissions from './api/logistics-emissions.js';
+import mountSectorPeers from './api/sector-peers.js';
+import { startAisTracker } from './workers/ais-tracker.js';
+
+// Track C Imports
+import mountEdgarFinancials from './api/edgar-financials.js';
+import mountMacrotrends from './api/macrotrends.js';
+import mountProductionIndices from './api/production-indices.js';
+import mountClimateAlignment from './api/climate-alignment.js';
+
+// Sprint 8 Imports
+import carbonPriceRouter from './api/carbon-price.js';
+import companyFinancialsRouter from './api/company-financials.js';
+import tradeIntelligenceRouter from './api/trade-intelligence.js';
+import companyProductionRouter from './api/company-production.js';
+import scope3CalculatorRouter from './api/scope3-calculator.js';
+import companyNewsRouter from './api/company-news.js';
+import companyRegistryRouter from './api/company-registry.js';
+import countryContextRouter from './api/country-context.js';
+import clean200Router from './api/clean200.js';
+
 dotenv.config();
 
 const app = express();
@@ -595,6 +620,35 @@ mountSpatialFacilities(app, sql);
 mountOsmFacilities(app);
 mountWikidataFacilities(app, sql);
 mountProductLca(app);
+
+// ==========================================
+// MOUNT NEW SPRINT 8 APIS
+// ==========================================
+app.use('/api/carbon', carbonPriceRouter);
+app.use('/api/company', companyFinancialsRouter);
+app.use('/api/company', tradeIntelligenceRouter);
+app.use('/api/company', companyProductionRouter);
+app.use('/api/company', scope3CalculatorRouter);
+app.use('/api/company', companyNewsRouter);
+app.use('/api/company', companyRegistryRouter);
+app.use('/api/country', countryContextRouter);
+app.use('/api/clean200', clean200Router);
+
+// Track B Mounting
+mountImportYeti(app, sql);
+mountOshFacilities(app, sql);
+mountVesselTracking(app, sql);
+mountLogisticsEmissions(app);
+mountSectorPeers(app, sql);
+
+// Start Background AIS Tracker (WebSocket)
+startAisTracker(sql);
+
+// Track C Mounting
+mountEdgarFinancials(app, sql);
+mountMacrotrends(app, sql);
+mountProductionIndices(app);
+mountClimateAlignment(app);
 
 // ─── AGENT STATUS (30s cache) ─────────────────────────────────────────────────
 const agentCache = new NodeCache({ stdTTL: 30, checkperiod: 10 });

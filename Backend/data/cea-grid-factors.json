@@ -1,0 +1,7 @@
+{
+  "india_national": { "tco2_per_mwh": 0.82, "year": 2023, "source": "CEA_v21" },
+  "northern_grid": { "tco2_per_mwh": 0.88 },
+  "western_grid": { "tco2_per_mwh": 0.80 },
+  "southern_grid": { "tco2_per_mwh": 0.73 },
+  "eastern_grid": { "tco2_per_mwh": 0.87 }
+}

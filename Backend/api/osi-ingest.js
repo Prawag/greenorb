@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import { safeCompanyUpdate } from '../lib/company-service.js';
 
 export default function mountOsiIngest(app, sql) {
   app.get('/api/osi/sync', async (req, res) => {
@@ -40,24 +41,16 @@ export default function mountOsiIngest(app, sql) {
           `;
           insertedSourcesCount++;
 
-          // Check if we need to overwrite the primary records
-          const currentYear = company.report_year || 0;
+          // Use safeCompanyUpdate with SILVER tier for OSI
+          await safeCompanyUpdate(sql, company.name, {
+            s1: scope1,
+            s2: scope2,
+            s3: scope3,
+            report_year: report_year,
+            report_url: report_url
+          }, 'SILVER');
           
-          // Overwrite if newer report year OR if there's no data and we now have info
-          if (report_year > currentYear || (currentYear === 0 && report_year > 0)) {
-            await sql`
-              UPDATE companies
-              SET 
-                s1 = ${scope1},
-                s2 = ${scope2},
-                s3 = ${scope3},
-                report_year = ${report_year},
-                report_url = ${report_url},
-                ts = CURRENT_TIMESTAMP
-              WHERE name = ${company.name}
-            `;
-            updatedCount++;
-          }
+          updatedCount++;
         } catch (innerErr) {
           console.error(`[OSI Sync] Failed processing ${company.name}:`, innerErr.message);
         }

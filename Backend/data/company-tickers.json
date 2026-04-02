@@ -1,0 +1,96 @@
+[
+  {
+    "name": "Tata Steel",
+    "ticker": "TATASTEEL",
+    "exchange": "NSE",
+    "hs_codes": ["7208", "7209", "7210", "7211", "7212", "7213", "7214"],
+    "primary_product": "steel",
+    "iso_country": "IND"
+  },
+  {
+    "name": "Reliance Industries",
+    "ticker": "RELIANCE",
+    "exchange": "NSE",
+    "hs_codes": ["2710", "2901", "2902", "3901", "3902"],
+    "primary_product": "petrochemicals",
+    "iso_country": "IND"
+  },
+  {
+    "name": "Infosys",
+    "ticker": "INFY",
+    "exchange": "NSE",
+    "hs_codes": [],
+    "primary_product": "services",
+    "iso_country": "IND"
+  },
+  {
+    "name": "JSW Steel",
+    "ticker": "JSWSTEEL",
+    "exchange": "NSE",
+    "hs_codes": ["7208", "7209", "7210"],
+    "primary_product": "steel",
+    "iso_country": "IND"
+  },
+  {
+    "name": "Samsung Electronics",
+    "ticker": "005930",
+    "exchange": "KRX",
+    "hs_codes": ["8517", "8471", "8542"],
+    "primary_product": "electronics",
+    "iso_country": "KOR"
+  },
+  {
+    "name": "Apple",
+    "ticker": "AAPL",
+    "cik": "0000320193",
+    "exchange": "NASDAQ",
+    "hs_codes": ["8517", "8471"],
+    "primary_product": "electronics",
+    "iso_country": "USA"
+  },
+  {
+    "name": "Microsoft",
+    "ticker": "MSFT",
+    "cik": "0000789019",
+    "exchange": "NASDAQ",
+    "hs_codes": ["8523", "8471"],
+    "primary_product": "software",
+    "iso_country": "USA"
+  },
+  {
+    "name": "Amazon",
+    "ticker": "AMZN",
+    "cik": "0001018724",
+    "exchange": "NASDAQ",
+    "hs_codes": ["4819", "4901"],
+    "primary_product": "logistics",
+    "iso_country": "USA"
+  },
+  {
+    "name": "Tesla",
+    "ticker": "TSLA",
+    "cik": "0001318605",
+    "exchange": "NASDAQ",
+    "hs_codes": ["8703", "8507"],
+    "primary_product": "automotive",
+    "iso_country": "USA"
+  },
+  {
+    "name": "Shell",
+    "ticker": "SHEL",
+    "cik": "0001306965",
+    "exchange": "NYSE",
+    "hs_codes": ["2709", "2710", "2711"],
+    "primary_product": "oil_gas",
+    "iso_country": "GBR"
+  },
+  {
+    "name": "Volkswagen",
+    "ticker": "VOW3",
+    "cik": "0000101830",
+    "exchange": "XETRA",
+    "hs_codes": ["8703"],
+    "primary_product": "automotive",
+    "iso_country": "DEU"
+  }
+]

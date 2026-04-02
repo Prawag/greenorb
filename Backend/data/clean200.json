@@ -1,0 +1,37 @@
+[
+  {
+    "rank": 1,
+    "name": "Apple",
+    "country": "United States",
+    "sector": "Information Technology",
+    "revenue_ratio_pct": 72.5
+  },
+  {
+    "rank": 2,
+    "name": "Taiwan Semiconductor",
+    "country": "Taiwan",
+    "sector": "Information Technology",
+    "revenue_ratio_pct": 100
+  },
+  {
+    "rank": 11,
+    "name": "Tesla",
+    "country": "United States",
+    "sector": "Consumer Discretionary",
+    "revenue_ratio_pct": 100
+  },
+  {
+    "rank": 35,
+    "name": "Infosys",
+    "country": "India",
+    "sector": "Information Technology",
+    "revenue_ratio_pct": 45.2
+  },
+  {
+    "rank": 80,
+    "name": "Tata Steel",
+    "country": "India",
+    "sector": "Materials",
+    "revenue_ratio_pct": 10.5
+  }
+]

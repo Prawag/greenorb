@@ -1,10 +1,11 @@
 import fetch from 'node-fetch';
 import NodeCache from 'node-cache';
+import { indexOsmBbox } from '../workers/osm-indexer.js';
 
-// Overpass API restricts rate heavily, 24h caching
+// Overpass API restricts rate heavily, 24h caching in memory
 const cache = new NodeCache({ stdTTL: 86400 });
 
-export default function mountOsmFacilities(app) {
+export default function mountOsmFacilities(app, sql) {
   app.post('/api/facilities/osm', async (req, res) => {
     const { lat, lng, radius_km, company_name } = req.body;
     
@@ -13,78 +14,49 @@ export default function mountOsmFacilities(app) {
     }
 
     const radius_m = parseFloat(radius_km) * 1000;
-    const cacheKey = `osm_${lat.toFixed(2)}_${lng.toFixed(2)}_${radius_m}`;
+    const bbox_hash = `osm_${lat.toFixed(2)}_${lng.toFixed(2)}_${radius_m}`;
 
-    let data;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      data = cached;
-    } else {
-      try {
-        const query = `
-          [out:json][timeout:25];
-          (
-            node(around:${radius_m},${lat},${lng})["industrial"~"^(factory|plant)$"];
-            way(around:${radius_m},${lat},${lng})["industrial"~"^(factory|plant)$"];
-            relation(around:${radius_m},${lat},${lng})["industrial"~"^(factory|plant)$"];
-            node(around:${radius_m},${lat},${lng})["man_made"="works"];
-            way(around:${radius_m},${lat},${lng})["man_made"="works"];
-            node(around:${radius_m},${lat},${lng})["landuse"="industrial"];
-            way(around:${radius_m},${lat},${lng})["landuse"="industrial"];
-          );
-          out center;
-        `;
+    try {
+      // 1. Check DB for cached facilities in this bbox
+      const dbCached = await sql`
+        SELECT * FROM facilities 
+        WHERE bbox_hash = ${bbox_hash}
+      `;
+
+      if (dbCached.length > 0) {
+        console.log(`[OSM API] Cache hit (DB) for ${bbox_hash}`);
+        const features = dbCached.map(el => ({
+          type: "Feature",
+          properties: { id: el.id, name: el.facility_name, landuse: el.facility_type, source: "osm", source_tier: el.source_tier },
+          geometry: { type: "Point", coordinates: [el.lng, el.lat] }
+        }));
         
-        const response = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: `data=${encodeURIComponent(query)}`
-        });
-
-        if (!response.ok) {
-           throw new Error(`Overpass API responded with ${response.status}`);
-        }
-
-        data = await response.json();
-        cache.set(cacheKey, data);
-      } catch (err) {
-        console.error("OSM Overpass error:", err);
-        return res.status(500).json({ error: err.message });
+        return res.json({ type: "FeatureCollection", features, status: "READY" });
       }
+
+      // 2. Check memory cache for "INDEXING" status to avoid duplicate background jobs
+      if (cache.get(`${bbox_hash}_indexing`)) {
+        return res.json({ type: "FeatureCollection", features: [], status: "INDEXING" });
+      }
+
+      // 3. Trigger background indexing
+      cache.set(`${bbox_hash}_indexing`, true, 600); // 10 min lock
+      setImmediate(() => {
+        indexOsmBbox(sql, lat, lng, radius_km).then(() => {
+          cache.del(`${bbox_hash}_indexing`);
+        });
+      });
+
+      return res.json({
+        type: "FeatureCollection",
+        features: [],
+        status: "INDEXING",
+        message: "OSM fetch initiated in background. Try again in 60s."
+      });
+
+    } catch (err) {
+      console.error("[OSM API Error]:", err);
+      res.status(500).json({ error: err.message });
     }
-
-    // Convert Overpass JSON format to standardized GeoJSON FeatureCollection
-    let features = (data.elements || []).map(el => {
-      const elLat = el.type === 'node' ? el.lat : el.center?.lat;
-      const elLng = el.type === 'node' ? el.lon : el.center?.lon;
-      const tags = el.tags || {};
-      
-      return {
-        type: "Feature",
-        properties: {
-          id: el.id,
-          name: tags.name || tags.operator || "Unknown Industrial Site",
-          landuse: tags.landuse || tags.industrial || "industrial",
-          source: "osm"
-        },
-        geometry: {
-          type: "Point",
-          coordinates: [elLng, elLat]
-        }
-      };
-    }).filter(f => f.geometry.coordinates[0] !== undefined);
-
-    // Apply exact string inclusion match if company profile filter applied
-    if (company_name) {
-       const matcher = company_name.toLowerCase();
-       features = features.filter(f => f.properties.name.toLowerCase().includes(matcher));
-    }
-
-    res.json({
-      type: "FeatureCollection",
-      features
-    });
   });
 }

@@ -1,6 +1,8 @@
 import PDFParser from 'pdf2json';
 import fetch from 'node-fetch';
 import fs from 'fs';
+import { reconstructTableRows } from '../lib/pdf-table-parser.js';
+import llmRouter from '../lib/llm-router.js';
 
 /**
  * GreenOrb PDF Extractor Worker
@@ -26,48 +28,54 @@ export async function extractBrsrMetrics(pdfUrl) {
             
             pdfParser.on("pdfParser_dataError", errData => reject(errData.parserError));
             
-            pdfParser.on("pdfParser_dataReady", pdfData => {
-                let textElements = [];
-                
-                // Flatten to purely localized DOM strings
-                pdfData.formImage.Pages.forEach(page => {
-                    page.Texts.forEach(text => {
-                        const str = decodeURIComponent(text.R[0].T);
-                        textElements.push({
-                            text: str.replace(/%20/g, ' ').trim(),
-                            x: text.x, 
-                            y: text.y,
-                            page: page.Height
-                        });
-                    });
-                });
-                
-                const metrics = {
-                    scope_1_emissions: null,
-                    scope_2_emissions: null,
-                    water_withdrawal_kl: null,
-                    energy_consumption_gj: null,
-                    waste_generated_mt: null
-                };
+            pdfParser.on("pdfParser_dataReady", async (pdfData) => {
+                try {
+                    console.log(`[PDF-Extractor] Reconstructing tables for ${pdfUrl}...`);
+                    const rows = reconstructTableRows(pdfData.formImage.Pages);
+                    const tableText = rows.join('\n');
 
-                // Spatial matching for Scope 1
-                const scope1Label = textElements.find(t => t.text.toLowerCase().includes("scope 1"));
-                if (scope1Label) {
-                    // Find node on the exact same Y axis, immediately right
-                    const valueNodes = textElements.filter(t => Math.abs(t.y - scope1Label.y) < 0.5 && t.x > scope1Label.x);
-                    valueNodes.sort((a,b) => a.x - b.x); // closest first
-                    if (valueNodes.length > 0) metrics.scope_1_emissions = parseFloat(valueNodes[0].text.replace(/,/g, ''));
+                    console.log(`[PDF-Extractor] Calling LLM for extraction...`);
+                    const systemPrompt = `You are a precision ESG data extractor. Extract the following metrics from the provided BRSR report text. 
+The text is reconstructed from a PDF and uses "|" to indicate cell boundaries in tables.
+Look specifically for:
+1. Total Scope 1 emissions (tCO2e)
+2. Total Scope 2 emissions (tCO2e)
+3. Total Water Withdrawal (kL)
+4. Total Energy Consumption (GJ)
+5. Total Waste Generated (metric tonnes)
+
+Return ONLY a JSON object with these keys: 
+{
+  "scope_1_emissions": number | null,
+  "scope_2_emissions": number | null,
+  "water_withdrawal_kl": number | null,
+  "energy_consumption_gj": number | null,
+  "waste_generated_mt": number | null
+}`;
+
+                    const userPrompt = `REPORT TEXT:\n${tableText.substring(0, 50000)}`; // Cap context for safety
+                    
+                    const llmResult = await llmRouter.complete(systemPrompt, userPrompt, 1024);
+                    
+                    let metrics;
+                    try {
+                        const jsonStr = llmResult.text.match(/\{[\s\S]*\}/)?.[0] || llmResult.text;
+                        metrics = JSON.parse(jsonStr);
+                    } catch (e) {
+                        console.error("[PDF-Extractor] JSON Parse Error:", e.message, llmResult.text);
+                        metrics = {
+                            scope_1_emissions: null,
+                            scope_2_emissions: null,
+                            water_withdrawal_kl: null,
+                            energy_consumption_gj: null,
+                            waste_generated_mt: null
+                        };
+                    }
+
+                    resolve(metrics);
+                } catch (e) {
+                    reject(e);
                 }
-
-                // Spatial matching for Scope 2
-                const scope2Label = textElements.find(t => t.text.toLowerCase().includes("scope 2"));
-                if (scope2Label) {
-                    const valueNodes = textElements.filter(t => Math.abs(t.y - scope2Label.y) < 0.5 && t.x > scope2Label.x);
-                    valueNodes.sort((a,b) => a.x - b.x);
-                    if (valueNodes.length > 0) metrics.scope_2_emissions = parseFloat(valueNodes[0].text.replace(/,/g, ''));
-                }
-
-                resolve(metrics);
             });
             
             pdfParser.parseBuffer(buffer);

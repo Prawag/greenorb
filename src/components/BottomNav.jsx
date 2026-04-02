@@ -3,7 +3,8 @@ import { M } from "./primitives";
 
 const TABS = [
     { id: "globe", icon: "🌍", label: "Globe" },
-    { id: "audit", icon: "🏢", label: "Audit" },
+    { id: "audit", icon: "📋", label: "Audit" },
+    { id: "intel", icon: "🏢", label: "Intel" },
     { id: "esg", icon: "📊", label: "ESG Data" },
     { id: "facilities", icon: "🏭", label: "Facilities" },
     { id: "compare", icon: "⚖️", label: "Compare" },

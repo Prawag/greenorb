@@ -1,0 +1,17 @@
+{
+  "JNPT_to_Rotterdam": { "distance_km": 12200, "via": "Suez Canal", "eca_km": 2100 },
+  "JNPT_to_Hamburg": { "distance_km": 12480, "via": "Suez Canal", "eca_km": 2800 },
+  "JNPT_to_Antwerp": { "distance_km": 12350, "via": "Suez Canal", "eca_km": 2500 },
+  "JNPT_to_Genoa": { "distance_km": 8950, "via": "Suez Canal", "eca_km": 1200 },
+  "Mundra_to_Rotterdam": { "distance_km": 12150, "via": "Suez Canal", "eca_km": 2100 },
+  "Mundra_to_Hamburg": { "distance_km": 12430, "via": "Suez Canal", "eca_km": 2800 },
+  "Visakhapatnam_to_Rotterdam": { "distance_km": 12800, "via": "Suez Canal", "eca_km": 2100 },
+  "Paradip_to_Rotterdam": { "distance_km": 13100, "via": "Suez Canal", "eca_km": 2100 },
+  "Chennai_to_Rotterdam": { "distance_km": 11400, "via": "Suez Canal", "eca_km": 2100 },
+  "Singapore_to_Rotterdam": { "distance_km": 15400, "via": "Suez Canal", "eca_km": 2100 },
+  "Shanghai_to_Rotterdam": { "distance_km": 19500, "via": "Suez Canal", "eca_km": 2100 },
+  "Mumbai_to_Jebel Ali": { "distance_km": 1900, "via": "Arabian Sea", "eca_km": 0 },
+  "Mundra_to_Jebel Ali": { "distance_km": 1400, "via": "Arabian Sea", "eca_km": 0 },
+  "Cape-Town_to_Rotterdam": { "distance_km": 11000, "via": "Coast of Africa", "eca_km": 2100 },
+  "Santos_to_Rotterdam": { "distance_km": 10500, "via": "North Atlantic", "eca_km": 2100 }
+}

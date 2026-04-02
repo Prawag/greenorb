@@ -1,5 +1,6 @@
 import NodeCache from 'node-cache';
 import fetch from 'node-fetch';
+import { safeCompanyUpdate } from '../lib/company-service.js';
 
 const cache = new NodeCache({ stdTTL: 86400 });
 const CACHE_KEY = 'globe_climate_trace_live';
@@ -31,11 +32,15 @@ export default function mountClimateTrace(app, sql) {
       // Merge into facilities table
       if (sql && mappedAssets.length > 0) {
           for (const a of mappedAssets) {
+             const companyName = 'Unknown (Climate TRACE)';
              await sql`
-                 INSERT INTO facilities (company_name, facility_name, facility_type, lat, lng, source)
-                 VALUES ('Unknown (Climate TRACE)', ${a.name}, ${a.asset_type}, ${a.lat}, ${a.lng}, 'climate_trace')
+                 INSERT INTO facilities (company_name, facility_name, facility_type, lat, lng, source, source_tier)
+                 VALUES (${companyName}, ${a.name}, ${a.asset_type}, ${a.lat}, ${a.lng}, 'climate_trace', 'SILVER')
                  ON CONFLICT (company_name, facility_name) DO NOTHING
              `.catch(e => console.log('Climate Trace DB Insert error:', e.message));
+
+             // If we had a mechanism to link this facility to a real company, 
+             // we would use safeCompanyUpdate(sql, realCompanyName, { ... }, 'SILVER') here.
           }
       }
 

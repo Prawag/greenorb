@@ -1,0 +1,207 @@
+[dotenv@17.3.1] injecting env (4) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+Tables: [
+  'facilities',       'analysis',
+  'risks',            'strategies',
+  'city_metrics',     'welford_baselines',
+  'brsr_filings',     'embeddings',
+  'geo_cities',       'esg_sources',
+  'companies',        'forest_alerts',
+  'coral_alerts',     'fishing_alerts',
+  'proximity_alerts'
+]
+Columns for facilities: [
+  'id (integer)',
+  'created_at (timestamp without time zone)',
+  'ndvi_mean (numeric)',
+  'ndvi_date (date)',
+  'no2_column (numeric)',
+  'no2_date (date)',
+  'cloud_coverage_pct (numeric)',
+  'satellite_updated_at (timestamp with time zone)',
+  'lat (double precision)',
+  'lng (double precision)',
+  'company_name (text)',
+  'facility_name (text)',
+  'facility_type (text)',
+  'bbox_hash (text)',
+  'ndvi_verdict (character varying)',
+  'status (text)',
+  'no2_verdict (character varying)'
+]
+Columns for analysis: [
+  'e_score (integer)',
+  's_score (integer)',
+  'g_score (integer)',
+  'score (integer)',
+  'weaknesses (text)',
+  'company (text)',
+  'recommendation (text)',
+  'trend (text)',
+  'peer (text)',
+  'strengths (text)'
+]
+Columns for risks: [
+  'company (text)',
+  'greenwash (text)',
+  'reg_risk (text)',
+  'climate_exp (text)',
+  'data_quality (text)',
+  'red_flags (text)',
+  'compliance (text)'
+]
+Columns for strategies: [
+  'confidence (integer)',
+  'action (text)',
+  'company (text)',
+  'price_impact (text)',
+  'catalyst (text)',
+  'timeline (text)',
+  'rationale (text)'
+]
+Columns for city_metrics: [
+  'last_updated (timestamp with time zone)',
+  'water_quality_index (double precision)',
+  'municipal_energy_kwh (bigint)',
+  'city_id (uuid)',
+  'aqi_level (integer)',
+  'pm2_5 (double precision)',
+  'city_name (character varying)',
+  'state_name (character varying)',
+  'boundary_geojson (text)'
+]
+Columns for welford_baselines: [
+  'observation_count (bigint)',
+  'running_mean (double precision)',
+  'm2_sum (double precision)',
+  'last_updated (timestamp with time zone)',
+  'company_id (character varying)',
+  'metric_name (character varying)'
+]
+Columns for brsr_filings: [
+  'parsed_at (timestamp with time zone)',
+  'women_workforce_pct (double precision)',
+  'board_independence_pct (double precision)',
+  'id (uuid)',
+  'report_year (integer)',
+  'scope1_emissions (double precision)',
+  'scope2_emissions (double precision)',
+  'water_consumption (double precision)',
+  'energy_consumption (double precision)',
+  'waste_generated (double precision)',
+  'company_name (character varying)',
+  'scrip_code (character varying)',
+  'raw_xbrl_url (text)'
+]
+Columns for embeddings: [
+  'ts (timestamp with time zone)',
+  'metadata (jsonb)',
+  'id (integer)',
+  'embedding (USER-DEFINED)',
+  'page_number (integer)',
+  'report_year (integer)',
+  'company_name (text)',
+  'content (text)'
+]
+Columns for geo_cities: [
+  'lat (double precision)',
+  'lng (double precision)',
+  'id (integer)',
+  'country (text)',
+  'iso2 (character)',
+  'iso3 (character)',
+  'timezone (text)',
+  'name (text)',
+  'state (text)'
+]
+Columns for esg_sources: [
+  'fetched_at (timestamp with time zone)',
+  'report_year (integer)',
+  'methodology (jsonb)',
+  'id (integer)',
+  'scope1_mt (numeric)',
+  'scope2_location_mt (numeric)',
+  'scope2_market_mt (numeric)',
+  'scope3_mt (numeric)',
+  'water_withdrawal_kl (numeric)',
+  'renewable_energy_pct (numeric)',
+  'company_name (text)',
+  'source (text)',
+  'report_url (text)'
+]
+Columns for companies: [
+  'data_tier_locked (boolean)',
+  's1 (numeric)',
+  's2 (numeric)',
+  's3 (numeric)',
+  'ts (timestamp with time zone)',
+  'report_year (integer)',
+  'lat (numeric)',
+  'lng (numeric)',
+  'created_at (timestamp with time zone)',
+  'updated_at (timestamp with time zone)',
+  'scope2_location (numeric)',
+  'scope2_market (numeric)',
+  'water_withdrawal_kl (numeric)',
+  'renewable_energy_pct (numeric)',
+  'net_zero_year (integer)',
+  'cbam_exposed (boolean)',
+  'co2 (numeric)',
+  'sector (text)',
+  'country (text)',
+  'data_tier (text)',
+  'esg (text)',
+  'url (text)',
+  'products (text)',
+  'methodology (text)',
+  'name (text)',
+  'city (text)',
+  'geocoding_source (text)',
+  'verification_body (text)',
+  'report_url (text)',
+  'gwp_version (text)',
+  'boundary_approach (text)',
+  'audit_status (text)'
+]
+Columns for forest_alerts: [
+  'created_at (timestamp with time zone)',
+  'lat (numeric)',
+  'lng (numeric)',
+  'alert_date (timestamp with time zone)',
+  'area_ha (numeric)',
+  'id (integer)',
+  'country (character varying)',
+  'confidence (character varying)'
+]
+Columns for coral_alerts: [
+  'created_at (timestamp with time zone)',
+  'lat (numeric)',
+  'lng (numeric)',
+  'recorded_at (timestamp with time zone)',
+  'id (integer)',
+  'dhw (numeric)',
+  'alert_level (character varying)',
+  'region_name (character varying)'
+]
+Columns for fishing_alerts: [
+  'id (integer)',
+  'observed_at (timestamp with time zone)',
+  'created_at (timestamp with time zone)',
+  'lat (numeric)',
+  'lng (numeric)',
+  'fishing_hours (numeric)',
+  'is_suspected_illegal (boolean)',
+  'vessel_id (character varying)',
+  'flag_country (character varying)'
+]
+Columns for proximity_alerts: [
+  'resolved_at (timestamp with time zone)',
+  'distance_km (double precision)',
+  'dis_score (integer)',
+  'created_at (timestamp with time zone)',
+  'id (integer)',
+  'status (character varying)',
+  'company_id (text)',
+  'disaster_type (character varying)',
+  'disaster_title (character varying)',
+  'severity (character varying)'
+]

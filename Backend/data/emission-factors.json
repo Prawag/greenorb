@@ -1,0 +1,8 @@
+{
+  "bulk_carrier_panamax": { "ef_ttw": 0.00738, "ef_wtw": 0.00871, "description": "70,000-80,000 DWT Panamax Bulk Carrier" },
+  "bulk_carrier_capesize": { "ef_ttw": 0.00679, "ef_wtw": 0.00802, "description": "170,000-180,000 DWT Capesize Bulk Carrier" },
+  "container_panamax": { "ef_ttw": 0.01244, "ef_wtw": 0.0147, "description": "3,000-5,000 TEU Container Ship" },
+  "container_ultra_large": { "ef_ttw": 0.00845, "ef_wtw": 0.00998, "description": "15,000+ TEU VLCS" },
+  "tanker_suezmax": { "ef_ttw": 0.01152, "ef_wtw": 0.0136, "description": "120,000-200,000 DWT Suezmax Tanker" },
+  "tanker_vlcc": { "ef_ttw": 0.00612, "ef_wtw": 0.00723, "description": "200,000-320,000 DWT VLCC Tanker" }
+}

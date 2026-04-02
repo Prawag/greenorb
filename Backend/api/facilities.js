@@ -1,3 +1,5 @@
+import { deduplicateFacilities } from '../lib/facility-dedup.js';
+
 export default function mountFacilities(app, sql) {
     // GET all facilities or filter by company
     app.get('/api/facilities', async (req, res) => {
@@ -9,8 +11,11 @@ export default function mountFacilities(app, sql) {
             } else {
                 data = await sql`SELECT * FROM facilities ORDER BY created_at DESC`;
             }
+            const dedupedData = deduplicateFacilities(data);
             res.json({
-                data,
+                data: dedupedData,
+                count: dedupedData.length,
+                original_count: data.length,
                 cached_at: new Date().toISOString(),
                 stale: false,
                 source: 'GreenOrb Facility Network',

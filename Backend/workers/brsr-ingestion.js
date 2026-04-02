@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { safeCompanyUpdate } from '../lib/company-service.js';
 
 const SCRIP_CODES = [500325, 532540, 500470, 532538, 532555];
 
@@ -127,6 +128,15 @@ export async function runBrsrIngestion(sql) {
                     board_independence_pct = EXCLUDED.board_independence_pct,
                     parsed_at = CURRENT_TIMESTAMP
             `;
+
+            // Sync to companies table with GOLD tier
+            await safeCompanyUpdate(sql, companyName, {
+                s1: data.scope1_emissions,
+                s2: data.scope2_emissions,
+                report_year: reportYear,
+                report_url: `https://www.bseindia.com/Msource/90D/CorpXbrlGen.aspx?Bsenewid=${newsId}`
+            }, 'GOLD');
+            
             results.ingested++;
             console.log(`[BRSR] Successfully ingested ${companyName}`);
         } catch (e) {

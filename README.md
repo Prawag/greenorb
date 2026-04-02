@@ -1,205 +1,75 @@
 # ◎ GreenOrb v3 — Open Carbon Intelligence Platform
 
-GreenOrb is an AI-powered carbon intelligence platform that gives anyone access to real, verifiable CO₂ data for countries, companies, and products. Built with React + Vite, powered by Google Gemini AI.
+GreenOrb is an AI-powered carbon intelligence platform that gives anyone access to real, verifiable CO₂ data for countries, companies, and products. Built with React + Vite, powered by Google Gemini AI and a decentralized agentic backend.
 
-![GreenOrb](https://img.shields.io/badge/version-3.0.0-00e87a?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-00d4e8?style=flat-square)
-
-## 🌍 Features
-
-| Tab | Description |
-|-----|-------------|
-| **Globe** | Interactive 3D globe (Three.js) — tap any country for verified CO₂ data, per-capita emissions, net zero targets, and forest offsets |
-| **ESG DB** | 20+ companies with real ESG report links, Scope 1/2/3 breakdown, calculation methodology, and live AI search |
-| **Compare** | Side-by-side LCA product comparison (smartphones, laptops, EVs, food) with source citations |
-| **Scan** | Upload any PDF (invoice, ESG report, audit) — Gemini AI produces a full Greendex score + recommendations |
-| **Agent** | Autonomous AI agent using Gemini + Google Search to continuously discover ESG reports and build a live carbon database |
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js 18+
-- A free [Google AI Studio API key](https://aistudio.google.com)
-
-### Installation
-```bash
-git clone https://github.com/YOUR_USERNAME/greenorb.git
-cd greenorb
-npm install
-```
-
-### Configuration
-Create a `.env` file in the root:
-```env
-VITE_GEMINI_KEY=your_gemini_api_key_here
-```
-
-### Run locally
-```bash
-npm run dev
-```
-Open [http://localhost:5173](http://localhost:5173)
-
-## 🛠 Tech Stack
-
-- **React 18** + **Vite 6** — fast modern toolchain
-- **Three.js** — WebGL 3D globe rendering
-- **Google Gemini 1.5 Flash** — AI analysis, web search grounding, PDF parsing
-- **localStorage** — persistent ESG discovery database
-- CSS Variables — zero-dependency dark theme design system
-
-## 📁 Project Structure
-
-```
-src/
-├── components/      # Shared UI: primitives, TopBar, BottomNav
-├── data/            # Static datasets: countries, companies, products
-├── tabs/            # GlobeTab, CompaniesTab, CompareTab, ScanTab, AgentTab
-├── utils.js         # Gemini API wrapper, helpers, localStorage shim
-└── styles/          # global.css (CSS variables + keyframes)
-```
-
-## 🏗️ Architecture & Workflows
-
-### 4-Agent Collaborative Workflow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant UI as AgentTab UI
-    participant Scout as 🔍 Scout Agent
-    participant Analyst as 📊 Analyst Agent
-    participant Risk as ⚠️ Risk Agent
-    participant Strategy as 💡 Strategy Agent
-    participant DB as Neon PostgreSQL
-
-    User->>UI: Input Sector or Target (e.g., "Tech")
-    UI->>Scout: Trigger Discovery phase
-    
-    activate Scout
-    Note over Scout: Extracts raw CO2 data<br/>& sources reports
-    Scout-->>UI: Return raw company data
-    UI->>DB: UPSERT into companies table
-    deactivate Scout
-
-    par Diligence Phase
-        UI->>Analyst: Send raw company data
-        activate Analyst
-        Note over Analyst: Deep-scans PDF,<br/>scores E-S-G
-        Analyst-->>UI: Return detailed analysis
-        UI->>DB: UPSERT into analysis table
-        deactivate Analyst
-
-        UI->>Risk: Send raw company data
-        activate Risk
-        Note over Risk: Checks greenwashing<br/>& compliance
-        Risk-->>UI: Return risk factors
-        UI->>DB: UPSERT into risks table
-        deactivate Risk
-    end
-
-    UI->>Strategy: Send combined data (Raw + Analysis + Risk)
-    activate Strategy
-    Note over Strategy: Synthesizes findings<br/>into investment action
-    Strategy-->>UI: Return final recommendation
-    UI->>DB: UPSERT into strategies table
-    deactivate Strategy
-
-    UI-->>User: Display final aggregated results
-```
-
-### Database Schema (Neon PostgreSQL)
-
-```mermaid
-erDiagram
-    COMPANIES ||--o{ ANALYSIS : "has"
-    COMPANIES ||--o{ RISKS : "has"
-    COMPANIES ||--o{ STRATEGIES : "has"
-
-    COMPANIES {
-        string name PK "Company Name (e.g., Apple)"
-        string sector "Industry Sector"
-        string country "Origin Country"
-        float co2 "Scope 1+2 Emissions (Mt)"
-        string esg "Overall ESG Grade (A, B, C, D)"
-        string url "Sustainability Report URL"
-        string products "Key Products/Services"
-        string methodology "Carbon Calculation Methodology"
-        float s1 "Scope 1 Emissions"
-        float s2 "Scope 2 Emissions"
-        float s3 "Scope 3 Emissions"
-        timestamp ts "Last Updated"
-    }
-
-    ANALYSIS {
-        string company FK "References companies.name"
-        int overall_score "0-100 Score"
-        int environmental_score "0-100 Score"
-        int social_score "0-100 Score"
-        int governance_score "0-100 Score"
-        string trend "UP / DOWN / STABLE"
-        string peer_ranking "Top / Middle / Bottom"
-        string key_strengths "Text blob"
-        string key_weaknesses "Text blob"
-        string recommendation "BUY / HOLD / AVOID"
-        timestamp ts "Last Updated"
-    }
-
-    RISKS {
-        string company FK "References companies.name"
-        string greenwash_risk "LOW / MED / HIGH"
-        string regulatory_risk "LOW / MED / HIGH"
-        string climate_exposure "LOW / MED / HIGH"
-        string data_quality "GOOD / FAIR / POOR"
-        string red_flags "Identified controversies"
-        string compliance_gaps "Missing reporting metrics"
-        timestamp ts "Last Updated"
-    }
-
-    STRATEGIES {
-        string company FK "References companies.name"
-        string action "BUY / HOLD / SELL / AVOID"
-        int confidence "0-100%"
-        string rationale "Investment thesis"
-        string target_price_impact "Financial projection"
-        string esg_catalyst "Upcoming major event"
-        string timeline "SHORT / MED / LONG"
-        timestamp ts "Last Updated"
-    }
-```
-
-## 📊 Data Sources
-
-- **Countries**: IEA, EPA, Global Carbon Project, UNFCCC inventories (2023)
-- **Companies**: Official ESG/Sustainability Reports (linked in-app)
-- **Products**: ISO 14040/14044 LCA data from manufacturer disclosures
-
-## 🎯 Vision
-
-> "Map 10M+ product carbon footprints · 500k+ companies · All 195 countries"
-
-There is no single database of carbon footprints. ESG reports are scattered across thousands of PDFs. GreenOrb's AI agent reads them all.
-
-## 🔐 API Key Security
-
-Never commit API keys to git. All keys live in `Backend/.env` only.
-
-If you see a 403 error from Gemini ("API key reported as leaked"):
-1. Go to https://aistudio.google.com/app/apikey
-2. Delete the revoked key
-3. Generate a new key
-4. Update `Backend/.env` (never commit this file)
-
-**Required env vars:**
-| Variable | Source |
-|----------|--------|
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/app/apikey) |
-| `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) (free) |
-| `DATABASE_URL` | [Neon](https://neon.tech) PostgreSQL |
-| `NASA_FIRMS_KEY` | [FIRMS API](https://firms.modaps.eosdis.nasa.gov/api/area/) (free) |
-| `ELECTRICITY_MAPS_KEY` | [electricitymaps.com](https://electricitymaps.com) (free) |
+![GreenOrb Architecture](https://img.shields.io/badge/architecture-agentic-00e87a?style=flat-square)
+![Stack](https://img.shields.io/badge/stack-React--Vite--Node--Neon-00d4e8?style=flat-square)
 
 ---
 
-Built with ❤️ and data by [@prawa](https://github.com/prawa)
+## 🏗️ System Architecture
+
+### Information Architecture (Data Pillars)
+1. **Financial Layer**: SEC EDGAR XBRL facts, Macrotrends 10-year revenue history.
+2. **Production Layer**: GEM industrial facility mapping, Open Supply Hub IDs, national IIP production indices.
+3. **Environmental Layer**: Scope 1/2/3 verified data (BRSR PDFs), Climate TRACE spatial assets.
+4. **Logistics Layer**: AISstream.io live maritime tracking, GLEC-compliant shipping emission modeling.
+5. **Regulatory Layer**: CBAM liability estimation, CA100+ CarbonTracker climate alignment.
+
+### Collaborative Agent Workflow
+GreenOrb operates through a 4-agent network described in `AGENTS.md`:
+*   **🔍 Scout Agent (Discovery)**: Identifies 2024/2025 ESG reports and extracts initial carbon footprints.
+*   **📊 Analyst Agent (Diligence)**: Deep-scans reports to score E, S, and G metrics numerically.
+*   **⚠️ Risk Agent (Verification)**: Detects Greenwashing, regulatory gaps, and reporting inconsistencies.
+*   **💡 Strategy Agent (Insights)**: Recommends investment/policy actions (BUY/HOLD/AVOID) based on aggregate risk.
+
+---
+
+## 🛰️ Data Extraction Methodology
+
+### 1. Advanced PDF Extraction (Coordinate-Aware)
+To achieve high accuracy on complex financial tables, GreenOrb uses a **Coordinate-Aware Table Reconstruction** engine:
+*   **Spatial Parsing**: PDF text is parsed with (x, y) coordinates.
+*   **Markdown Serialization**: Rows are reconstructed using pipe separators `|` to preserve column integrity.
+*   **LLM Context**: The structured markdown is passed to Gemini 1.5 Flash, allowing it to correctly read multi-row cells and subtotals.
+
+### 2. Satellite & Real-Time Flow
+*   **Cloud-Free Mosaic**: Fetches Sentinel-2 metadata from CDSE, selecting the most recent date with `< 10%` cloud cover for local facility verification.
+*   **AIS Vessel Tracking**: A persistent WebSocket worker connects to `stream.aisstream.io`, tracking vessels in major global maritime zones and caching positions in `vessel_positions`.
+
+---
+
+## 📐 Scientific Formulas & Logic
+
+| Value | Formula / Logic |
+|-------|----------------|
+| **Logistics Score** | Inverse distance decay to nearest global port: `< 50km = 10`, `< 200km = 7`, `< 500km = 4`. |
+| **Shipping Emissions** | `Distance (km) * Cargo (MT) * Emission Factor (GLEC WTW)`. |
+| **Fuzzy Spatial Dedup** | `Haversine Distance < 500m` AND `Levenshtein Name Sim > 0.6` = MERGE. |
+| **Greendex Score** | `(0.4 * E) + (0.3 * S) + (0.2 * G) + (0.1 * Trend_Signal)`. |
+| **CBAM Liability** | `(Product_Tonnage * Embedded_Intensity) * (EU_ETS_Price - Home_Carbon_Price)`. |
+
+---
+
+## 🚦 Pre-set Rate Limits & Capacity
+
+To ensure platform stability and budget control, the following limits are enforced:
+*   **OpenStreetMap (Overpass)**: 10s cooldown between zone fetches per background worker.
+*   **Dataloy Distances**: Strictly cached to 25 lifetime routes (Free Tier limit).
+*   **SEC EDGAR**: Limited to 10 requests/sec as per SEC developer policy (handled by internal throttle).
+*   **ImportYeti Scraping**: 7-day database cache per company to minimize scraping footprint.
+*   **OSM Indexer**: Background job runs monthly (cron `@monthly`) via `osm-indexer.js`.
+
+---
+
+## 🛠 Tech Stack
+
+*   **Frontend**: React 18, Vite 6, Three.js (3D Globe), Cesium (Satellite Maps).
+*   **Backend**: Node.js (Express), Neon PostgreSQL (Serverless).
+*   **AI Engine**: Google Gemini 1.5 Flash (via LLM Router for failover to Groq).
+*   **Logistics**: `ws` for maritime tracking, `GLEC Framework v3` for emissions.
+*   **Workers**: Node-cron for background spatial indexing and PDF ingestion queues.
+
+---
+
+Built with ❤️ and data by the GreenOrb Team.

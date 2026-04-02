@@ -8,10 +8,12 @@ import TrustDashboard from "./tabs/TrustDashboard";
 import CityDashboard from "./tabs/CityDashboard";
 import ESGDataTab from "./tabs/ESGDataTab";
 import FacilitiesTab from "./tabs/FacilitiesTab";
+import CompanyProfileTab from "./tabs/CompanyProfileTab";
 
 const TABS = [
     { key: "globe", Component: GlobeTab },
     { key: "audit", Component: AuditTab },
+    { key: "intel", Component: CompanyProfileTab },
     { key: "esg", Component: ESGDataTab },
     { key: "facilities", Component: FacilitiesTab },
     { key: "compare", Component: CompareTab },
@@ -40,7 +42,7 @@ export default function App() {
                         key={key}
                         style={{ display: tab === key ? "block" : "none" }}
                     >
-                        <Component />
+                        <Component setTab={setTab} tab={tab} />
                     </div>
                 ))}
             </div>

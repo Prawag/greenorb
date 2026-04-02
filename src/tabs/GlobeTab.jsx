@@ -78,7 +78,7 @@ const ICONS = {
     satellite: '🛰️',
 };
 
-export default function GlobeTab() {
+export default function GlobeTab({ setTab }) {
     const cesiumContainer = useRef(null);
     const viewerRef = useRef(null);
     const primitivesRef = useRef({}); // Store active primitive collections
@@ -344,18 +344,23 @@ export default function GlobeTab() {
                         setAltitude(cam.height);
 
                         if (d.company_name || d.name) {
-                            // Company point → open company detail panel
-                            setSelectedAlert(null);
-                            setSelectedCompany({
-                                name: d.company_name || d.name,
-                                country: d.country || 'Unknown',
-                                sector: d.sector || 'Unknown',
-                                scope_total: d.scope_total || 0,
-                                greendex: d.greendex || null,
-                                esg_grade: d.esg_grade || 'N/A',
-                                lat: d.lat, lng: d.lng,
-                                has_discrepancy: d.has_discrepancy,
-                            });
+                            // Company point → open company intelligence tab
+                            const name = d.company_name || d.name;
+                            const params = new URLSearchParams(window.location.search);
+                            params.set('company', name);
+                            window.history.pushState(null, '', `?${params.toString()}`);
+                            
+                            if (setTab) {
+                                setTab("intel");
+                            } else {
+                                // Fallback info if setTab is missing
+                                setSelectedCompany({
+                                    name,
+                                    country: d.country || 'Unknown',
+                                    sector: d.sector || 'Unknown'
+                                });
+                            }
+                            
                             autoRotateRef.current = false;
                             viewer.camera.flyTo({
                                 destination: Cesium.Cartesian3.fromDegrees(d.lng, d.lat, 800000),

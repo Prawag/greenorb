@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Shell plc",
+    "ticker": "SHEL",
+    "max_oil_price_assumption_usd": 85.00,
+    "nze_aligned": false,
+    "stranded_asset_risk": "HIGH",
+    "capex_alignment_score": 23,
+    "net_zero_commitment": "2050 target set",
+    "ca100_assessment_year": 2025
+  },
+  {
+    "name": "Reliance Industries",
+    "ticker": "RELIANCE",
+    "max_oil_price_assumption_usd": 78.50,
+    "nze_aligned": false,
+    "stranded_asset_risk": "MEDIUM",
+    "capex_alignment_score": 42,
+    "net_zero_commitment": "2035 target set",
+    "ca100_assessment_year": 2025
+  },
+  {
+    "name": "Tata Steel",
+    "ticker": "TATASTEEL",
+    "max_oil_price_assumption_usd": 65.00,
+    "nze_aligned": true,
+    "stranded_asset_risk": "LOW",
+    "capex_alignment_score": 88,
+    "net_zero_commitment": "Verified Net Zero 2045",
+    "ca100_assessment_year": 2025
+  },
+  {
+    "name": "ExxonMobil",
+    "ticker": "XOM",
+    "max_oil_price_assumption_usd": 92.00,
+    "nze_aligned": false,
+    "stranded_asset_risk": "CRITICAL",
+    "capex_alignment_score": 12,
+    "net_zero_commitment": "Partial target set",
+    "ca100_assessment_year": 2025
+  }
+]
