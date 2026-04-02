@@ -1,0 +1,68 @@
+[
+  {
+    "name": "Tata Steel Jamshedpur",
+    "company": "Tata Steel",
+    "type": "steel_bfbof",
+    "lat": 22.8046,
+    "lng": 86.2029,
+    "country": "India",
+    "capacity_mt_yr": 10.0,
+    "status": "operating",
+    "source": "gem_steel_2026"
+  },
+  {
+    "name": "JSW Steel Vijayanagar",
+    "company": "JSW Steel",
+    "type": "steel_bfbof",
+    "lat": 15.1979,
+    "lng": 76.6575,
+    "country": "India",
+    "capacity_mt_yr": 12.0,
+    "status": "operating",
+    "source": "gem_steel_2026"
+  },
+  {
+    "name": "ArcelorMittal Nippon Steel Hazira",
+    "company": "ArcelorMittal",
+    "type": "steel_bfbof",
+    "lat": 21.0969,
+    "lng": 72.6375,
+    "country": "India",
+    "capacity_mt_yr": 9.0,
+    "status": "operating",
+    "source": "gem_steel_2026"
+  },
+  {
+    "name": "NTPC Vindhyachal Super Thermal Power Station",
+    "company": "NTPC",
+    "type": "coal_power",
+    "lat": 24.0983,
+    "lng": 82.6719,
+    "country": "India",
+    "capacity_mt_yr": 4.76,
+    "status": "operating",
+    "source": "gem_coal_2026"
+  },
+  {
+    "name": "ONGC Uran Plant",
+    "company": "ONGC",
+    "type": "oil_and_gas",
+    "lat": 18.8872,
+    "lng": 72.9372,
+    "country": "India",
+    "capacity_mt_yr": 5.0,
+    "status": "operating",
+    "source": "gem_oilgas_2026"
+  },
+  {
+    "name": "Reliance Jamnagar Refinery",
+    "company": "Reliance Industries",
+    "type": "oil_and_gas",
+    "lat": 22.3551,
+    "lng": 69.8519,
+    "country": "India",
+    "capacity_mt_yr": 35.0,
+    "status": "operating",
+    "source": "gem_oilgas_2026"
+  }
+]

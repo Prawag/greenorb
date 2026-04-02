@@ -39,12 +39,18 @@ import mountFishingWatch from './api/fishing-watch.js';
 import mountScope2Verifier from './api/scope2-verifier.js';
 import compareApi from './api/compare.js';
 import welfordCheck from './api/welford-check.js';
-import citySDK from './api/city-sdk.js';
+import mountCityIiot from './api/city-iiot.js';
 import llmStatus from './api/llm-status.js';
 import llmRouter from './lib/llm-router.js';
 import { runBrsrIngestion } from './workers/brsr-ingestion.js';
 import { computeGreendex } from './lib/greendex.js';
 import mountSatelliteVerify from './api/satellite-verify.js';
+import mountOsiIngest from './api/osi-ingest.js';
+import mountEsgCompare from './api/esg-compare.js';
+import mountSpatialFacilities from './lib/spatial-facilities.js';
+import mountOsmFacilities from './api/osm-facilities.js';
+import mountWikidataFacilities from './api/wikidata-facilities.js';
+import mountProductLca from './api/product-lca.js';
 
 dotenv.config();
 
@@ -64,7 +70,7 @@ app.use(express.json());
 
 app.get('/api/compare', compareApi);
 app.post('/api/welford/check', welfordCheck(sql));
-app.get('/api/city-sdk', citySDK);
+mountCityIiot(app);
 app.get('/api/llm/status', llmStatus);
 
 // ==========================================
@@ -274,6 +280,16 @@ app.get('/api/data', async (req, res) => {
             LEFT JOIN strategies s ON c.name = s.company
             ORDER BY c.ts DESC
         `;
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET all companies raw row data (for ESG Data Tab frontend)
+app.get('/api/esg/companies', async (req, res) => {
+    try {
+        const data = await sql`SELECT * FROM companies ORDER BY name ASC`;
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -537,7 +553,9 @@ app.post('/api/verdicts', async (req, res) => {
 mountGlobePoints(app, sql);
 mountCountryChoropleth(app, sql);
 mountEsgNews(app, sql);
-mountClimateTrace(app);
+mountOsiIngest(app, sql);
+mountEsgCompare(app, sql);
+mountClimateTrace(app, sql);
 mountDisastersProximity(app, sql);
 app.use('/api/globe/fires', mountNasaFirms);
 app.use('/api/globe/grid', mountGridCarbon);
@@ -573,6 +591,10 @@ app.use('/api/coral-bleaching', mountCoralBleaching(sql));
 app.use('/api/fishing-watch', mountFishingWatch(sql));
 app.get('/api/verify/scope2', mountScope2Verifier);
 mountFacilities(app, sql);
+mountSpatialFacilities(app, sql);
+mountOsmFacilities(app);
+mountWikidataFacilities(app, sql);
+mountProductLca(app);
 
 // ─── AGENT STATUS (30s cache) ─────────────────────────────────────────────────
 const agentCache = new NodeCache({ stdTTL: 30, checkperiod: 10 });

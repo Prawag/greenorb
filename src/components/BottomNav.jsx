@@ -4,9 +4,11 @@ import { M } from "./primitives";
 const TABS = [
     { id: "globe", icon: "🌍", label: "Globe" },
     { id: "audit", icon: "🏢", label: "Audit" },
+    { id: "esg", icon: "📊", label: "ESG Data" },
+    { id: "facilities", icon: "🏭", label: "Facilities" },
     { id: "compare", icon: "⚖️", label: "Compare" },
     { id: "trust", icon: "🔍", label: "Trust UI" },
-    { id: "indore", icon: "🏙️", label: "Indore" },
+    { id: "indore", icon: "🏙️", label: "Smart City" },
 ];
 
 export default function BottomNav({ active, set }) {

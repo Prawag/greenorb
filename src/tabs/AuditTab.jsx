@@ -15,6 +15,9 @@ export default function AuditTab() {
     const [welfordFlags, setWelfordFlags] = useState({});
     const [loading, setLoading] = useState(true);
 
+    const [cbamExportTonnes, setCbamExportTonnes] = useState(10000);
+    const [cbamProductType, setCbamProductType] = useState('Steel');
+
     // Initial Load - Assuming standard DB fetch from Neon via existing data route or compare route
     useEffect(() => {
         async function init() {
@@ -124,6 +127,17 @@ export default function AuditTab() {
 
     const cbamVerified = selectedCompany && selectedCompany.s1 ? selectedCompany.s1 * NET_TARIFF : 0;
     const cbamUnverified = selectedCompany && selectedCompany.s1 ? selectedCompany.s1 * 2.1 * EU_ETS : 0; // Penalties usually ignore deductions
+
+    const s2Loc = selectedCompany?.scope2_location || selectedCompany?.scope2_location_mt || 0;
+    const s2Mar = selectedCompany?.scope2_market || selectedCompany?.scope2_market_mt || 0;
+    const s2GapPct = s2Loc > 0 ? ((s2Loc - s2Mar) / s2Loc) * 100 : 0;
+
+    const CBAM_BENCHMARKS = {
+       "Steel": 2.1,
+       "Cement": 0.82,
+       "Aluminium": 14.5,
+       "Fertilizers": 2.5
+    };
 
     return (
         <div style={{ display: "flex", height: "calc(100vh - 120px)", fontFamily: "var(--sf)", color: "var(--tx)" }}>
@@ -291,27 +305,75 @@ export default function AuditTab() {
                             </div>
                         </div>
 
-                        {/* Section C: EU CBAM Exposure Matrix */}
+                        {/* Section C: EU CBAM Financial Exposure Risk */}
                         {cbamApplicable && (
-                            <div style={{ marginBottom: "32px" }}>
-                                <h2 style={{ fontSize: "14px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "1px", color: "var(--tx2)", borderBottom: "1px solid var(--bd2)", paddingBottom: "8px", marginBottom: "16px" }}>
-                                    Section C: EU CBAM Financial Exposure Risk
+                            <div style={{ marginBottom: "32px", background: "var(--bg2)", border: "1px solid var(--bd2)", borderRadius: "8px", padding: "16px" }}>
+                                <h2 style={{ fontSize: "14px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "1px", color: "var(--tx2)", borderBottom: "1px solid var(--bd)", paddingBottom: "8px", marginBottom: "16px" }}>
+                                    Section C: Deep Decarbonization & CBAM Risk
                                 </h2>
-                                <div style={{ fontSize: "12px", color: "var(--tx3)", marginBottom: "12px" }}>
-                                    Domestic CCTS credits can offset CBAM liability
+
+                                {/* Dual Scope 2 Reporting Check */}
+                                <div style={{ marginBottom: "24px" }}>
+                                   <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "8px" }}>Scope 2 Dual-Reporting Integrity</div>
+                                   {(s2Loc > 0 && s2Mar > 0) ? (
+                                      <>
+                                         <div style={{ display: 'flex', height: '24px', background: '#3b82f6', width: '100%', marginBottom: '4px', position: 'relative' }}>
+                                            <span style={{ position: 'absolute', left: '8px', color: 'white', lineHeight: '24px', fontSize: '11px' }}>Location Based: {(s2Loc / 1e6).toFixed(2)} Mt</span>
+                                         </div>
+                                         <div style={{ display: 'flex', height: '24px', background: 'var(--jade)', width: `${(s2Mar / s2Loc) * 100}%`, position: 'relative' }}>
+                                            <span style={{ position: 'absolute', left: '8px', color: 'black', lineHeight: '24px', fontSize: '11px' }}>Market Based: {(s2Mar / 1e6).toFixed(2)} Mt</span>
+                                         </div>
+                                         {s2GapPct > 20 && (
+                                            <div style={{ marginTop: '8px', display: 'inline-block', padding: '4px 8px', background: 'rgba(245, 158, 11, 0.2)', border: '1px solid #f59e0b', color: '#f59e0b', fontSize: '11px', borderRadius: '4px' }} title="This company's market-based Scope 2 is significantly lower than physical grid emissions. This gap is financed by RECs/PPAs, not physical decarbonization.">
+                                               ⚠️ REC Reliance High ({s2GapPct.toFixed(1)}% variance)
+                                            </div>
+                                         )}
+                                      </>
+                                   ) : (
+                                      <div style={{ fontSize: "12px", color: "var(--tx3)" }}>Missing dual reporting data for this company.</div>
+                                   )}
                                 </div>
+
+                                {/* CBAM Calculator */}
+                                <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "8px" }}>Product CBAM Liability Calculator</div>
+                                <div style={{ fontSize: "12px", color: "var(--tx3)", marginBottom: "12px" }}>
+                                    Calculate exact border tariffs based on tonnes exported to the EU.
+                                </div>
+                                
+                                <div style={{ display: "flex", gap: "16px", marginBottom: "16px", alignItems: 'center' }}>
+                                    <div>
+                                       <label style={{display:'block', fontSize:'11px', marginBottom:'4px'}}>Volume Exported (Tonnes)</label>
+                                       <input type="number" value={cbamExportTonnes} onChange={e=>setCbamExportTonnes(Number(e.target.value))} style={{ padding: '8px', background: 'var(--bg)', color: 'white', border: '1px solid var(--bd)', width: '150px' }} />
+                                    </div>
+                                    <div>
+                                       <label style={{display:'block', fontSize:'11px', marginBottom:'4px'}}>Product Category</label>
+                                       <select value={cbamProductType} onChange={e=>setCbamProductType(e.target.value)} style={{ padding: '8px', background: 'var(--bg)', color: 'white', border: '1px solid var(--bd)', width: '150px' }}>
+                                          <option value="Steel">Steel</option>
+                                          <option value="Cement">Cement</option>
+                                          <option value="Aluminium">Aluminium</option>
+                                          <option value="Fertilizers">Fertilizers</option>
+                                       </select>
+                                    </div>
+                                    <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                                       <div style={{ fontSize: "11px", color: "var(--tx3)" }}>Net Liability (EU €{EU_ETS} - IN €{INDIA_CCTS})</div>
+                                       <div style={{ fontSize: "20px", fontWeight: "700", color: getRiskBand(cbamExportTonnes * CBAM_BENCHMARKS[cbamProductType] * NET_TARIFF), fontFamily: "var(--mono)" }}>
+                                          €{(cbamExportTonnes * CBAM_BENCHMARKS[cbamProductType] * NET_TARIFF).toLocaleString()}
+                                       </div>
+                                    </div>
+                                </div>
+
                                 <div style={{ display: "flex", gap: "16px" }}>
-                                    <div style={{ flex: 1, padding: "16px", background: "var(--bg2)", border: `1px solid ${getRiskBand(cbamVerified)}`, borderRadius: "8px" }}>
+                                    <div style={{ flex: 1, padding: "16px", background: "var(--bg)", border: `1px solid ${getRiskBand(cbamVerified)}`, borderRadius: "8px" }}>
                                         <div style={{ fontSize: "12px", color: "var(--tx3)", marginBottom: "4px" }}>
-                                            Net Liability (EU €{EU_ETS} - IN €{INDIA_CCTS} = €{NET_TARIFF})
+                                            Total Company Liability Offset (Verified)
                                         </div>
-                                        <div style={{ fontSize: "20px", fontWeight: "700", color: getRiskBand(cbamVerified), fontFamily: "var(--mono)" }}>
+                                        <div style={{ fontSize: "16px", fontWeight: "700", color: getRiskBand(cbamVerified), fontFamily: "var(--mono)" }}>
                                             €{cbamVerified.toLocaleString()}
                                         </div>
                                     </div>
-                                    <div style={{ flex: 1, padding: "16px", background: "var(--bg2)", border: `1px solid ${getRiskBand(cbamUnverified)}`, borderRadius: "8px" }}>
-                                        <div style={{ fontSize: "12px", color: "var(--tx3)", marginBottom: "4px" }}>~€168/tonne product exported (unverified)</div>
-                                        <div style={{ fontSize: "20px", fontWeight: "700", color: getRiskBand(cbamUnverified), fontFamily: "var(--mono)" }}>
+                                    <div style={{ flex: 1, padding: "16px", background: "var(--bg)", border: `1px solid ${getRiskBand(cbamUnverified)}`, borderRadius: "8px" }}>
+                                        <div style={{ fontSize: "12px", color: "var(--tx3)", marginBottom: "4px" }}>Total Company Liability (Unverified / Penalty)</div>
+                                        <div style={{ fontSize: "16px", fontWeight: "700", color: getRiskBand(cbamUnverified), fontFamily: "var(--mono)" }}>
                                             €{cbamUnverified.toLocaleString()}
                                         </div>
                                     </div>

@@ -1,0 +1,81 @@
+[
+  {
+    "product": "iPhone 16",
+    "manufacturer": "Apple",
+    "year": 2024,
+    "carbon_kgco2e": 57,
+    "functional_unit": "1 unit, cradle-to-grave",
+    "stages": {
+      "raw_materials_pct": 64,
+      "manufacturing_pct": 14,
+      "transport_pct": 3,
+      "use_phase_pct": 17,
+      "end_of_life_pct": 2
+    },
+    "source_url": "apple.com/environment/pdf/products/iphone/iPhone_16_and_iPhone_16_Plus_PER_Sept2024.pdf",
+    "certification": "PCF"
+  },
+  {
+    "product": "Galaxy S25",
+    "manufacturer": "Samsung",
+    "year": 2025,
+    "carbon_kgco2e": 67,
+    "source_url": "samsung.com/.../Galaxy_S25_Environmental_Report_EN.pdf",
+    "certification": "PCF"
+  },
+  {
+    "product": "Steel (BF-BOF)",
+    "manufacturer": "Industry Average",
+    "year": 2024,
+    "carbon_kgco2e": 2100,
+    "functional_unit": "1 tonne of crude steel",
+    "stages": {
+      "raw_materials_pct": 58,
+      "manufacturing_pct": 35,
+      "transport_pct": 4,
+      "use_phase_pct": 2,
+      "end_of_life_pct": 1
+    },
+    "source_url": "publications.jrc.ec.europa.eu/repository/bitstream/JRC141817/JRC141817_01.pdf",
+    "note": "CBAM embedded carbon = 2.1 tCO2e/tonne at BF-BOF"
+  },
+  {
+    "product": "Steel (EAF)",
+    "manufacturer": "Industry Average",
+    "year": 2024,
+    "carbon_kgco2e": 400,
+    "functional_unit": "1 tonne of crude steel",
+    "note": "Electric Arc Furnace using renewable grid"
+  },
+  {
+    "product": "Portland Cement (OPC)",
+    "manufacturer": "Industry Average",
+    "year": 2024,
+    "carbon_kgco2e": 820,
+    "functional_unit": "1 tonne"
+  },
+  {
+    "product": "Cotton T-Shirt",
+    "manufacturer": "Industry Average",
+    "year": 2024,
+    "carbon_kgco2e": 10,
+    "functional_unit": "1 unit (250g)",
+    "source_url": "researchgate.net/publication/328631461_LIFE_CYCLE_ASSESSMENT_OF_A_COTTON_T-SHIRT"
+  },
+  {
+    "product": "Tesla Model 3 (2022)",
+    "manufacturer": "Tesla",
+    "year": 2022,
+    "carbon_kgco2e": 53000,
+    "functional_unit": "1 vehicle, full lifecycle",
+    "source_url": "greenncap.com/.../tesla-model-3-2022...LCA fact sheet.pdf"
+  },
+  {
+    "product": "Lenovo ThinkPad X1",
+    "manufacturer": "Lenovo",
+    "year": 2024,
+    "carbon_kgco2e": 333,
+    "functional_unit": "1 unit, cradle-to-grave",
+    "source_url": "lenovo.com/us/en/compliance/eco-declaration/"
+  }
+]

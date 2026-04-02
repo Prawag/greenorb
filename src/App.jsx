@@ -6,10 +6,14 @@ import AuditTab from "./tabs/AuditTab"; // UI label: Audit
 import CompareTab from "./tabs/CompareTab";
 import TrustDashboard from "./tabs/TrustDashboard";
 import CityDashboard from "./tabs/CityDashboard";
+import ESGDataTab from "./tabs/ESGDataTab";
+import FacilitiesTab from "./tabs/FacilitiesTab";
 
 const TABS = [
     { key: "globe", Component: GlobeTab },
     { key: "audit", Component: AuditTab },
+    { key: "esg", Component: ESGDataTab },
+    { key: "facilities", Component: FacilitiesTab },
     { key: "compare", Component: CompareTab },
     { key: "trust", Component: TrustDashboard },
     { key: "indore", Component: CityDashboard },

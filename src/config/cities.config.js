@@ -1,45 +1,32 @@
 export const CITIES = {
-    "Indore": {
-        name: "Indore", state: "Madhya Pradesh", swachh_rank: 1,
-        description: "India's cleanest city — Carbon Credit Aggregator pioneer",
-        metrics: {
-            waste:  { label: "Wet Waste Processed",  unit: "Tons/day", base: 479,   variance: 40,  color: "#f59e0b" },
-            biocng: { label: "Methane Capture Yield", unit: "kg/day",  base: 14307, variance: 800, color: "#10b981" },
-            solar:  { label: "Solar PV Grid Output",  unit: "MW",      base: 4.23,  variance: 0.5, color: "#3b82f6" },
-        },
-        carbonCredit: { methodology: "ACM0022", rate_per_ton_inr: 1200, annual_credits_est: 8340 }
-    },
-    "Surat": {
-        name: "Surat", state: "Gujarat", swachh_rank: 2,
-        description: "Textile capital with aggressive solar adoption",
-        metrics: {
-            waste:  { label: "Wet Waste Processed",  unit: "Tons/day", base: 620,   variance: 55,  color: "#f59e0b" },
-            biocng: { label: "Methane Capture Yield", unit: "kg/day",  base: 18200, variance: 900, color: "#10b981" },
-            solar:  { label: "Solar PV Grid Output",  unit: "MW",      base: 6.1,   variance: 0.6, color: "#3b82f6" },
-        },
-        carbonCredit: { methodology: "ACM0022", rate_per_ton_inr: 1200, annual_credits_est: 10200 }
-    },
-    "Pune": {
-        name: "Pune", state: "Maharashtra", swachh_rank: 4,
-        description: "EV adoption leader with smart waste segregation",
-        metrics: {
-            waste:  { label: "Wet Waste Processed",  unit: "Tons/day", base: 890,   variance: 70,  color: "#f59e0b" },
-            biocng: { label: "Methane Capture Yield", unit: "kg/day",  base: 22100, variance: 1100, color: "#10b981" },
-            solar:  { label: "Solar PV Grid Output",  unit: "MW",      base: 8.4,   variance: 0.8, color: "#3b82f6" },
-        },
-        carbonCredit: { methodology: "ACM0022", rate_per_ton_inr: 1200, annual_credits_est: 14800 }
-    },
-    "Ahmedabad": {
-        name: "Ahmedabad", state: "Gujarat", swachh_rank: 5,
-        description: "Industrial hub driving BRSR supply chain reporting",
-        metrics: {
-            waste:  { label: "Wet Waste Processed",  unit: "Tons/day", base: 1100,  variance: 90,  color: "#f59e0b" },
-            biocng: { label: "Methane Capture Yield", unit: "kg/day",  base: 27000, variance: 1400, color: "#10b981" },
-            solar:  { label: "Solar PV Grid Output",  unit: "MW",      base: 11.2,  variance: 1.0, color: "#3b82f6" },
-        },
-        carbonCredit: { methodology: "ACM0022", rate_per_ton_inr: 1200, annual_credits_est: 18900 }
-    }
+  pune: { id: "pune", name: "Pune", country: "India", iiot_platform: "iudx" },
+  surat: { id: "surat", name: "Surat", country: "India", iiot_platform: "iudx" },
+  vadodara: { id: "vadodara", name: "Vadodara", country: "India", iiot_platform: "iudx" },
+  nashik: { id: "nashik", name: "Nashik", country: "India", iiot_platform: "iudx" },
+  bhopal: { id: "bhopal", name: "Bhopal", country: "India", iiot_platform: "iudx" },
+  ahmedabad: { id: "ahmedabad", name: "Ahmedabad", country: "India", iiot_platform: "iudx" },
+  rajkot: { id: "rajkot", name: "Rajkot", country: "India", iiot_platform: "iudx" },
+  lucknow: { id: "lucknow", name: "Lucknow", country: "India", iiot_platform: "iudx" },
+  jaipur: { id: "jaipur", name: "Jaipur", country: "India", iiot_platform: "iudx" },
+  chandigarh: { id: "chandigarh", name: "Chandigarh", country: "India", iiot_platform: "iudx" },
+  indore: { id: "indore", name: "Indore", country: "India", iiot_platform: "iudx" },
+  coimbatore: { id: "coimbatore", name: "Coimbatore", country: "India", iiot_platform: "iudx" },
+  mumbai: { id: "mumbai", name: "Mumbai", country: "India", iiot_platform: "iudx" },
+  delhi: { id: "delhi", name: "Delhi", country: "India", iiot_platform: "iudx" },
+  bengaluru: { id: "bengaluru", name: "Bengaluru", country: "India", iiot_platform: "iudx" },
+  hyderabad: { id: "hyderabad", name: "Hyderabad", country: "India", iiot_platform: "iudx" },
+  chennai: { id: "chennai", name: "Chennai", country: "India", iiot_platform: "iudx" },
+  singapore: { id: "singapore", name: "Singapore", country: "Singapore", iiot_platform: "smartcitizen" },
+  barcelona: { id: "barcelona", name: "Barcelona", country: "Spain", iiot_platform: "smartcitizen" },
+  madrid: { id: "madrid", name: "Madrid", country: "Spain", iiot_platform: "fiware" },
+  copenhagen: { id: "copenhagen", name: "Copenhagen", country: "Denmark", iiot_platform: "opensensemap" },
+  amsterdam: { id: "amsterdam", name: "Amsterdam", country: "Netherlands", iiot_platform: "opensensemap" },
+  seoul: { id: "seoul", name: "Seoul", country: "South Korea", iiot_platform: "openaq" },
+  tokyo: { id: "tokyo", name: "Tokyo", country: "Japan", iiot_platform: "openaq" },
+  toronto: { id: "toronto", name: "Toronto", country: "Canada", iiot_platform: "opensensemap" },
+  dubai: { id: "dubai", name: "Dubai", country: "UAE", iiot_platform: "openaq" },
+  helsinki: { id: "helsinki", name: "Helsinki", country: "Finland", iiot_platform: "opensensemap" }
 };
 
 export const CITY_IDS = Object.keys(CITIES);
-export const getCity  = (id) => CITIES[id] || CITIES["Indore"];
+export const getCity = (id) => CITIES[id] || CITIES["pune"];
