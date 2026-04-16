@@ -9,6 +9,42 @@ GreenOrb is an AI-powered carbon intelligence platform that gives anyone access 
 
 ## 🏗️ System Architecture
 
+```mermaid
+graph TD
+    subgraph Data_Discovery_Ingestion
+        S1[SEC EDGAR XBRL] --> |API| B
+        S2[ImportYeti/Macrotrends] --> |Scrape/JSON| B
+        S3[Open Supply Hub/GEM] --> |GeoJSON| B
+        S4[Overpass/OSM] --> |Background Indexer| B
+        S5[AISstream.io] --> |WebSocket Worker| B
+        S6[JODI/IIP/Dataloy] --> |Static Seeds| B
+    end
+
+    subgraph Backend_Intelligence_Layer
+        B[Express API Gateway] --> |Fuzzy Dedup Engine| DB
+        B --> |Data Tiering Gold/Silver| DB
+        B --> |GLEC Shipping Engine| DB
+        DB[(Neon PostgreSQL + Vector)]
+        B --> |RAG Pipeline| AI
+        AI{LLM Router - Gemini/Groq}
+    end
+
+    subgraph Frontend_Intelligence_Terminal
+        U1[Globe Intelligence - Three.js]
+        U2[Satellite Mapping - Cesium]
+        U3[Company Profiler - React/Vite]
+        U4[Supply Chain Graph - Force-SVG]
+        U5[Peer Analytics - Sector Radar]
+    end
+
+    DB --> U1
+    DB --> U2
+    DB --> U3
+    U3 --> U4
+    U3 --> U5
+    AI --> |Semantic Search Answers| U3
+```
+
 ### Information Architecture (Data Pillars)
 1. **Financial Layer**: SEC EDGAR XBRL facts, Macrotrends 10-year revenue history.
 2. **Production Layer**: GEM industrial facility mapping, Open Supply Hub IDs, national IIP production indices.
