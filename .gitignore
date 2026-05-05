@@ -13,3 +13,8 @@ Claude Conversation/
 .env
 Backend/.env
 *.env
+
+# Data and Logs
+RawData/
+*.txt
+*.diff
