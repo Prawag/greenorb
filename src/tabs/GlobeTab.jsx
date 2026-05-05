@@ -105,6 +105,7 @@ export default function GlobeTab({ setTab }) {
     const [historyDate, setHistoryDate] = useState(null);
     const [mapMode, setMapMode] = useState('globe');
     const [hoverInfo, setHoverInfo] = useState(null);
+    const [viewerReady, setViewerReady] = useState(false);
 
     const toggleLayer = (id) => setActiveLayers(prev => prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]);
     const isActive = useCallback((id) => activeLayers.includes(id), [activeLayers]);
@@ -279,6 +280,7 @@ export default function GlobeTab({ setTab }) {
                 globe.maximumScreenSpaceError = isChrome ? 8 : 4;
                 globe.baseColor = Cesium.Color.fromCssColorString('#1a3a5c');
                 viewerRef.current = viewer;
+                setViewerReady(true); // ← signal React that Cesium is ready
 
                 // Load OSM imagery via requestAnimationFrame (fixes Ctrl+R race condition)
                 viewer.scene.requestRender();
@@ -412,7 +414,7 @@ export default function GlobeTab({ setTab }) {
 
     // ─── Master Sync Effect: Rebuilds point primitives when layers or data change ───
     useEffect(() => {
-        if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+        if (!viewerReady || !viewerRef.current || viewerRef.current.isDestroyed()) return;
         const viewer = viewerRef.current;
 
         try {
@@ -742,11 +744,43 @@ export default function GlobeTab({ setTab }) {
         }
 
     }, [
-        activeLayers, altitude, satPoints,
+        viewerReady, activeLayers, altitude, satPoints,
         companies.data, earthquakes.data, fires.data, floods.data, cyclones.data, volcanoes.data,
         airQuality.data, gridCarbon.data, climateTrace.data, biodiversity.data, waterStress.data, coralBleaching.data,
         gpmImerg.data, oceanCurrents.data, newsVelocity.data, greenwashVelocity.data, forestLoss.data, fishingWatch.data
     ]);
+
+    // ─── Fast Layer Toggle: show/hide existing primitives instantly ───────────────
+    useEffect(() => {
+        if (!viewerReady || !viewerRef.current || viewerRef.current.isDestroyed()) return;
+        const primitiveMap = {
+            companies:            'mainPoints',
+            earthquakes:          'earthquakePoints',
+            fires:                'firePoints',
+            floods:               'floodPoints',
+            cyclones:             'cyclonePoints',
+            volcanoes:            'volcanoPoints',
+            airQuality:           'aqPoints',
+            gridCarbon:           'gridPoints',
+            climateTrace:         'assetPoints',
+            biodiversity_index:   'bioPoints',
+            coral_bleaching:      'coralPoints',
+            forest_loss:          'forestPoints',
+            fishing_watch:        'fishingPoints',
+            gpm_precipitation:    'gpmPoints',
+            ocean_currents:       'oceanPoints',
+            newsVelocity:         'newsPoints',
+        };
+        Object.entries(primitiveMap).forEach(([layerId, primKey]) => {
+            const prim = primitivesRef.current[primKey];
+            if (prim) prim.show = activeLayers.includes(layerId);
+        });
+        // Water stress datasource
+        if (waterStressDataSourceRef.current) {
+            waterStressDataSourceRef.current.show = activeLayers.includes('water_stress');
+        }
+    }, [activeLayers, viewerReady]);
+
 
     // ─── Water Stress: Basin ellipse entities (dedicated DataSource) ───
     useEffect(() => {
