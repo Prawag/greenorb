@@ -5,6 +5,7 @@ import { neon } from '@neondatabase/serverless';
 import { execFile } from 'child_process';
 import path from 'path';
 import NodeCache from 'node-cache';
+import cron from 'node-cron';
 import { existsSync, mkdirSync, readFileSync } from 'fs';
 import { writeFile } from 'fs/promises';
 import { buildSpatialIndex } from './lib/spatial-water.js';
@@ -696,63 +697,68 @@ app.get('/api/agents/runs/:id', async (req, res) => {
     }
 });
 
+// Helper to spawn a decoupled background python agent network run
+async function launchAgentGroup(companyName) {
+    // Create a pending run record in PostgreSQL database
+    const [run] = await sql`
+        INSERT INTO agent_runs (company_name, status, current_step, logs)
+        VALUES (${companyName}, 'RUNNING', 'INIT', ${JSON.stringify([{ timestamp: new Date().toISOString(), message: `🚀 Initiated collaborative run for ${companyName}` }])})
+        RETURNING id
+    `;
+
+    const runId = run.id;
+
+    // Path to Python virtual environment
+    const pythonPath = path.join(process.cwd(), 'venv', 'Scripts', 'python.exe');
+    const scriptPath = path.join(process.cwd(), 'orchestrator', 'agent_group.py');
+
+    console.log(`[agents/run] Spawning Agent Group for ${companyName} (Run ID: ${runId})`);
+
+    // Decouple background subprocess execution
+    execFile(pythonPath, [scriptPath, '--company', companyName, '--run-id', runId.toString()], {
+        env: { ...process.env },
+        maxBuffer: 1024 * 1024 * 10
+    }, async (error, stdout, stderr) => {
+        if (error) {
+            console.error(`[agents/run] Subprocess error on run ${runId}:`, error);
+            
+            // Fetch the run logs to append the failure event
+            const [currentRun] = await sql`SELECT logs FROM agent_runs WHERE id = ${runId}`;
+            const currentLogs = currentRun ? currentRun.logs : [];
+            currentLogs.push({ timestamp: new Date().toISOString(), message: `❌ CRITICAL ERROR: ${error.message}` });
+            if (stderr) {
+                currentLogs.push({ timestamp: new Date().toISOString(), message: `Stderr: ${stderr}` });
+            }
+
+            await sql`
+                UPDATE agent_runs
+                SET status = 'FAILED', 
+                    error_message = ${error.message}, 
+                    logs = ${JSON.stringify(currentLogs)}::jsonb, 
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ${runId}
+            `;
+        } else {
+            console.log(`[agents/run] Decoupled process finished for run ${runId}`);
+            // Ensure run is marked completed if it didn't crash or get stuck on verification
+            await sql`
+                UPDATE agent_runs
+                SET status = 'COMPLETED', current_step = 'DONE', updated_at = CURRENT_TIMESTAMP
+                WHERE id = ${runId} AND status = 'RUNNING'
+            `;
+        }
+    });
+
+    return runId;
+}
+
 // POST trigger a new agent group run for a company (async background job)
 app.post('/api/agents/run', async (req, res) => {
     const { companyName } = req.body;
     if (!companyName) return res.status(400).json({ error: 'companyName is required' });
 
     try {
-        // Create a pending run record in PostgreSQL database
-        const [run] = await sql`
-            INSERT INTO agent_runs (company_name, status, current_step, logs)
-            VALUES (${companyName}, 'RUNNING', 'INIT', ${JSON.stringify([{ timestamp: new Date().toISOString(), message: `🚀 Initiated collaborative run for ${companyName}` }])})
-            RETURNING id
-        `;
-
-        const runId = run.id;
-
-        // Path to Python virtual environment
-        const pythonPath = path.join(process.cwd(), 'venv', 'Scripts', 'python.exe');
-        const scriptPath = path.join(process.cwd(), 'orchestrator', 'agent_group.py');
-
-        console.log(`[agents/run] Spawning Agent Group for ${companyName} (Run ID: ${runId})`);
-
-        // Decouple background subprocess execution
-        const pyProcess = execFile(pythonPath, [scriptPath, '--company', companyName, '--run-id', runId.toString()], {
-            env: { ...process.env },
-            maxBuffer: 1024 * 1024 * 10
-        }, async (error, stdout, stderr) => {
-            if (error) {
-                console.error(`[agents/run] Subprocess error on run ${runId}:`, error);
-                
-                // Fetch the run logs to append the failure event
-                const [currentRun] = await sql`SELECT logs FROM agent_runs WHERE id = ${runId}`;
-                const currentLogs = currentRun ? currentRun.logs : [];
-                currentLogs.push({ timestamp: new Date().toISOString(), message: `❌ CRITICAL ERROR: ${error.message}` });
-                if (stderr) {
-                    currentLogs.push({ timestamp: new Date().toISOString(), message: `Stderr: ${stderr}` });
-                }
-
-                await sql`
-                    UPDATE agent_runs
-                    SET status = 'FAILED', 
-                        error_message = ${error.message}, 
-                        logs = ${JSON.stringify(currentLogs)}::jsonb, 
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ${runId}
-                `;
-            } else {
-                console.log(`[agents/run] Decoupled process finished for run ${runId}`);
-                // Ensure run is marked completed if it didn't crash or get stuck on verification
-                await sql`
-                    UPDATE agent_runs
-                    SET status = 'COMPLETED', current_step = 'DONE', updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ${runId} AND status = 'RUNNING'
-                `;
-            }
-        });
-
-        // Immediately return success with the runId to keep the Express request non-blocking
+        const runId = await launchAgentGroup(companyName);
         res.json({ success: true, runId });
     } catch (e) {
         console.error('[agents/run] Failed to trigger run:', e);
@@ -873,6 +879,41 @@ app.get('/api/agent/status', async (req, res) => {
             total_companies: 0,
             last_audit_completed_at: null,
         });
+    }
+});
+
+// ─── AUTOPILOT CRON JOB (Every 30 minutes) ──────────────────────────────────
+// Automatically discovers a company in a random sector and launches the background Python agent network!
+cron.schedule('*/30 * * * *', async () => {
+    console.log("⏰ [Autopilot] Triggering automated sector ESG discovery...");
+    const sectors = [
+        "Fortune 500 technology companies",
+        "European manufacturing companies",
+        "Indian MSME and mid-cap companies",
+        "African energy and mining companies",
+        "Global fashion and clothing brands"
+    ];
+    const randomSector = sectors[Math.floor(Math.random() * sectors.length)];
+    
+    try {
+        // 1. Generate an ESG report publishing company in that sector using Gemini
+        const systemPrompt = "You are a research assistant. Return exactly one real, well-known company name in the requested sector that publishes sustainability or ESG reports. Output ONLY the company name, no extra text, no numbers, no punctuation.";
+        const userPrompt = `Find a company in: ${randomSector}`;
+        
+        console.log(`⏰ [Autopilot] Discovering company name for sector: "${randomSector}"...`);
+        const llmResult = await llmRouter.complete(systemPrompt, userPrompt, 128);
+        const discoveredCompany = llmResult.text ? llmResult.text.trim().replace(/['"“”]/g, "") : "";
+        
+        // Ensure we got a valid company name (not empty and not overly long)
+        if (discoveredCompany && discoveredCompany.length > 2 && discoveredCompany.length < 80) {
+            console.log(`🚀 [Autopilot] Successfully discovered company: "${discoveredCompany}". Spawning automated Agent Network run...`);
+            const runId = await launchAgentGroup(discoveredCompany);
+            console.log(`🚀 [Autopilot] Spawned Run ID: #${runId}`);
+        } else {
+            console.log("⚠️ [Autopilot] Discovered company name was invalid or empty. Skipping this interval.");
+        }
+    } catch (err) {
+        console.error("❌ [Autopilot] Discovery cron job error:", err.message);
     }
 });
 
