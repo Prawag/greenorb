@@ -120,6 +120,119 @@ export default function AgentTab() {
     const stopRefs = useRef({ scout: false, analyst: false, risk: false, strategy: false });
     const feedRef = useRef(null);
 
+    // --- REAL RUNS ARCHITECTURE STATE ---
+    const [realRuns, setRealRuns] = useState([]);
+    const [activeRun, setActiveRun] = useState(null);
+    const [realCompanyName, setRealCompanyName] = useState("");
+    const [isTriggeringRun, setIsTriggeringRun] = useState(false);
+    const [verificationValue, setVerificationValue] = useState("");
+    const [isSubmittingVerification, setIsSubmittingVerification] = useState(false);
+
+    // Fetch all real agent runs
+    const fetchRealRuns = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/agents/runs`);
+            if (res.ok) {
+                const data = await res.json();
+                setRealRuns(data);
+            }
+        } catch (e) {
+            console.error("Error fetching runs:", e);
+        }
+    };
+
+    // Trigger background python agent network run
+    const triggerRealRun = async () => {
+        if (!realCompanyName.trim()) return;
+        setIsTriggeringRun(true);
+        try {
+            const res = await fetch(`${API_BASE}/agents/run`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ companyName: realCompanyName })
+            });
+            const data = await res.json();
+            if (data.success && data.runId) {
+                // Initialize run view state
+                const newRunObj = {
+                    id: data.runId,
+                    company_name: realCompanyName,
+                    status: 'RUNNING',
+                    current_step: 'INIT',
+                    logs: [{ timestamp: new Date().toISOString(), message: "🚀 Background agent group subprocess spawned successfully." }]
+                };
+                setActiveRun(newRunObj);
+                setRealCompanyName("");
+                fetchRealRuns();
+            } else {
+                alert("Failed to start agent group run: " + data.error);
+            }
+        } catch (e) {
+            alert("Error triggering run: " + e.message);
+        }
+        setIsTriggeringRun(false);
+    };
+
+    // Submit human verification override
+    const submitVerificationOverride = async () => {
+        if (!activeRun || !verificationValue.trim()) return;
+        setIsSubmittingVerification(true);
+        try {
+            const res = await fetch(`${API_BASE}/agents/verify`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ runId: activeRun.id, value: parseFloat(verificationValue) })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setVerificationValue("");
+                // Instantly update UI status to RUNNING to resume waiting
+                setActiveRun(prev => ({
+                    ...prev,
+                    status: 'RUNNING',
+                    verification_data: { ...prev.verification_data, value: verificationValue }
+                }));
+            } else {
+                alert("Verification override failed: " + data.error);
+            }
+        } catch (e) {
+            alert("Error submitting override: " + e.message);
+        }
+        setIsSubmittingVerification(false);
+    };
+
+    // Poll the active run details every 2 seconds
+    useEffect(() => {
+        if (!activeRun || ['COMPLETED', 'FAILED'].includes(activeRun.status)) return;
+
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_BASE}/agents/runs/${activeRun.id}`);
+                if (!res.ok) throw new Error("Failed to fetch run details");
+                const runData = await res.json();
+                
+                setActiveRun(runData);
+
+                // If finished, refresh Neon companies list
+                if (['COMPLETED', 'FAILED'].includes(runData.status)) {
+                    fetchAllData();
+                    clearInterval(interval);
+                }
+            } catch (err) {
+                console.error("Error polling active run:", err);
+            }
+        }, 2000);
+
+        return () => clearInterval(interval);
+    }, [activeRun]);
+
+    // Initial load and periodic refresh of all runs
+    useEffect(() => {
+        fetchRealRuns();
+        const runInterval = setInterval(fetchRealRuns, 10000);
+        return () => clearInterval(runInterval);
+    }, []);
+
     // ─── NEON API UTILS ──────────────────────────────────────────────────────────
 
     const fetchAllData = async () => {
@@ -529,6 +642,275 @@ export default function AgentTab() {
                     })}
                 </Rw>
                 <Bdg color={aiProvider.includes('Offline') ? 'red' : 'pur'}>{aiProvider}</Bdg>
+            </Cd>
+
+            {/* ⭐ REAL-TIME AGENT NETWORK GROUP COMMAND DASHBOARD */}
+            <Cd glass style={{ padding: "18px 16px", marginBottom: 14, borderLeft: "4px solid var(--jade)" }}>
+                <Rw style={{ justifyContent: "space-between", marginBottom: 12 }}>
+                    <div>
+                        <div style={{ fontFamily: "var(--disp)", fontWeight: 800, fontSize: 15, color: "var(--jade)", display: "flex", alignItems: "center", gap: 6 }}>
+                            <span>⭐</span> Collaborative Agent Network (Real Subprocess Job Run)
+                        </div>
+                        <M size={10} color="var(--tx3)">Spawn real-time background Python processes orchestrating Scout, Analyst, Risk, and Strategy agents</M>
+                    </div>
+                    {activeRun && !['COMPLETED', 'FAILED'].includes(activeRun.status) && (
+                        <Bdg color="cyan">RUNNING ID: #{activeRun.id}</Bdg>
+                    )}
+                </Rw>
+
+                {/* Input Trigger Block */}
+                {!activeRun || ['COMPLETED', 'FAILED'].includes(activeRun.status) ? (
+                    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                        <input 
+                            value={realCompanyName} 
+                            onChange={e => setRealCompanyName(e.target.value)} 
+                            placeholder="Company Name (e.g. Tata Steel or Tata Steel verify)..."
+                            disabled={isTriggeringRun}
+                            style={{ 
+                                flex: 1, 
+                                padding: "12px 14px", 
+                                background: "var(--bg3)", 
+                                border: "1px solid var(--bd2)", 
+                                borderRadius: 12, 
+                                color: "var(--tx)", 
+                                fontFamily: "var(--body)", 
+                                fontSize: 13, 
+                                outline: "none" 
+                            }} 
+                        />
+                        <button 
+                            onClick={triggerRealRun} 
+                            disabled={isTriggeringRun || !realCompanyName.trim()}
+                            style={{ 
+                                padding: "12px 20px", 
+                                borderRadius: 12, 
+                                border: "none", 
+                                background: "linear-gradient(135deg, var(--jade), #22c55e)", 
+                                color: "#000", 
+                                fontFamily: "var(--disp)", 
+                                fontWeight: 800, 
+                                fontSize: 12, 
+                                cursor: "pointer", 
+                                flexShrink: 0,
+                                boxShadow: "0 0 15px rgba(0, 232, 122, 0.3)"
+                            }}
+                        >
+                            {isTriggeringRun ? "Starting..." : "Launch Network"}
+                        </button>
+                    </div>
+                ) : (
+                    <div>
+                        {/* 1. Progress Step Path Timeline */}
+                        <div style={{ 
+                            background: "var(--bg2)", 
+                            borderRadius: "12px", 
+                            padding: "16px 14px", 
+                            marginBottom: "12px", 
+                            border: "1px solid var(--bd2)" 
+                        }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
+                                {/* Background connecting line */}
+                                <div style={{ 
+                                    position: "absolute", 
+                                    left: "40px", 
+                                    right: "40px", 
+                                    top: "22px", 
+                                    height: "3px", 
+                                    background: "var(--bg3)", 
+                                    zIndex: 1 
+                                }} />
+                                
+                                {['scout', 'analyst', 'risk', 'strategy'].map((step, idx) => {
+                                    const stepInfo = {
+                                        scout: { name: "Scout (Discovery)", icon: "🔍", color: "#10b981" },
+                                        analyst: { name: "Analyst (Diligence)", icon: "📊", color: "#34d8e8" },
+                                        risk: { name: "Risk (Verification)", icon: "⚠️", color: "#f0c040" },
+                                        strategy: { name: "Strategy (Insights)", icon: "💡", color: "#b49cff" }
+                                    }[step];
+
+                                    const runSteps = ['INIT', 'scout', 'analyst', 'risk', 'strategy', 'DONE'];
+                                    const currentIdx = runSteps.indexOf(activeRun.current_step);
+                                    const stepIdx = runSteps.indexOf(step);
+                                    
+                                    const isDone = stepIdx < currentIdx;
+                                    const isActive = activeRun.current_step === step;
+                                    const isVerificationPending = isActive && activeRun.status === 'CRITICAL_VERIFICATION_REQUIRED';
+
+                                    let circleColor = "var(--bg3)";
+                                    let circleShadow = "none";
+
+                                    if (isDone) {
+                                        circleColor = "var(--jade)";
+                                        circleShadow = "0 0 10px var(--jade)";
+                                    } else if (isVerificationPending) {
+                                        circleColor = "var(--red)";
+                                        circleShadow = "0 0 15px var(--red)";
+                                    } else if (isActive) {
+                                        circleColor = stepInfo.color;
+                                        circleShadow = `0 0 12px ${stepInfo.color}`;
+                                    }
+
+                                    return (
+                                        <div key={step} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100px", zIndex: 2 }}>
+                                            <div style={{ 
+                                                width: "44px", 
+                                                height: "44px", 
+                                                borderRadius: "50%", 
+                                                background: circleColor, 
+                                                boxShadow: circleShadow,
+                                                display: "flex", 
+                                                alignItems: "center", 
+                                                justifyContent: "center", 
+                                                fontSize: "18px",
+                                                border: "3px solid var(--bg)",
+                                                transition: "all 0.4s ease-out"
+                                            }}>
+                                                {stepInfo.icon}
+                                            </div>
+                                            <M size={9} style={{ 
+                                                marginTop: 6, 
+                                                fontWeight: isActive ? 700 : 400, 
+                                                color: isActive ? stepInfo.color : isDone ? "var(--tx2)" : "var(--tx3)",
+                                                textAlign: "center"
+                                            }}>
+                                                {stepInfo.name}
+                                            </M>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* 2. Interactive Verification Panel */}
+                        {activeRun.status === 'CRITICAL_VERIFICATION_REQUIRED' && (
+                            <div style={{ 
+                                background: "rgba(239, 68, 68, 0.05)", 
+                                border: "1px dashed var(--red)", 
+                                borderRadius: "12px", 
+                                padding: "16px", 
+                                marginBottom: "12px"
+                            }}>
+                                <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
+                                    <span style={{ fontSize: "20px" }}>🚨</span>
+                                    <div>
+                                        <div style={{ fontSize: "13px", fontWeight: "700", color: "var(--red)" }}>STRICT ISOLATION PROTOCOL ACTIVE</div>
+                                        <M size={10} color="var(--tx2)">Fail-safe engaged: Document carbon extraction returned null/obfuscated data.</M>
+                                    </div>
+                                </div>
+
+                                {activeRun.verification_data && activeRun.verification_data.imagePath && (
+                                    <div style={{ textAlign: "center", marginBottom: "12px" }}>
+                                        <img 
+                                            src={"http://localhost:5000" + activeRun.verification_data.imagePath} 
+                                            alt="Audit failure context crop" 
+                                            style={{ 
+                                                maxWidth: "100%", 
+                                                maxHeight: "130px", 
+                                                borderRadius: "8px", 
+                                                border: "1px solid var(--bd2)",
+                                                background: "#1e1e24",
+                                                boxShadow: "0 4px 10px rgba(0,0,0,0.5)"
+                                            }} 
+                                        />
+                                    </div>
+                                )}
+
+                                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                    <input 
+                                        type="number" 
+                                        value={verificationValue} 
+                                        onChange={e => setVerificationValue(e.target.value)} 
+                                        placeholder="Input True Scope 1 CO2 Value (Tons)..."
+                                        disabled={isSubmittingVerification}
+                                        style={{ 
+                                            flex: 1, 
+                                            padding: "10px 12px", 
+                                            background: "var(--bg3)", 
+                                            border: "1px solid var(--bd2)", 
+                                            borderRadius: "8px", 
+                                            color: "var(--tx)", 
+                                            fontFamily: "var(--mono)", 
+                                            fontSize: "12px",
+                                            outline: "none"
+                                        }} 
+                                    />
+                                    <button 
+                                        onClick={submitVerificationOverride}
+                                        disabled={isSubmittingVerification || !verificationValue.trim()}
+                                        style={{ 
+                                            padding: "10px 16px", 
+                                            borderRadius: "8px", 
+                                            border: "none", 
+                                            background: "var(--red)", 
+                                            color: "#fff", 
+                                            fontFamily: "var(--disp)", 
+                                            fontWeight: "700", 
+                                            fontSize: "11px", 
+                                            cursor: "pointer" 
+                                        }}
+                                    >
+                                        Resume Execution
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. Live Log Terminal */}
+                        <div style={{ 
+                            background: "#0c0d12", 
+                            borderRadius: "10px", 
+                            border: "1px solid var(--bd2)", 
+                            padding: "12px 14px", 
+                            fontFamily: "var(--mono)", 
+                            fontSize: "11px", 
+                            color: "#d4d4d4",
+                            height: "170px",
+                            overflowY: "auto",
+                            lineHeight: "1.65",
+                            boxShadow: "inset 0 0 10px rgba(0, 0, 0, 0.8)",
+                            marginBottom: "8px"
+                        }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #1a1b26", paddingBottom: "6px", marginBottom: "8px", color: "var(--tx3)" }}>
+                                <span>🟢 terminal_feed: python.exe orchestrator/agent_group.py</span>
+                                <span>UTC-0</span>
+                            </div>
+                            
+                            {(activeRun.logs || []).map((l, i) => {
+                                let textColor = "#fff";
+                                if (l.type === 'error') textColor = "#ef4444";
+                                if (l.type === 'success') textColor = "#10b981";
+                                if (l.type === 'search') textColor = "#34d8e8";
+                                return (
+                                    <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "4px" }}>
+                                        <span style={{ color: "#666", flexShrink: 0 }}>[{l.ts || "time"}]</span>
+                                        <span style={{ color: textColor }}>{l.message}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* Status label under terminal */}
+                        <Rw style={{ justifyContent: "space-between", alignItems: "center" }}>
+                            <M size={10} color="var(--tx3)">Run Status: <span style={{ fontWeight: 600, color: activeRun.status === 'COMPLETED' ? 'var(--jade)' : activeRun.status === 'FAILED' ? 'var(--red)' : 'var(--amb)' }}>{activeRun.status}</span></M>
+                            {activeRun.status === 'COMPLETED' && (
+                                <button 
+                                    onClick={() => setActiveRun(null)} 
+                                    style={{ 
+                                        padding: "4px 10px", 
+                                        borderRadius: "6px", 
+                                        background: "var(--bg3)", 
+                                        color: "var(--tx2)", 
+                                        border: "1px solid var(--bd2)",
+                                        fontSize: "10px",
+                                        cursor: "pointer"
+                                    }}
+                                >
+                                    Dismiss
+                                </button>
+                            )}
+                        </Rw>
+                    </div>
+                )}
             </Cd>
 
             {/* Agent Overview Grid */}

@@ -92,6 +92,7 @@ const sql = neon(process.env.DATABASE_URL);
 
 app.use(cors());
 app.use(express.json());
+app.use('/audit_failures', express.static(path.join(process.cwd(), 'audit_failures')));
 
 app.get('/api/compare', compareApi);
 app.post('/api/welford/check', welfordCheck(sql));
@@ -279,6 +280,20 @@ const initDb = async () => {
             ADD COLUMN IF NOT EXISTS city TEXT,
             ADD COLUMN IF NOT EXISTS geocoding_source TEXT
         `.catch(e => console.log('[init] Companies Alter failed:', e.message));
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS agent_runs (
+                id SERIAL PRIMARY KEY,
+                company_name TEXT NOT NULL,
+                status TEXT DEFAULT 'PENDING',
+                current_step TEXT DEFAULT 'INIT',
+                logs JSONB DEFAULT '[]'::jsonb,
+                error_message TEXT,
+                verification_data JSONB,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+        `.catch(e => console.log('[init] agent_runs creation failed:', e.message));
 
         console.log("✅ Neon Database Initialized");
     } catch (err) {
@@ -649,6 +664,177 @@ mountEdgarFinancials(app, sql);
 mountMacrotrends(app, sql);
 mountProductionIndices(app);
 mountClimateAlignment(app);
+
+// ─── AGENT NETWORK GROUP ARCHITECTURE ROUTES ──────────────────────────────────
+
+// GET all agent runs
+app.get('/api/agents/runs', async (req, res) => {
+    try {
+        const runs = await sql`
+            SELECT id, company_name, status, current_step, error_message, created_at, updated_at
+            FROM agent_runs
+            ORDER BY created_at DESC
+            LIMIT 50
+        `;
+        res.json(runs);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// GET a specific agent run by ID
+app.get('/api/agents/runs/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [run] = await sql`
+            SELECT * FROM agent_runs WHERE id = ${id}
+        `;
+        if (!run) return res.status(404).json({ error: 'Run not found' });
+        res.json(run);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST trigger a new agent group run for a company (async background job)
+app.post('/api/agents/run', async (req, res) => {
+    const { companyName } = req.body;
+    if (!companyName) return res.status(400).json({ error: 'companyName is required' });
+
+    try {
+        // Create a pending run record in PostgreSQL database
+        const [run] = await sql`
+            INSERT INTO agent_runs (company_name, status, current_step, logs)
+            VALUES (${companyName}, 'RUNNING', 'INIT', ${JSON.stringify([{ timestamp: new Date().toISOString(), message: `🚀 Initiated collaborative run for ${companyName}` }])})
+            RETURNING id
+        `;
+
+        const runId = run.id;
+
+        // Path to Python virtual environment
+        const pythonPath = path.join(process.cwd(), 'venv', 'Scripts', 'python.exe');
+        const scriptPath = path.join(process.cwd(), 'orchestrator', 'agent_group.py');
+
+        console.log(`[agents/run] Spawning Agent Group for ${companyName} (Run ID: ${runId})`);
+
+        // Decouple background subprocess execution
+        const pyProcess = execFile(pythonPath, [scriptPath, '--company', companyName, '--run-id', runId.toString()], {
+            env: { ...process.env },
+            maxBuffer: 1024 * 1024 * 10
+        }, async (error, stdout, stderr) => {
+            if (error) {
+                console.error(`[agents/run] Subprocess error on run ${runId}:`, error);
+                
+                // Fetch the run logs to append the failure event
+                const [currentRun] = await sql`SELECT logs FROM agent_runs WHERE id = ${runId}`;
+                const currentLogs = currentRun ? currentRun.logs : [];
+                currentLogs.push({ timestamp: new Date().toISOString(), message: `❌ CRITICAL ERROR: ${error.message}` });
+                if (stderr) {
+                    currentLogs.push({ timestamp: new Date().toISOString(), message: `Stderr: ${stderr}` });
+                }
+
+                await sql`
+                    UPDATE agent_runs
+                    SET status = 'FAILED', 
+                        error_message = ${error.message}, 
+                        logs = ${JSON.stringify(currentLogs)}::jsonb, 
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ${runId}
+                `;
+            } else {
+                console.log(`[agents/run] Decoupled process finished for run ${runId}`);
+                // Ensure run is marked completed if it didn't crash or get stuck on verification
+                await sql`
+                    UPDATE agent_runs
+                    SET status = 'COMPLETED', current_step = 'DONE', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ${runId} AND status = 'RUNNING'
+                `;
+            }
+        });
+
+        // Immediately return success with the runId to keep the Express request non-blocking
+        res.json({ success: true, runId });
+    } catch (e) {
+        console.error('[agents/run] Failed to trigger run:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST submit a human override verification value
+app.post('/api/agents/verify', async (req, res) => {
+    const { runId, value } = req.body;
+    if (!runId || value === undefined) return res.status(400).json({ error: 'runId and value are required' });
+
+    try {
+        const [run] = await sql`
+            SELECT logs, verification_data FROM agent_runs WHERE id = ${runId}
+        `;
+        if (!run) return res.status(404).json({ error: 'Run not found' });
+
+        const currentLogs = run.logs || [];
+        currentLogs.push({ timestamp: new Date().toISOString(), message: `✅ Human verified override submitted: ${value}. Resuming background agents.` });
+        
+        const nextVerification = run.verification_data || {};
+        nextVerification.value = value;
+        nextVerification.resolvedAt = new Date().toISOString();
+
+        await sql`
+            UPDATE agent_runs
+            SET verification_data = ${JSON.stringify(nextVerification)}::jsonb, 
+                status = 'RUNNING', 
+                logs = ${JSON.stringify(currentLogs)}::jsonb, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${runId}
+        `;
+
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST internal update endpoint used by Python scripts to update running state
+app.post('/api/internal/agents/update-run', async (req, res) => {
+    const { runId, status, currentStep, logEntry, errorMessage, verificationPath } = req.body;
+    if (!runId) return res.status(400).json({ error: 'runId is required' });
+
+    try {
+        // Fetch current run state
+        const [currentRun] = await sql`SELECT status, current_step, logs, verification_data, error_message FROM agent_runs WHERE id = ${runId}`;
+        if (!currentRun) return res.status(404).json({ error: 'Run not found' });
+
+        const nextStatus = status || currentRun.status;
+        const nextStep = currentStep || currentRun.current_step;
+        const nextError = errorMessage !== undefined ? errorMessage : currentRun.error_message;
+
+        let nextLogs = currentRun.logs || [];
+        if (logEntry) {
+            const entryWithTime = { timestamp: new Date().toISOString(), ...logEntry };
+            nextLogs.push(entryWithTime);
+        }
+
+        let nextVerification = currentRun.verification_data || {};
+        if (verificationPath) {
+            nextVerification.imagePath = verificationPath;
+        }
+
+        await sql`
+            UPDATE agent_runs
+            SET status = ${nextStatus},
+                current_step = ${nextStep},
+                logs = ${JSON.stringify(nextLogs)}::jsonb,
+                verification_data = ${JSON.stringify(nextVerification)}::jsonb,
+                error_message = ${nextError},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${runId}
+        `;
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error('[internal/update-run] Error in python-initiated sync:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
 
 // ─── AGENT STATUS (30s cache) ─────────────────────────────────────────────────
 const agentCache = new NodeCache({ stdTTL: 30, checkperiod: 10 });
