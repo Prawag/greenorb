@@ -101,7 +101,11 @@ def build_local_filename(company_name: str, url: str, industry: str = "Unknown")
     year = year_match.group(1) if year_match else "unknown"
     safe_company = re.sub(r"[^a-zA-Z0-9]", "_", company_name.lower())
     safe_industry = re.sub(r"[^a-zA-Z0-9]", "_", industry.lower())
-    filename = f"{year}_esg.pdf"
+    # Safe company name for filename without spaces being replaced by underscore if not necessary, but let's just use the original company_name
+    # User requested: "Company Name - Year of ESG report"
+    # To ensure valid filenames on Windows, replace invalid characters like : \ / * ? " < > |
+    safe_filename_company = re.sub(r'[\\/*?:"<>|]', "", company_name)
+    filename = f"{safe_filename_company} - {year} of ESG report.pdf"
     return settings.download_dir / safe_industry / safe_company / filename
 
 
