@@ -106,21 +106,71 @@ def build_local_filename(company_name: str, url: str, industry: str = "Unknown")
 
 
 async def download_pdf(url: str, dest_path: Path) -> bool:
+    """Download a PDF using httpx with realistic headers, falling back to Playwright on 403."""
     dest_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Accept": "application/pdf,application/octet-stream,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": url,
+    }
+    
+    # Attempt 1: httpx with real browser headers (fast, works for most)
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=60) as client:
-            async with client.stream("GET", url, headers={
-                "User-Agent": "Mozilla/5.0 (compatible; ESGBot/1.0)"
-            }) as response:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=90) as client:
+            async with client.stream("GET", url, headers=HEADERS) as response:
+                if response.status_code == 403:
+                    logger.info(f"Got 403 on httpx, trying Playwright fallback for {url}")
+                    raise Exception("403 — try Playwright")
                 response.raise_for_status()
                 with open(dest_path, "wb") as f:
                     async for chunk in response.aiter_bytes(chunk_size=8192):
                         f.write(chunk)
+        # Validate it's actually a PDF
+        if dest_path.stat().st_size < 5000:
+            logger.warning(f"File too small ({dest_path.stat().st_size} bytes), likely not a PDF: {url}")
+            dest_path.unlink()
+            return False
+        with open(dest_path, "rb") as f:
+            magic = f.read(5)
+        if magic != b'%PDF-':
+            logger.warning(f"Not a valid PDF (magic bytes: {magic!r}): {url}")
+            dest_path.unlink()
+            return False
         size_mb = dest_path.stat().st_size / (1024 * 1024)
-        logger.info(f"Downloaded {dest_path.name} ({size_mb:.2f} MB)")
+        logger.info(f"Downloaded {dest_path.name} ({size_mb:.2f} MB) via httpx")
         return True
     except Exception as e:
-        logger.error(f"Download failed for {url}: {e}")
+        if dest_path.exists():
+            dest_path.unlink()
+        if "403" not in str(e):
+            logger.error(f"Download failed for {url}: {e}")
+            return False
+    
+    # Attempt 2: Playwright fallback for 403 sites
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent=HEADERS["User-Agent"],
+                accept_downloads=True
+            )
+            page = await context.new_page()
+            response = await page.goto(url, wait_until="load", timeout=60000)
+            if response and response.status == 200:
+                body = await response.body()
+                if len(body) > 10000 and body[:5] == b'%PDF-':
+                    with open(dest_path, "wb") as f:
+                        f.write(body)
+                    size_mb = dest_path.stat().st_size / (1024 * 1024)
+                    logger.info(f"Downloaded {dest_path.name} ({size_mb:.2f} MB) via Playwright fallback")
+                    await browser.close()
+                    return True
+            await browser.close()
+        return False
+    except Exception as e:
+        logger.error(f"Playwright fallback also failed for {url}: {e}")
         if dest_path.exists():
             dest_path.unlink()
         return False

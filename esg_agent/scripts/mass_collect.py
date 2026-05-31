@@ -30,19 +30,32 @@ async def mass_collect():
                 logger.info(f"Skipping {company.name} - already has {existing_docs} documents.")
                 continue
                 
-            logger.info(f"Processing: {company.name} (Industry: {company.industry})")
+            logger.info(f"Processing: {company.name} (Domain: {company.domain}, Industry: {company.industry})")
             
-            # 1. Discover Candidate URLs
+            # 1. Discover Candidate URLs (known direct links first, then domain-based)
             from modules.discovery import search_esg_urls
             candidates = search_esg_urls(company.name)
+            
+            # Also add domain-based paths using the REAL domain from the DB
+            if company.domain and not candidates:
+                domain = company.domain.replace("www.", "")
+                domain_paths = [
+                    f"https://www.{domain}/sustainability",
+                    f"https://www.{domain}/esg",
+                    f"https://www.{domain}/corporate-responsibility",
+                    f"https://www.{domain}/about/sustainability",
+                ]
+                for dp in domain_paths:
+                    candidates.append({"url": dp, "title": f"Domain-based URL for {company.name}", "score": 15})
+            
             if not candidates:
                 logger.warning(f"No ESG URL found for {company.name}.")
                 await asyncio.sleep(random.uniform(1, 2))
                 continue
                 
-            # 2. Scrape and Download (Try candidates until PDFs are found)
+            # 2. Scrape and Download (Try top 3 candidates only for speed)
             downloads = []
-            for candidate in candidates:
+            for candidate in candidates[:3]:
                 esg_url = candidate["url"]
                 logger.info(f"Scraping {esg_url} for PDFs...")
                 downloads = await scrape_and_download(company.name, esg_url, company.industry or "Unknown")
