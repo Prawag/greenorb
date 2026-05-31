@@ -10,11 +10,20 @@ ollama_log.txt
 Claude Conversation/
 *.zip
 *.pdf
-.env
 Backend/.env
 *.env
 
 # Data and Logs
 RawData/
-*.txt
 *.diff
+
+# Python
+*.pyc
+__pycache__/
+esg_agent/.venv/
+esg_agent/downloads/
+esg_agent/__pycache__/
+esg_agent/**/__pycache__/
+
+# Stitch Skills (cloned repo)
+stitch-skills/

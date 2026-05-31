@@ -5,6 +5,7 @@ const TABS = [
     { id: "globe", icon: "🌍", label: "Globe" },
     { id: "audit", icon: "📋", label: "Audit" },
     { id: "intel", icon: "🏢", label: "Intel" },
+    { id: "agent", icon: "🤖", label: "AI Agents" },
     { id: "esg", icon: "📊", label: "ESG Data" },
     { id: "facilities", icon: "🏭", label: "Facilities" },
     { id: "compare", icon: "⚖️", label: "Compare" },

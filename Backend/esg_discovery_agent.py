@@ -68,9 +68,10 @@ def search_esg_report(company_name):
     from ddgs import DDGS
 
     search_queries = []
-    for year in [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2]:
-        search_queries.append(f'"{company_name}" sustainability report {year} filetype:pdf')
-        search_queries.append(f'"{company_name}" ESG report {year} filetype:pdf')
+    # Remove strict exact-match quotes so DDG doesn't fail on "Inc." or "Ltd."
+    for year in [CURRENT_YEAR, 2025, 2024]:
+        search_queries.append(f'{company_name} Sustainability Report {year} filetype:pdf')
+        search_queries.append(f'{company_name} ESG Report {year} filetype:pdf')
 
     for query in search_queries:
         try:

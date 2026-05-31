@@ -9,6 +9,7 @@ import CityDashboard from "./tabs/CityDashboard";
 import ESGDataTab from "./tabs/ESGDataTab";
 import FacilitiesTab from "./tabs/FacilitiesTab";
 import CompanyProfileTab from "./tabs/CompanyProfileTab";
+import AgentTab from "./tabs/AgentTab";
 
 const TABS = [
     { key: "globe", Component: GlobeTab },
@@ -19,6 +20,7 @@ const TABS = [
     { key: "compare", Component: CompareTab },
     { key: "trust", Component: TrustDashboard },
     { key: "indore", Component: CityDashboard },
+    { key: "agent", Component: AgentTab },
 ];
 
 export default function App() {

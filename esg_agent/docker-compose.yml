@@ -1,0 +1,25 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: esg_agent_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: esg_agent
+      POSTGRES_USER: esg_user
+      POSTGRES_PASSWORD: esg_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U esg_user -d esg_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+    driver: local

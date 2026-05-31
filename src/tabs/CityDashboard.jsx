@@ -1,44 +1,99 @@
 import React, { useState, useEffect } from "react";
-import { Cd, M, Rw, Bdg, SHd, GlassBtn, Dot } from "../components/primitives";
+import { Cd, M, Rw, Bdg, SHd, GlassBtn, Dot, Spin } from "../components/primitives";
 import { CITIES, CITY_IDS, getCity } from "../config/cities.config.js";
 
 export default function CityDashboard() {
-    const [activeCityKey, setActiveCityKey] = useState("Indore");
+    const [activeCityKey, setActiveCityKey] = useState("indore");
     const city = getCity(activeCityKey);
 
-    // Simulated IoT Telemetry
+    const metrics = city.metrics || {
+        pm25: { label: "PM2.5 Air Quality", color: "#10b981", unit: "µg/m³" },
+        solar: { label: "Solar Radiation", color: "#eab308", unit: "W/m²" },
+        temp: { label: "Local Temperature", color: "#3b82f6", unit: "°C" }
+    };
+
+    const carbonCredit = city.carbonCredit || {
+        annual_credits_est: 250000,
+        methodology: "UNFCCC AMS-III.F"
+    };
+
+    const swachh_rank = city.swachh_rank || 1;
+    const description = city.description || "Real-time Environment & Climate Dashboard.";
+
+    // Real IoT Telemetry Data State
     const [telemetry, setTelemetry] = useState({
-        bioCng: city.metrics.biocng.base,
-        solar: city.metrics.solar.base,
-        waste: city.metrics.waste.base,
-        tokensMinted: city.carbonCredit.annual_credits_est
+        pm25: 0,
+        solar: 0,
+        temp: 0,
+        tokensMinted: carbonCredit.annual_credits_est
     });
+    
+    const [loadingData, setLoadingData] = useState(true);
 
     // Toggle for Enterprise Pitch Compliance, gated globally by ENV
     const [showWeb3, setShowWeb3] = useState(false);
     const ENABLE_TOKENOMICS = import.meta.env.VITE_ENABLE_TOKENOMICS === 'true';
 
     useEffect(() => {
-        const c = getCity(activeCityKey);
-        setTelemetry({
-            bioCng: c.metrics.biocng.base,
-            solar: c.metrics.solar.base,
-            waste: c.metrics.waste.base,
-            tokensMinted: c.carbonCredit.annual_credits_est
-        });
+        let active = true;
+        const fetchRealData = async () => {
+            setLoadingData(true);
+            try {
+                // 1. Geocode City Name
+                const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city.name)}&count=1&language=en&format=json`);
+                const geoData = await geoRes.json();
+                
+                if (!geoData.results || geoData.results.length === 0) throw new Error("City not found");
+                const { latitude: lat, longitude: lng } = geoData.results[0];
 
-        const inv = setInterval(() => {
+                // 2. Fetch Air Quality & Weather in parallel
+                const [aqRes, weatherRes] = await Promise.all([
+                    fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm2_5`),
+                    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,shortwave_radiation_instant`)
+                ]);
+
+                const aq = await aqRes.json();
+                const weather = await weatherRes.json();
+
+                if (active) {
+                    setTelemetry(prev => ({
+                        pm25: aq.current?.pm2_5 || 0,
+                        solar: weather.current?.shortwave_radiation_instant || 0,
+                        temp: weather.current?.temperature_2m || 0,
+                        tokensMinted: prev.tokensMinted
+                    }));
+                }
+            } catch (err) {
+                console.error("Failed to fetch real telemetry:", err);
+            } finally {
+                if (active) setLoadingData(false);
+            }
+        };
+
+        fetchRealData();
+        
+        // Refresh base live data from API every 10 minutes
+        const apiInv = setInterval(fetchRealData, 10 * 60 * 1000);
+        
+        // Simulate live IoT sensor fluctuations (jitter) anchored to real data
+        const jitterInv = setInterval(() => {
+            if (!active) return;
             setTelemetry(prev => ({
-                bioCng: prev.bioCng + Math.floor(Math.random() * 5),
-                solar: +(prev.solar + (Math.random() * 0.02 - 0.01)).toFixed(2),
-                waste: prev.waste + Math.floor(Math.random() * 2),
+                pm25: prev.pm25 ? Math.max(0, prev.pm25 + (Math.random() * 2 - 1)) : 0, // +/- 1
+                solar: prev.solar ? Math.max(0, prev.solar + (Math.random() * 4 - 2)) : 0, // +/- 2
+                temp: prev.temp ? prev.temp + (Math.random() * 0.2 - 0.1) : 0, // +/- 0.1
                 tokensMinted: prev.tokensMinted + Math.floor(Math.random() * 3)
             }));
         }, 3000);
-        return () => clearInterval(inv);
-    }, [activeCityKey]);
+        
+        return () => {
+            active = false;
+            clearInterval(apiInv);
+            clearInterval(jitterInv);
+        };
+    }, [activeCityKey, city.name]);
 
-    const METRIC_ICONS = { waste: "♻️", biocng: "🔥", solar: "☀️" };
+    const METRIC_ICONS = { pm25: "🌫️", solar: "☀️", temp: "🌡️" };
 
     return (
         <div style={{ padding: "80px 16px 40px", maxWidth: 900, margin: "0 auto" }}>
@@ -46,9 +101,9 @@ export default function CityDashboard() {
                 <Rw style={{ justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
                     <div>
                         <SHd
-                            tag={`Municipal Pilot — Swachh Rank #${city.swachh_rank}`}
+                            tag={`Municipal Pilot — Swachh Rank #${swachh_rank}`}
                             title={`${city.name} Smart City Dashboard`}
-                            sub={city.description}
+                            sub={description}
                         />
                         {/* City selector pills */}
                         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
@@ -72,10 +127,10 @@ export default function CityDashboard() {
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
-                        <div style={{ background: "rgba(16,185,129,.1)", border: "1px solid rgba(16,185,129,.3)", padding: "8px 16px", borderRadius: 20 }}>
+                        <div style={{ background: loadingData ? "rgba(234,179,8,.1)" : "rgba(16,185,129,.1)", border: `1px solid ${loadingData ? "rgba(234,179,8,.3)" : "rgba(16,185,129,.3)"}`, padding: "8px 16px", borderRadius: 20 }}>
                             <Rw style={{ gap: 8 }}>
-                                <Dot pulse color="var(--jade)" size={6} />
-                                <M size={12} color="var(--jade)" style={{ fontWeight: 600 }}>IoT Data Stream Active</M>
+                                {loadingData ? <Spin size={8} color="var(--amb)" /> : <Dot pulse color="var(--jade)" size={6} />}
+                                <M size={12} color={loadingData ? "var(--amb)" : "var(--jade)"} style={{ fontWeight: 600 }}>{loadingData ? "Syncing APIs..." : "IoT Data Stream Active"}</M>
                             </Rw>
                         </div>
 
@@ -98,14 +153,12 @@ export default function CityDashboard() {
                     </div>
                 </Rw>
 
-                {/* Dynamic metric cards driven by config */}
+                {/* Dynamic metric cards driven by real data */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
-                    {["waste", "biocng", "solar"].map(metricKey => {
-                        const metricConf = city.metrics[metricKey];
-                        const telVal = metricKey === "waste" ? telemetry.waste
-                            : metricKey === "biocng" ? telemetry.bioCng
-                            : telemetry.solar;
-                        const displayVal = metricKey === "solar" ? telVal.toFixed(2) : telVal.toLocaleString();
+                    {["pm25", "solar", "temp"].map(metricKey => {
+                        const metricConf = metrics[metricKey];
+                        const telVal = telemetry[metricKey];
+                        const displayVal = loadingData ? "--" : (metricKey === "temp" ? telVal.toFixed(1) : telVal.toLocaleString());
                         return (
                             <Cd key={metricKey} style={{ padding: 20, borderTop: `3px solid ${metricConf.color}` }}>
                                 <Rw style={{ gap: 8, marginBottom: 8 }}>
@@ -135,7 +188,7 @@ export default function CityDashboard() {
                                         Smart contracts on Hedera Hashgraph listen to the above IoT telemetry. Verified methane avoidance and clean energy generation automatically mints compliance-grade carbon credits.
                                     </p>
                                     <Rw>
-                                        <Bdg color="jade">{city.carbonCredit.methodology}</Bdg>
+                                        <Bdg color="jade">{carbonCredit.methodology}</Bdg>
                                         <Bdg color="pur">Hedera Token Service</Bdg>
                                     </Rw>
                                 </div>

@@ -30,12 +30,32 @@ export function useConvergenceEngine({ companies, fires, airQuality, disasters =
   const runCheck = useCallback(() => {
     if (!companies.length || !workerRef.current) return;
     setRunning(true);
+    
+    // Safely extract only the properties the Web Worker needs to prevent DataCloneError and out-of-memory crashes
+    const safeCompanies = companies.map(c => ({
+      id: c.id, name: c.name, lat: c.lat, lng: c.lng, 
+      has_discrepancy: c.has_discrepancy, absence_signals_count: c.absence_signals_count
+    }));
+    
+    const safeFires = fires.map(f => ({
+      lat: f.lat, lng: f.lng, brightness: f.brightness, frp: f.frp
+    }));
+    
+    const safeAQ = airQuality.map(aq => ({
+      lat: aq.lat, lng: aq.lng, avg_pm25: aq.avg_pm25, exceeds_who: aq.exceeds_who
+    }));
+    
+    const safeDisasters = disasters.map(d => ({
+      lat: d.lat, lng: d.lng, severity: d.severity, mag: d.mag, 
+      type: d.type, disaster_type: d.disaster_type, source: d.source
+    }));
+
     workerRef.current.postMessage({
       type: 'CHECK_CONVERGENCE',
-      companies,
-      fires,
-      airQuality,
-      disasters,
+      companies: safeCompanies,
+      fires: safeFires,
+      airQuality: safeAQ,
+      disasters: safeDisasters,
     });
   }, [companies, fires, airQuality, disasters]);
 
