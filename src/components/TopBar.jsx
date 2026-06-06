@@ -8,8 +8,6 @@ const NAV_ITEMS = [
     { key: "audit", label: "AI Auditor" },
     { key: "facilities", label: "Facilities" },
     { key: "indore", label: "Smart Cities" },
-    { key: "agent", label: "Agent Network" },
-    { key: "trust", label: "Observability" },
 ];
 
 export default function TopBar({ tab, setTab }) {

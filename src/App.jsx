@@ -5,9 +5,7 @@ import CompanyProfileTab from "./tabs/CompanyProfileTab";
 import ESGDataTab from "./tabs/ESGDataTab";
 import FacilitiesTab from "./tabs/FacilitiesTab";
 import CompareTab from "./tabs/CompareTab";
-import TrustDashboard from "./tabs/TrustDashboard";
 import CityDashboard from "./tabs/CityDashboard";
-import AgentTab from "./tabs/AgentTab";
 
 const TABS = [
     { key: "esg", Component: ESGDataTab },
@@ -16,8 +14,6 @@ const TABS = [
     { key: "audit", Component: AuditTab },
     { key: "facilities", Component: FacilitiesTab },
     { key: "indore", Component: CityDashboard },
-    { key: "agent", Component: AgentTab },
-    { key: "trust", Component: TrustDashboard },
 ];
 
 export default function App() {
