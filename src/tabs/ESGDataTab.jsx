@@ -255,29 +255,34 @@ export default function ESGDataTab() {
                  </div>
                )}
 
-               {selectedCompany.report_url && (
-                  <a 
-                    href={selectedCompany.report_url} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    style={{ 
-                      display: 'inline-block', 
-                      padding: '10px 20px', 
-                      background: 'var(--bg)', 
-                      color: 'var(--primary)', 
-                      textDecoration: 'none', 
-                      borderRadius: 'var(--radius-pill)',
-                      border: '1px solid var(--bd)',
-                      fontWeight: 600,
-                      fontSize: '14px',
-                      transition: 'background 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.target.style.background = 'var(--bg2)'}
-                    onMouseLeave={(e) => e.target.style.background = 'var(--bg)'}
-                  >
-                    View Source PDF
-                  </a>
-               )}
+               {(() => {
+                  const pdfUrl = selectedCompany.report_url || selectedCompany.url;
+                  const hasPdf = pdfUrl && pdfUrl !== 'N/A' && (pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://'));
+                  if (!hasPdf) return null;
+                  return (
+                     <a 
+                       href={pdfUrl} 
+                       target="_blank" 
+                       rel="noreferrer" 
+                       style={{ 
+                         display: 'inline-block', 
+                         padding: '10px 20px', 
+                         background: 'var(--bg)', 
+                         color: 'var(--primary)', 
+                         textDecoration: 'none', 
+                         borderRadius: 'var(--radius-pill)',
+                         border: '1px solid var(--bd)',
+                         fontWeight: 600,
+                         fontSize: '14px',
+                         transition: 'background 0.2s'
+                       }}
+                       onMouseEnter={(e) => e.target.style.background = 'var(--bg2)'}
+                       onMouseLeave={(e) => e.target.style.background = 'var(--bg)'}
+                     >
+                       View Source PDF
+                     </a>
+                  );
+               })()}
             </div>
          )}
 

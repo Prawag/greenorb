@@ -14,10 +14,15 @@ from typing import List, Dict, Any, Optional
 from loguru import logger
 from dotenv import load_dotenv
 
-# Load credentials
-load_dotenv('../MiroFish/.env')
+from pathlib import Path
 
-# Multi-provider: Cerebras primary, Groq fallback
+# Load credentials dynamically
+base_dir = Path(__file__).resolve().parent.parent.parent
+load_dotenv(base_dir / 'MiroFish/.env')
+load_dotenv(base_dir / 'Backend/.env')
+load_dotenv(base_dir / 'esg_agent/.env')
+
+# Multi-provider: Gemini primary (stable), Cerebras, and Groq fallbacks
 def _ensure_chat_url(url: str) -> str:
     url = url.rstrip('/')
     if not url.endswith('/chat/completions'):
@@ -26,16 +31,26 @@ def _ensure_chat_url(url: str) -> str:
 
 PROVIDERS = [
     {
+        "name": "Groq (Backend)",
+        "api_key": os.getenv('GROQ_API_KEY') or os.getenv('LLM_API_KEY'),
+        "url": _ensure_chat_url(os.getenv('LLM_BASE_URL', 'https://api.groq.com/openai/v1')),
+        "model": 'llama-3.3-70b-versatile',
+    },
+    {
         "name": "Cerebras",
         "api_key": os.getenv('CEREBRAS_API_KEY'),
         "url": _ensure_chat_url(os.getenv('CEREBRAS_BASE_URL', 'https://api.cerebras.ai/v1')),
-        "model": os.getenv('CEREBRAS_MODEL_NAME', 'llama-3.3-70b'),
+        "model": os.getenv('CEREBRAS_MODEL_NAME', 'gpt-oss-120b'),
     },
     {
-        "name": "Groq",
-        "api_key": os.getenv('LLM_API_KEY'),
-        "url": _ensure_chat_url(os.getenv('LLM_BASE_URL', 'https://api.groq.com/openai/v1')),
-        "model": 'llama-3.3-70b-versatile',
+        "name": "Gemini (Primary)",
+        "api_key": os.getenv('GEMINI_API_KEY', 'AIzaSyCK1Q2xg2rO9pJtnBMBshXOqKhUkS1vyy4'),
+        "model": "gemini-2.0-flash",
+    },
+    {
+        "name": "Gemini (Secondary)",
+        "api_key": os.getenv('VITE_GEMINI_KEY', 'AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s'),
+        "model": "gemini-2.0-flash",
     },
 ]
 PROVIDERS = [p for p in PROVIDERS if p["api_key"]]
@@ -43,21 +58,43 @@ PROVIDERS = [p for p in PROVIDERS if p["api_key"]]
 
 async def call_agent(role_prompt: str, context: str, user_prompt: str) -> Optional[str]:
     """Call an agent role using multi-provider failover."""
-    headers_template = {'Content-Type': 'application/json'}
-    
-    messages = [
-        {"role": "system", "content": role_prompt},
-        {"role": "user", "content": f"CONTEXT:\n{context}\n\nTASK:\n{user_prompt}"}
-    ]
-    
     for provider in PROVIDERS:
+        if "Gemini" in provider["name"]:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{provider['model']}:generateContent?key={provider['api_key']}"
+            payload = {
+                "contents": [
+                    {"role": "user", "parts": [{"text": f"SYSTEM PROMPT:\n{role_prompt}\n\nCONTEXT:\n{context}\n\nTASK:\n{user_prompt}"}]}
+                ],
+                "generationConfig": {"temperature": 0.2}
+            }
+            for attempt in range(3):
+                try:
+                    async with httpx.AsyncClient(timeout=120.0) as client:
+                        resp = await client.post(url, json=payload)
+                        if resp.status_code == 429:
+                            logger.warning(f"[Swarm/{provider['name']}] Rate limit (429). Skipping provider...")
+                            break # Try next provider
+                        if resp.status_code != 200:
+                            logger.error(f"[Swarm/{provider['name']}] Error response ({resp.status_code}): {resp.text}")
+                        resp.raise_for_status()
+                        res_json = resp.json()
+                        return res_json["candidates"][0]["content"]["parts"][0]["text"]
+                except Exception as e:
+                    logger.error(f"[Swarm/{provider['name']}] Failed attempt {attempt+1}: {e}")
+                    await asyncio.sleep(5)
+            continue # Try next provider
+
+        # Standard OpenAI compatible formatting
         headers = {
-            **headers_template,
+            'Content-Type': 'application/json',
             'Authorization': f'Bearer {provider["api_key"]}',
         }
         payload = {
             "model": provider["model"],
-            "messages": messages,
+            "messages": [
+                {"role": "system", "content": role_prompt},
+                {"role": "user", "content": f"CONTEXT:\n{context}\n\nTASK:\n{user_prompt}"}
+            ],
             "temperature": 0.2
         }
         
@@ -66,9 +103,8 @@ async def call_agent(role_prompt: str, context: str, user_prompt: str) -> Option
                 async with httpx.AsyncClient(timeout=120.0) as client:
                     resp = await client.post(provider["url"], headers=headers, json=payload)
                     if resp.status_code == 429:
-                        logger.warning(f"[Swarm/{provider['name']}] Rate limit (429). Sleep 60s (attempt {attempt+1}/3)")
-                        await asyncio.sleep(60)
-                        continue
+                        logger.warning(f"[Swarm/{provider['name']}] Rate limit (429). Skipping provider...")
+                        break # Try next provider
                     resp.raise_for_status()
                     return resp.json()['choices'][0]['message']['content']
             except Exception as e:
@@ -91,8 +127,10 @@ async def run_swarm_extraction(
     """
     if not target_metrics:
         target_metrics = [
-            "Scope 1 GHG Emissions", "Scope 2 GHG Emissions", "Scope 3 GHG Emissions", 
-            "Total Water Withdrawal", "Renewable Energy Percentage", "Annual Revenue", 
+            "Scope 1 GHG Emissions", "Scope 2 Location-Based GHG Emissions", "Scope 2 Market-Based GHG Emissions",
+            "Scope 2 GHG Emissions", "Scope 3 GHG Emissions", "Total Water Withdrawal",
+            "Renewable Energy Percentage", "Annual Revenue", "Net Zero Year",
+            "Methodology Standard", "GWP Version", "Boundary Approach",
             "Climate Targets", "Sustainability Investment", "headquarters_country"
         ]
         
