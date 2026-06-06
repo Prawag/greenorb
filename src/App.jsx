@@ -10,6 +10,7 @@ import ESGDataTab from "./tabs/ESGDataTab";
 import FacilitiesTab from "./tabs/FacilitiesTab";
 import CompanyProfileTab from "./tabs/CompanyProfileTab";
 import AgentTab from "./tabs/AgentTab";
+import StreamlitDashboard from "./tabs/StreamlitDashboard";
 
 const TABS = [
     { key: "globe", Component: GlobeTab },
@@ -21,6 +22,7 @@ const TABS = [
     { key: "trust", Component: TrustDashboard },
     { key: "indore", Component: CityDashboard },
     { key: "agent", Component: AgentTab },
+    { key: "insights", Component: StreamlitDashboard },
 ];
 
 export default function App() {

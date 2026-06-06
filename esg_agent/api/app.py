@@ -1,10 +1,12 @@
 """FastAPI application definition."""
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+import os
 
-from api.routers import companies, reports, metrics
+from api.routers import companies, reports, metrics, cities, actions
 
 
 @asynccontextmanager
@@ -34,6 +36,13 @@ app.add_middleware(
 app.include_router(companies.router, prefix="/api/companies", tags=["Companies"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["Metrics"])
+app.include_router(cities.router, prefix="/api/cities", tags=["Smart Cities"])
+app.include_router(actions.router, prefix="/api/actions", tags=["Sustainability Actions"])
+
+# Serve downloaded reports statically
+DOWNLOADS_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "downloads"))
+os.makedirs(DOWNLOADS_DIR, exist_ok=True)
+app.mount("/static/downloads", StaticFiles(directory=DOWNLOADS_DIR), name="downloads")
 
 
 @app.get("/", tags=["Health"])

@@ -623,7 +623,7 @@ def page_company_intelligence(data: list):
             return
 
         with st.spinner("Fetching ESG semantic metrics..."):
-            details = fetch_company_details(int(company_id))
+            details = fetch_company_details(str(company_id))
 
         if not details:
             st.warning("Could not load detailed metrics. The company may not have extracted data yet.")
@@ -730,7 +730,7 @@ def page_pipeline_status(data: list):
             for comp in companies:
                 cid = comp.get("id")
                 cname = comp.get("name", "Unknown")
-                reports = fetch_reports(int(cid)) if cid else []
+                reports = fetch_reports(str(cid)) if cid else []
                 report_count = len(reports) if isinstance(reports, list) else 0
 
                 # Determine extraction status from globe data

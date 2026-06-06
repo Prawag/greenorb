@@ -45,6 +45,38 @@ def fetch_sp500():
     logger.info(f"Successfully parsed {len(companies)} companies.")
     return companies
 
+NIFTY_WIKI_URL = "https://en.wikipedia.org/wiki/NIFTY_50"
+
+def fetch_nifty50():
+    logger.info("Fetching NIFTY 50 companies from Wikipedia...")
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    response = httpx.get(NIFTY_WIKI_URL, headers=headers)
+    response.raise_for_status()
+    
+    soup = BeautifulSoup(response.text, 'lxml')
+    table = soup.find('table', {'id': 'constituents'})
+    
+    companies = []
+    if table:
+        for row in table.find_all('tr')[1:]:  # Skip header
+            cols = row.find_all('td')
+            if len(cols) >= 3:
+                name = cols[0].text.strip()
+                ticker = cols[1].text.strip()
+                industry = cols[2].text.strip()
+                
+                domain = f"{ticker.lower().replace('.ns', '')}.com"
+                
+                companies.append({
+                    "name": name,
+                    "domain": domain,
+                    "industry": industry,
+                    "country": "India"
+                })
+                
+    logger.info(f"Successfully parsed {len(companies)} NIFTY 50 companies.")
+    return companies
+
 def ingest_companies(companies):
     db = SessionLocal()
     added = 0
@@ -72,3 +104,6 @@ def ingest_companies(companies):
 if __name__ == "__main__":
     companies = fetch_sp500()
     ingest_companies(companies)
+    
+    nifty_companies = fetch_nifty50()
+    ingest_companies(nifty_companies)

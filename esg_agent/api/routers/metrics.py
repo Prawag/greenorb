@@ -51,11 +51,30 @@ def get_globe_data(db: Session = Depends(get_db)):
         # If a company hasn't been parsed yet, give it a baseline or skip it.
         # For visual effect while scraping runs, let's include all companies but size 0 if unparsed.
         
-        # Deterministic coordinates seeded by company name (consistent across refreshes)
-        import hashlib
-        name_hash = int(hashlib.md5(comp.name.encode()).hexdigest(), 16)
-        lat = -40.0 + (name_hash % 10000) / 10000.0 * 100.0  # -40 to 60
-        lng = -130.0 + ((name_hash >> 16) % 10000) / 10000.0 * 270.0  # -130 to 140
+        country = comp.country or "USA"
+        country_coords = {
+            "USA": (39.8283, -98.5795),
+            "United States": (39.8283, -98.5795),
+            "UK": (55.3781, -3.4360),
+            "United Kingdom": (55.3781, -3.4360),
+            "Germany": (51.1657, 10.4515),
+            "France": (46.2276, 2.2137),
+            "Japan": (36.2048, 138.2529),
+            "China": (35.8617, 104.1954),
+            "India": (20.5937, 78.9629),
+            "Canada": (56.1304, -106.3468),
+            "Australia": (-25.2744, 133.7751),
+            "Brazil": (-14.2350, -51.9253),
+            "Switzerland": (46.8182, 8.2275),
+            "Netherlands": (52.1326, 5.2913),
+            "Ireland": (53.1424, -7.6921),
+        }
+        
+        # Add a tiny bit of random jitter so markers in the same country don't perfectly overlap
+        import random
+        base_lat, base_lng = country_coords.get(country, (39.8283, -98.5795))
+        lat = base_lat + random.uniform(-2.0, 2.0)
+        lng = base_lng + random.uniform(-2.0, 2.0)
         
         globe_data.append(
             GlobeDataResponse(

@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import asyncio
 import logging
@@ -14,11 +15,11 @@ logger = logging.getLogger("llm_router")
 
 # ─── Configuration ───────────────────────────────────────────
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}" if GEMINI_API_KEY else None
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}" if GEMINI_API_KEY else None
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.1-70b-versatile"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
@@ -30,7 +31,7 @@ class Provider(Enum):
     OLLAMA = "ollama"
 
 
-PROVIDER_CHAIN = [Provider.GEMINI, Provider.GROQ, Provider.OLLAMA]
+PROVIDER_CHAIN = [Provider.GROQ, Provider.OLLAMA]
 
 # ─── Rate-limit tracking ─────────────────────────────────────
 _rate_state = {
@@ -175,9 +176,6 @@ async def llm_call(prompt: str, system: str = "", task_id: str = "", company: st
     Route an LLM call through the provider chain with automatic fallback.
 
     Returns: {"text": str, "provider_used": str, "error": str | None}
-
-    The `company` param is an alias for `task_id` for backwards-compatibility
-    with the analyst_agent.py calling convention.
     """
     tag = task_id or company or "unknown"
     last_error = None
@@ -185,26 +183,20 @@ async def llm_call(prompt: str, system: str = "", task_id: str = "", company: st
     for provider in PROVIDER_CHAIN:
         if _is_rate_limited(provider):
             logger.info(f"[{tag}] {provider.value} rate-limited ({_rate_state[provider]['calls']} calls in window), skipping")
-            print(f"[LLM Router] {provider.value} rate-limited, skipping")
             continue
 
         try:
             logger.info(f"[{tag}] Attempting {provider.value}")
-            print(f"[LLM Router] Attempting {provider.value} for: {tag}")
-
             start = time.time()
             text = await _CALLERS[provider](prompt, system)
             duration_ms = int((time.time() - start) * 1000)
 
             _record_call(provider)
             logger.info(f"[{tag}] Success via {provider.value} ({duration_ms}ms)")
-            print(f"[LLM Router] Success via {provider.value} ({duration_ms}ms)")
-
             return {"text": text, "provider_used": provider.value, "error": None}
 
         except Exception as e:
             last_error = str(e)[:200]
             logger.warning(f"[{tag}] {provider.value} failed: {last_error}")
-            print(f"[LLM Router] {provider.value} failed: {last_error}")
 
     return {"text": None, "provider_used": None, "error": f"All providers failed. Last: {last_error}"}

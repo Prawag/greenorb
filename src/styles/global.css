@@ -6,37 +6,40 @@
     padding: 0
 }
 
+@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,500,700,400,900&f[]=satoshi@900,700,500,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 :root {
-    /* === Patch.io-Inspired Light Theme === */
-    --bg: #f8faf9;
-    --bg2: #f0f4f2;
-    --bg3: #e8eeea;
-    --sf: #ffffff;
-    --sf2: #f5f8f6;
-    --bd: #e2e8e5;
-    --bd2: #d0d8d4;
-    --jade: #10b981;
-    --jd: #059669;
-    --jg: rgba(16, 185, 129, .07);
+    /* === Stitch Taste Design Theme === */
+    --bg: #F9FAFB; /* Canvas White */
+    --bg2: #F1F3F5;
+    --bg3: #E9ECEF;
+    --sf: #FFFFFF; /* Pure Surface */
+    --sf2: #FAFAFA;
+    --bd: rgba(226,232,240,0.5); /* Whisper Border */
+    --bd2: rgba(200,210,220,0.6);
+    --jade: #059669; /* Muted Jade Accent */
+    --jd: #047857;
+    --jg: rgba(5, 150, 105, 0.08);
     --cyan: #0891b2;
     --amb: #d97706;
     --red: #dc2626;
     --pur: #7c3aed;
     --blu: #2563eb;
     --gold: #ca8a04;
-    --tx: #1a2e23;
-    --tx2: #5a7a6a;
-    --tx3: #94a8a0;
-    --mono: 'DM Mono', monospace;
-    --disp: 'Inter', 'Syne', sans-serif;
-    --body: 'Inter', 'Lato', sans-serif;
+    --tx: #18181B; /* Charcoal Ink */
+    --tx2: #71717A; /* Muted Steel */
+    --tx3: #A1A1AA;
+    --mono: 'JetBrains Mono', monospace;
+    --disp: 'Cabinet Grotesk', sans-serif;
+    --body: 'Satoshi', sans-serif;
     --nav: 56px;
     --top: 56px;
     --safe: env(safe-area-inset-bottom, 0px);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .05);
-    --shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .04);
-    --shadow-lg: 0 4px 12px rgba(0, 0, 0, .08);
-    --radius: 12px;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --radius: 16px; /* Generous rounded corners */
 }
 
 html,

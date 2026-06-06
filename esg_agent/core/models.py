@@ -107,3 +107,40 @@ class DocumentChunk(Base):
 
     def __repr__(self):
         return f"<DocumentChunk(doc={self.document_id}, idx={self.chunk_index})>"
+
+
+class SmartCity(Base):
+    __tablename__ = "smart_cities"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(Text, nullable=False, unique=True)
+    country = Column(Text, nullable=False)
+    lat = Column(Numeric, nullable=False)
+    lng = Column(Numeric, nullable=False)
+    
+    # Metrics
+    aqi = Column(Integer, nullable=True) # Air Quality Index
+    energy_consumption_mwh = Column(Numeric, nullable=True)
+    waste_recycling_rate = Column(Numeric, nullable=True) # Percentage
+    water_quality_index = Column(Numeric, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<SmartCity(name='{self.name}', aqi={self.aqi})>"
+
+
+class SustainabilityAction(Base):
+    __tablename__ = "esg_actions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("esg_companies.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("esg_documents.id", ondelete="CASCADE"), nullable=True)
+    action_category = Column(Text, nullable=False) # e.g. "solar installations", "EV fleet"
+    description = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    company = relationship("Company")
+
+    def __repr__(self):
+        return f"<SustainabilityAction(category='{self.action_category}')>"

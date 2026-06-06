@@ -2,52 +2,261 @@
   "scope_1": {
     "label": "Scope 1 direct emissions",
     "unit": "tCO2e",
-    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 1", "description": "GHG emissions (Scope I)" },
-    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "GHG emissions — direct" },
-    "GRI":  { "standard": "GRI 305", "indicator": "305-1", "description": "Direct (Scope 1) GHG emissions" },
-    "TCFD": { "pillar": "Metrics & Targets", "indicator": "a", "description": "Scope 1 emissions" }
+    "BRSR": {
+      "principle": "P6",
+      "indicator": "Essential Indicator 1",
+      "description": "GHG emissions (Scope I)"
+    },
+    "CSRD": {
+      "standard": "ESRS E1",
+      "indicator": "E1-4",
+      "description": "GHG emissions — direct"
+    },
+    "GRI": {
+      "standard": "GRI 305",
+      "indicator": "305-1",
+      "description": "Direct (Scope 1) GHG emissions"
+    },
+    "TCFD": {
+      "pillar": "Metrics & Targets",
+      "indicator": "a",
+      "description": "Scope 1 emissions"
+    }
   },
   "scope_2": {
     "label": "Scope 2 energy indirect emissions",
     "unit": "tCO2e",
-    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 1", "description": "GHG emissions (Scope II)" },
-    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "GHG emissions — energy indirect" },
-    "GRI":  { "standard": "GRI 305", "indicator": "305-2", "description": "Energy indirect (Scope 2) GHG emissions" },
-    "TCFD": { "pillar": "Metrics & Targets", "indicator": "a", "description": "Scope 2 emissions" }
+    "BRSR": {
+      "principle": "P6",
+      "indicator": "Essential Indicator 1",
+      "description": "GHG emissions (Scope II)"
+    },
+    "CSRD": {
+      "standard": "ESRS E1",
+      "indicator": "E1-4",
+      "description": "GHG emissions — energy indirect"
+    },
+    "GRI": {
+      "standard": "GRI 305",
+      "indicator": "305-2",
+      "description": "Energy indirect (Scope 2) GHG emissions"
+    },
+    "TCFD": {
+      "pillar": "Metrics & Targets",
+      "indicator": "a",
+      "description": "Scope 2 emissions"
+    }
   },
   "scope_3": {
     "label": "Scope 3 value chain emissions",
     "unit": "tCO2e",
-    "BRSR": { "principle": "P6", "indicator": "Leadership Indicator 1", "description": "GHG emissions (Scope III)" },
-    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "GHG emissions — value chain" },
-    "GRI":  { "standard": "GRI 305", "indicator": "305-3", "description": "Other indirect (Scope 3) GHG emissions" }
+    "BRSR": {
+      "principle": "P6",
+      "indicator": "Leadership Indicator 1",
+      "description": "GHG emissions (Scope III)"
+    },
+    "CSRD": {
+      "standard": "ESRS E1",
+      "indicator": "E1-4",
+      "description": "GHG emissions — value chain"
+    },
+    "GRI": {
+      "standard": "GRI 305",
+      "indicator": "305-3",
+      "description": "Other indirect (Scope 3) GHG emissions"
+    }
   },
   "energy_consumption": {
     "label": "Total energy consumption",
     "unit": "GJ",
-    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 2", "description": "Energy consumption (in Joules)" },
-    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "Energy consumption and mix" },
-    "GRI":  { "standard": "GRI 302", "indicator": "302-1", "description": "Energy consumption within the organization" }
+    "BRSR": {
+      "principle": "P6",
+      "indicator": "Essential Indicator 2",
+      "description": "Energy consumption (in Joules)"
+    },
+    "CSRD": {
+      "standard": "ESRS E1",
+      "indicator": "E1-4",
+      "description": "Energy consumption and mix"
+    },
+    "GRI": {
+      "standard": "GRI 302",
+      "indicator": "302-1",
+      "description": "Energy consumption within the organization"
+    }
   },
   "water_withdrawal": {
     "label": "Total water withdrawal",
     "unit": "KL",
-    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 3", "description": "Water withdrawal (in KL)" },
-    "CSRD": { "standard": "ESRS E3", "indicator": "E3-4", "description": "Water consumption" },
-    "GRI":  { "standard": "GRI 303", "indicator": "303-3", "description": "Water withdrawal" }
+    "BRSR": {
+      "principle": "P6",
+      "indicator": "Essential Indicator 3",
+      "description": "Water withdrawal (in KL)"
+    },
+    "CSRD": {
+      "standard": "ESRS E3",
+      "indicator": "E3-4",
+      "description": "Water consumption"
+    },
+    "GRI": {
+      "standard": "GRI 303",
+      "indicator": "303-3",
+      "description": "Water withdrawal"
+    }
   },
   "waste_generated": {
     "label": "Total waste generated",
     "unit": "MT",
-    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 5", "description": "Total waste generated (in metric tonnes)" },
-    "CSRD": { "standard": "ESRS E5", "indicator": "E5-4", "description": "Resource outflows — waste" },
-    "GRI":  { "standard": "GRI 306", "indicator": "306-3", "description": "Waste generated" }
+    "BRSR": {
+      "principle": "P6",
+      "indicator": "Essential Indicator 5",
+      "description": "Total waste generated (in metric tonnes)"
+    },
+    "CSRD": {
+      "standard": "ESRS E5",
+      "indicator": "E5-4",
+      "description": "Resource outflows — waste"
+    },
+    "GRI": {
+      "standard": "GRI 306",
+      "indicator": "306-3",
+      "description": "Waste generated"
+    }
   },
   "renewable_energy_pct": {
     "label": "Renewable energy percentage",
     "unit": "%",
-    "BRSR": { "principle": "P6", "indicator": "Essential Indicator 2", "description": "Energy from renewable sources (%)" },
-    "CSRD": { "standard": "ESRS E1", "indicator": "E1-4", "description": "Share of renewable energy" },
-    "GRI":  { "standard": "GRI 302", "indicator": "302-1", "description": "Renewable energy consumption share" }
+    "BRSR": {
+      "principle": "P6",
+      "indicator": "Essential Indicator 2",
+      "description": "Energy from renewable sources (%)"
+    },
+    "CSRD": {
+      "standard": "ESRS E1",
+      "indicator": "E1-4",
+      "description": "Share of renewable energy"
+    },
+    "GRI": {
+      "standard": "GRI 302",
+      "indicator": "302-1",
+      "description": "Renewable energy consumption share"
+    }
+  },
+  "rd_spend_sustainability": {
+    "label": "R&D Spend on Sustainability",
+    "unit": "Currency",
+    "BRSR": {
+      "principle": "P6",
+      "indicator": "Leadership 2",
+      "description": "Investments in Environmental/Social R&D"
+    }
+  },
+  "net_zero_target_year": {
+    "label": "Net Zero Target Year",
+    "unit": "Year",
+    "BRSR": {
+      "principle": "P6",
+      "indicator": "Leadership 1",
+      "description": "Target year for Net Zero"
+    }
+  },
+  "employee_turnover_rate": {
+    "label": "Employee Turnover Rate",
+    "unit": "%",
+    "BRSR": {
+      "principle": "P3",
+      "indicator": "Essential 2",
+      "description": "Employee Turnover Rate"
+    }
+  },
+  "median_remuneration": {
+    "label": "Median Remuneration Ratio",
+    "unit": "Ratio",
+    "BRSR": {
+      "principle": "P3",
+      "indicator": "Essential 3",
+      "description": "Median remuneration of employees"
+    }
+  },
+  "posh_complaints": {
+    "label": "POSH Complaints",
+    "unit": "Count",
+    "BRSR": {
+      "principle": "P3",
+      "indicator": "Essential 4",
+      "description": "Sexual harassment complaints"
+    }
+  },
+  "ltifr": {
+    "label": "Safety Incidents (LTIFR)",
+    "unit": "Rate",
+    "BRSR": {
+      "principle": "P3",
+      "indicator": "Essential 5",
+      "description": "Lost Time Injury Frequency Rate"
+    }
+  },
+  "training_hours_per_employee": {
+    "label": "Training Hours per Employee",
+    "unit": "Hours",
+    "BRSR": {
+      "principle": "P3",
+      "indicator": "Essential 6",
+      "description": "Training given to employees"
+    }
+  },
+  "csr_spend": {
+    "label": "CSR Spend",
+    "unit": "Currency",
+    "BRSR": {
+      "principle": "P4",
+      "indicator": "Essential 1",
+      "description": "Corporate Social Responsibility spend"
+    }
+  },
+  "local_sourcing_pct": {
+    "label": "Local Sourcing",
+    "unit": "%",
+    "BRSR": {
+      "principle": "P4",
+      "indicator": "Leadership 1",
+      "description": "Procurement from local suppliers"
+    }
+  },
+  "trade_associations_count": {
+    "label": "Trade Associations",
+    "unit": "Count",
+    "BRSR": {
+      "principle": "P7",
+      "indicator": "Essential 1",
+      "description": "Affiliations with trade and industry chambers"
+    }
+  },
+  "anti_competitive_fines": {
+    "label": "Anti-competitive Fines",
+    "unit": "Count",
+    "BRSR": {
+      "principle": "P7",
+      "indicator": "Essential 2",
+      "description": "Fines for anti-competitive behavior"
+    }
+  },
+  "customer_complaints": {
+    "label": "Customer Complaints",
+    "unit": "Count",
+    "BRSR": {
+      "principle": "P9",
+      "indicator": "Essential 1",
+      "description": "Consumer complaints"
+    }
+  },
+  "data_breach_incidents": {
+    "label": "Data Breach Incidents",
+    "unit": "Count",
+    "BRSR": {
+      "principle": "P9",
+      "indicator": "Essential 3",
+      "description": "Incidents of data breaches"
+    }
   }
 }

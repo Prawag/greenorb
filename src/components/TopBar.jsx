@@ -7,13 +7,14 @@ const T = {
     compare: "LCA Comparison",
     trust: "Agent Observability",
     indore: "Indore Smart City",
+    insights: "Company Insights",
 };
 
 export default function TopBar({ tab }) {
     return (
         <div style={{
             position: "sticky", top: 0, zIndex: 300,
-            background: "rgba(255,255,255,.85)", backdropFilter: "blur(16px)",
+            background: "var(--bg)",
             borderBottom: "1px solid var(--bd)", height: 56,
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "0 20px", flexShrink: 0,
@@ -21,10 +22,10 @@ export default function TopBar({ tab }) {
             <Rw>
                 <div style={{
                     width: 34, height: 34, borderRadius: 10,
-                    background: "var(--jade)",
+                    background: "var(--tx)",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 16, color: "#fff", fontWeight: 700,
-                    boxShadow: "0 2px 8px rgba(16,185,129,.25)",
+                    fontSize: 16, color: "var(--bg)", fontWeight: 700,
+                    boxShadow: "var(--shadow-sm)",
                 }}>◎</div>
                 <div>
                     <div style={{

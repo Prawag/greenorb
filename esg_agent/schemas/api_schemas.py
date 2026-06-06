@@ -20,6 +20,7 @@ class CompanyResponse(BaseModel):
     industry: Optional[str] = None
     country: Optional[str] = None
     created_at: Optional[datetime] = None
+    documents: Optional[List[dict]] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
