@@ -1,32 +1,27 @@
 import React, { useState, useRef, useEffect } from "react";
 import TopBar from "./components/TopBar";
-import BottomNav from "./components/BottomNav";
-import GlobeTab from "./tabs/GlobeTab";
-import AuditTab from "./tabs/AuditTab"; // UI label: Audit
+import AuditTab from "./tabs/AuditTab";
+import CompanyProfileTab from "./tabs/CompanyProfileTab";
+import ESGDataTab from "./tabs/ESGDataTab";
+import FacilitiesTab from "./tabs/FacilitiesTab";
 import CompareTab from "./tabs/CompareTab";
 import TrustDashboard from "./tabs/TrustDashboard";
 import CityDashboard from "./tabs/CityDashboard";
-import ESGDataTab from "./tabs/ESGDataTab";
-import FacilitiesTab from "./tabs/FacilitiesTab";
-import CompanyProfileTab from "./tabs/CompanyProfileTab";
 import AgentTab from "./tabs/AgentTab";
-import StreamlitDashboard from "./tabs/StreamlitDashboard";
 
 const TABS = [
-    { key: "globe", Component: GlobeTab },
-    { key: "audit", Component: AuditTab },
-    { key: "intel", Component: CompanyProfileTab },
     { key: "esg", Component: ESGDataTab },
-    { key: "facilities", Component: FacilitiesTab },
+    { key: "intel", Component: CompanyProfileTab },
     { key: "compare", Component: CompareTab },
-    { key: "trust", Component: TrustDashboard },
+    { key: "audit", Component: AuditTab },
+    { key: "facilities", Component: FacilitiesTab },
     { key: "indore", Component: CityDashboard },
     { key: "agent", Component: AgentTab },
-    { key: "insights", Component: StreamlitDashboard },
+    { key: "trust", Component: TrustDashboard },
 ];
 
 export default function App() {
-    const [tab, setTab] = useState("globe");
+    const [tab, setTab] = useState("esg");
     const scrollRef = useRef(null);
 
     useEffect(() => {
@@ -34,23 +29,45 @@ export default function App() {
     }, [tab]);
 
     return (
-        <div className="app-shell">
-            <TopBar tab={tab} />
+        <div className="app-shell" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+            <TopBar tab={tab} setTab={setTab} />
             <div
                 ref={scrollRef}
                 className="app-content"
+                style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)', paddingBottom: '32px' }}
             >
-                {/* Keep ALL tabs mounted but only show active one */}
+                {/* Keep active tab mounted */}
                 {TABS.map(({ key, Component }) => (
                     <div
                         key={key}
-                        style={{ display: tab === key ? "block" : "none" }}
+                        style={{ display: tab === key ? "block" : "none", height: '100%' }}
                     >
                         <Component setTab={setTab} tab={tab} />
                     </div>
                 ))}
             </div>
-            <BottomNav active={tab} set={setTab} />
+            
+            {/* Quiet Institutional Footer */}
+            <footer style={{
+                background: 'var(--bg)',
+                borderTop: '1px solid var(--bd)',
+                padding: '32px 24px',
+                textAlign: 'center',
+                color: 'var(--muted)',
+                fontSize: '13px'
+            }}>
+                <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                        <strong>GreenOrb Intelligence Network</strong> · © 2026 Institutional ESG Compliance
+                    </div>
+                    <div style={{ display: 'flex', gap: '16px' }}>
+                        <span style={{ cursor: 'pointer' }}>Hedera Ledger</span>
+                        <span style={{ cursor: 'pointer' }}>Sentinel-5P Satellite Verify</span>
+                        <span style={{ cursor: 'pointer' }}>API Docs</span>
+                    </div>
+                </div>
+            </footer>
         </div>
     );
 }
+

@@ -320,3 +320,13 @@ h1, h2, h3, h4, h5, h6 {
 h3, h4 {
     letter-spacing: -0.5px !important;
 }
+
+/* === Responsive Navigation Menu Toggles === */
+@media (max-width: 900px) {
+    .desktop-nav {
+        display: none !important;
+    }
+    .mobile-menu-toggle {
+        display: block !important;
+    }
+}
