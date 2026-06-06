@@ -4,42 +4,50 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0
-}
-
-@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,500,700,400,900&f[]=satoshi@900,700,500,400&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
 
 :root {
-    /* === Stitch Taste Design Theme === */
-    --bg: #F9FAFB; /* Canvas White */
-    --bg2: #F1F3F5;
-    --bg3: #E9ECEF;
-    --sf: #FFFFFF; /* Pure Surface */
-    --sf2: #FAFAFA;
-    --bd: rgba(226,232,240,0.5); /* Whisper Border */
-    --bd2: rgba(200,210,220,0.6);
-    --jade: #059669; /* Muted Jade Accent */
-    --jd: #047857;
-    --jg: rgba(5, 150, 105, 0.08);
-    --cyan: #0891b2;
-    --amb: #d97706;
-    --red: #dc2626;
-    --pur: #7c3aed;
-    --blu: #2563eb;
-    --gold: #ca8a04;
-    --tx: #18181B; /* Charcoal Ink */
-    --tx2: #71717A; /* Muted Steel */
-    --tx3: #A1A1AA;
+    /* === Coinbase Institutional Theme === */
+    --primary: #0052ff;
+    --primary-active: #003ecc;
+    --primary-disabled: #a8b8cc;
+    --ink: #0a0b0d;
+    --body-text: #5b616e;
+    --muted: #7c828a;
+    --muted-soft: #a8acb3;
+    
+    --bg: #ffffff; /* Canvas */
+    --bg2: #f7f7f7; /* Surface Soft */
+    --sf: #ffffff; /* Surface Card */
+    --sf2: #eef0f3; /* Surface Strong */
+    
+    --bd: #dee1e6; /* Hairline */
+    --bd2: #eef0f3; /* Hairline Soft */
+    
+    --semantic-up: #05b169;
+    --semantic-down: #cf202f;
+    --accent-yellow: #f4b000;
+    
+    /* Legacy variables mapping for compatibility */
+    --jade: #0052ff; 
+    --tx: #0a0b0d;
+    --tx2: #5b616e;
+    --tx3: #7c828a;
+    --jg: #eef0f3;
+    
     --mono: 'JetBrains Mono', monospace;
-    --disp: 'Cabinet Grotesk', sans-serif;
-    --body: 'Satoshi', sans-serif;
-    --nav: 56px;
-    --top: 56px;
+    --disp: 'Inter', sans-serif;
+    --body: 'Inter', sans-serif;
+    
+    --nav: 64px;
+    --top: 64px;
     --safe: env(safe-area-inset-bottom, 0px);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
-    --radius: 16px; /* Generous rounded corners */
+    
+    --shadow-sm: none;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.08);
+    --radius: 24px; /* xl for cards */
+    --radius-pill: 100px;
 }
 
 html,
@@ -298,4 +306,15 @@ html, body, #root, .app-shell {
 .scope-value {
     color: inherit;
     font-weight: 500;
+}
+
+/* === Coinbase Typography Overrides === */
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--disp);
+    font-weight: 400 !important; /* Institutional calm, not fintech-bombastic */
+    letter-spacing: -1.5px !important;
+    color: var(--ink);
+}
+h3, h4 {
+    letter-spacing: -0.5px !important;
 }

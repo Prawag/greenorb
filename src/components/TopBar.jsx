@@ -15,34 +15,33 @@ export default function TopBar({ tab }) {
         <div style={{
             position: "sticky", top: 0, zIndex: 300,
             background: "var(--bg)",
-            borderBottom: "1px solid var(--bd)", height: 56,
+            borderBottom: "1px solid var(--bd)", height: 64,
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "0 20px", flexShrink: 0,
         }}>
             <Rw>
                 <div style={{
-                    width: 34, height: 34, borderRadius: 10,
-                    background: "var(--tx)",
+                    width: 34, height: 34, borderRadius: "var(--radius-pill)",
+                    background: "var(--primary)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 16, color: "var(--bg)", fontWeight: 700,
-                    boxShadow: "var(--shadow-sm)",
                 }}>◎</div>
                 <div>
                     <div style={{
                         fontFamily: "var(--disp)", fontWeight: 700, fontSize: 17,
-                        letterSpacing: "-.02em", lineHeight: 1, color: "var(--tx)",
+                        color: "var(--ink)",
                     }}>GreenOrb</div>
-                    <M size={11} color="var(--tx3)">{T[tab]}</M>
+                    <M size={12} color="var(--muted)">{T[tab]}</M>
                 </div>
             </Rw>
             <Rw style={{ gap: 8 }}>
                 <div style={{
-                    padding: "5px 10px", borderRadius: 20,
-                    background: "var(--jg)", border: "1px solid rgba(16,185,129,.15)",
+                    padding: "6px 12px", borderRadius: "var(--radius-pill)",
+                    background: "var(--sf2)",
                     display: "flex", alignItems: "center", gap: 6,
                 }}>
-                    <Dot pulse size={5} />
-                    <M size={11} color="var(--jade)" style={{ fontWeight: 600 }}>Live</M>
+                    <Dot pulse size={6} color="var(--primary)" />
+                    <M size={12} color="var(--ink)" style={{ fontWeight: 600 }}>Live Data</M>
                 </div>
             </Rw>
         </div>

@@ -9,20 +9,12 @@ export const M = ({ children, color, size = 13, style, mono }) => (
 
 // ── Bdg — Badge chip ──────────────────────────────────────────────────────────
 export const Bdg = ({ color = "jade", children, style }) => {
-    const C = {
-        jade: ["rgba(16,185,129,.08)", "rgba(16,185,129,.2)", "#059669"],
-        cyan: ["rgba(8,145,178,.06)", "rgba(8,145,178,.18)", "#0891b2"],
-        amb: ["rgba(217,119,6,.06)", "rgba(217,119,6,.18)", "#d97706"],
-        red: ["rgba(220,38,38,.06)", "rgba(220,38,38,.18)", "#dc2626"],
-        pur: ["rgba(124,58,237,.06)", "rgba(124,58,237,.18)", "#7c3aed"],
-        blu: ["rgba(37,99,235,.06)", "rgba(37,99,235,.18)", "#2563eb"],
-        gold: ["rgba(202,138,4,.06)", "rgba(202,138,4,.18)", "#ca8a04"],
-    }[color] || ["rgba(16,185,129,.08)", "rgba(16,185,129,.2)", "#059669"];
+    // Badges in Coinbase are pill-shaped with surface-strong background
     return (
         <span style={{
-            background: C[0], border: `1px solid ${C[1]}`, color: C[2],
-            borderRadius: 6, padding: "2px 8px", fontSize: 11,
-            fontFamily: "var(--body)", fontWeight: 600, letterSpacing: ".01em",
+            background: "var(--sf2)", color: "var(--ink)",
+            borderRadius: "var(--radius-pill)", padding: "4px 12px", fontSize: 12,
+            fontFamily: "var(--body)", fontWeight: 600,
             whiteSpace: "nowrap", ...style,
         }}>
             {children}
@@ -31,10 +23,10 @@ export const Bdg = ({ color = "jade", children, style }) => {
 };
 
 // ── Dot — Indicator dot ───────────────────────────────────────────────────────
-export const Dot = ({ color = "#10b981", size = 7, pulse }) => (
+export const Dot = ({ color = "var(--primary)", size = 7, pulse }) => (
     <span style={{
         display: "inline-block", width: size, height: size, borderRadius: "50%",
-        background: color, boxShadow: `0 0 ${size}px ${color}40`,
+        background: color,
         animation: pulse ? "pulse 2s infinite" : "none", flexShrink: 0,
     }} />
 );
@@ -44,11 +36,14 @@ export const Cd = ({ children, style, accent, danger }) => (
     <div style={{
         background: "var(--sf)",
         borderRadius: "var(--radius)",
-        border: `1px solid ${accent ? "rgba(5,150,105,0.3)" : danger ? "rgba(220,38,38,0.2)" : "var(--bd)"}`,
-        boxShadow: "var(--shadow)",
+        border: `1px solid ${accent ? "var(--primary)" : danger ? "var(--semantic-down)" : "var(--bd)"}`,
+        boxShadow: "var(--shadow-sm)",
         transition: "box-shadow .2s, border-color .2s",
         ...style,
-    }}>
+    }}
+    onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow)"; }}
+    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-sm)"; }}
+    >
         {children}
     </div>
 );
@@ -96,25 +91,23 @@ export const SHd = ({ tag, title, sub }) => (
     </div>
 );
 
-// ── GlassBtn — Primary button (Stitch Taste) ──────────────────────────────────
-export const GlassBtn = ({ children, onClick, disabled, primary, danger, style }) => {
+// ── PillBtn — Primary button (Coinbase) ──────────────────────────────────────
+export const PillBtn = ({ children, onClick, disabled, primary, danger, style }) => {
     return (
         <button
             onClick={onClick}
             disabled={disabled}
-            onMouseDown={(e) => { if(!disabled) e.currentTarget.style.transform = "scale(0.98)" }}
-            onMouseUp={(e) => { if(!disabled) e.currentTarget.style.transform = "scale(1)" }}
-            onMouseLeave={(e) => { if(!disabled) e.currentTarget.style.transform = "scale(1)" }}
+            onMouseEnter={(e) => { if(primary && !disabled) e.currentTarget.style.background = "var(--primary-active)"; }}
+            onMouseLeave={(e) => { if(primary && !disabled) e.currentTarget.style.background = "var(--primary)"; }}
             style={{
-                width: "100%", padding: "12px 20px", borderRadius: "10px",
-                border: primary ? "1px solid var(--jade)" : danger ? "1px solid rgba(220,38,38,.25)" : "1px solid var(--bd)",
-                background: primary ? "var(--jade)" : danger ? "rgba(220,38,38,.04)" : "var(--sf)",
-                color: primary ? "#ffffff" : danger ? "var(--red)" : "var(--tx)",
-                fontFamily: "var(--disp)", fontWeight: 600, fontSize: 14,
-                cursor: disabled ? "default" : "pointer",
-                opacity: disabled ? 0.5 : 1,
-                boxShadow: "var(--shadow-sm)",
-                transition: "transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s, border 0.2s",
+                width: "100%", padding: "12px 20px", borderRadius: "var(--radius-pill)",
+                border: "none",
+                background: primary ? (disabled ? "var(--primary-disabled)" : "var(--primary)") : danger ? "rgba(207,32,47,.08)" : "var(--sf2)",
+                color: primary ? "#ffffff" : danger ? "var(--semantic-down)" : "var(--ink)",
+                fontFamily: "var(--body)", fontWeight: 600, fontSize: 16,
+                cursor: disabled ? "not-allowed" : "pointer",
+                boxShadow: "none",
+                transition: "background 0.2s",
                 display: "flex", alignItems: "center",
                 justifyContent: "center", gap: 8, ...style,
             }}
@@ -123,3 +116,6 @@ export const GlassBtn = ({ children, onClick, disabled, primary, danger, style }
         </button>
     );
 }
+
+// Alias for compatibility
+export const GlassBtn = PillBtn;
