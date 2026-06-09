@@ -207,6 +207,19 @@ const initDb = async () => {
             ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         `;
 
+        // Add missing ESG data columns from BRSR audit
+        await sql`
+            ALTER TABLE companies
+            ADD COLUMN IF NOT EXISTS verification_body TEXT,
+            ADD COLUMN IF NOT EXISTS energy_consumption NUMERIC,
+            ADD COLUMN IF NOT EXISTS water_withdrawal NUMERIC,
+            ADD COLUMN IF NOT EXISTS waste_generated NUMERIC,
+            ADD COLUMN IF NOT EXISTS renewable_energy_pct NUMERIC,
+            ADD COLUMN IF NOT EXISTS scope2_location NUMERIC,
+            ADD COLUMN IF NOT EXISTS scope2_market NUMERIC,
+            ADD COLUMN IF NOT EXISTS net_zero_year INTEGER
+        `;
+
         await sql`
             CREATE TABLE IF NOT EXISTS embeddings (
                 id SERIAL PRIMARY KEY,
@@ -341,6 +354,9 @@ app.get('/api/esg/companies', async (req, res) => {
 // POST Scout data
 app.post('/api/scout', async (req, res) => {
     const { name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year } = req.body;
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+        return res.status(400).json({ error: "Valid company name is required" });
+    }
     try {
         await sql`
             INSERT INTO companies (name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year)
@@ -434,6 +450,9 @@ app.post('/api/strategy', async (req, res) => {
 // POST Vector Embeddings
 app.post('/api/embeddings', async (req, res) => {
     const { company_name, content, embedding, page_number, report_year, metadata, is_first_chunk } = req.body;
+    if (!Array.isArray(embedding)) {
+        return res.status(400).json({ error: "Valid embedding array is required" });
+    }
     try {
         // If it's the first chunk of a new report, clear old embeddings for this company
         if (is_first_chunk) {
@@ -458,7 +477,8 @@ app.post('/api/ask', async (req, res) => {
     const { company, question } = req.body;
     if (!company || !question) return res.status(400).json({ error: "Company and question are required" });
 
-    const GEMINI_KEY = process.env.GEMINI_API_KEY || "AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s";
+    const GEMINI_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_KEY) return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server" });
 
     try {
         // 1. Generate embedding for the question using Gemini

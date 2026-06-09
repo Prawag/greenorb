@@ -54,11 +54,11 @@ export default function SatelliteMiniMap({ facilities, companyName }) {
       });
       viewer.scene.primitives.add(pc);
 
-      // Centered flyTo
+      // Centered flyTo (Globe level view)
       const avgLat = facilities.reduce((s, f) => s + f.lat, 0) / facilities.length;
       const avgLng = facilities.reduce((s, f) => s + f.lng, 0) / facilities.length;
       viewer.camera.setView({
-          destination: Cesium.Cartesian3.fromDegrees(avgLng, avgLat, 5000)
+          destination: Cesium.Cartesian3.fromDegrees(avgLng, avgLat, 20000000) // Zoomed out to show global spread
       });
     }
 

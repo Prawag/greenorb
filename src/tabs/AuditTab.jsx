@@ -227,49 +227,7 @@ export default function AuditTab() {
     return (
         <div style={{ display: "flex", height: "calc(100vh - 120px)", fontFamily: "var(--sf)", color: "var(--tx)" }}>
             
-            {/* LEFT PANEL: Company List Directory */}
-            <div style={{ width: "320px", borderRight: "1px solid var(--bd)", display: "flex", flexDirection: "column", background: "var(--bg)", zIndex: 10 }} className="no-print">
-                <div style={{ padding: "16px", borderBottom: "1px solid var(--bd2)" }}>
-                    <div style={{ fontSize: "15px", fontWeight: "700", marginBottom: "4px" }}>Audit Directory</div>
-                    <div style={{ fontSize: "12px", color: "var(--tx3)" }}>Select an enterprise to run automated BRSR audits & verifications.</div>
-                </div>
-                
-                <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
-                    {loading && <div style={{ padding: "16px", fontSize: "12px", color: "var(--tx3)", textAlign: "center" }}>Loading audit database...</div>}
-                    {!loading && companies.map(c => {
-                        const gScore = c.score || c.esg_score || 0; 
-                        return (
-                            <div 
-                                key={c.name} 
-                                onClick={() => setSelectedCompany(c)}
-                                style={{ 
-                                    padding: "12px", 
-                                    marginBottom: "8px", 
-                                    borderRadius: "8px", 
-                                    cursor: "pointer",
-                                    background: selectedCompany?.name === c.name ? "var(--bg3)" : "var(--bg2)",
-                                    border: `1px solid ${selectedCompany?.name === c.name ? "rgba(0,232,122,0.3)" : "var(--bd2)"}`,
-                                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                                    transition: "all 0.2s"
-                                }}
-                            >
-                                <div>
-                                    <div style={{ fontSize: "13px", fontWeight: "600", color: selectedCompany?.name === c.name ? "var(--jade)" : "var(--tx)" }}>{c.name}</div>
-                                    <div style={{ fontSize: "11px", color: "var(--tx3)", marginTop: "2px" }}>{c.sector}</div>
-                                </div>
-                                {gScore > 0 && (
-                                    <div style={{ 
-                                        padding: "3px 7px", borderRadius: "12px", fontSize: "10px", fontWeight: "700", fontFamily: "var(--mono)",
-                                        background: `${getScoreColor(gScore)}18`, color: getScoreColor(gScore), border: `1px solid ${getScoreColor(gScore)}50`
-                                    }}>
-                                        GX {gScore}
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
+            {/* Removed LEFT PANEL: Company List Directory */}
 
             {/* RIGHT PANEL: Details & Gap Report view */}
             <div style={{ flex: 1, overflowY: "auto", padding: "24px", background: "var(--bg)" }}>
@@ -506,7 +464,7 @@ export default function AuditTab() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div style={{ fontSize: "20px", fontWeight: "800", fontFamily: "var(--mono)", margin: "8px 0", color: hasValue ? "var(--tx)" : "rgba(255,255,255,0.15)" }}>
+                                                        <div style={{ fontSize: "20px", fontWeight: "800", fontFamily: "var(--mono)", margin: "8px 0", color: hasValue ? "var(--tx)" : "#000000" }}>
                                                             {hasValue ? `${val.toLocaleString()} ${key.includes("pct") || key.includes("percent") ? "%" : key.includes("withdrawal") ? "KL" : key.includes("waste") ? "MT" : key.includes("energy") ? "GJ" : "tCO2e"}` : "Not Disclosed"}
                                                         </div>
                                                     </div>

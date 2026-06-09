@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import re
 import argparse
 import asyncio
 import time
@@ -21,26 +22,165 @@ from sandbox.safe_eval import coerce_float
 DATABASE_URL = os.environ.get("DATABASE_URL")
 FRAMEWORK_MAP_PATH = os.path.join(current_dir, "config", "framework_map.json")
 
-def extract_text_from_pdf(pdf_path: str, max_pages: int = 50) -> str:
-    """Extract text from PDF with page markers."""
+# --- Data keywords: the actual metrics we're hunting for ---
+DATA_KEYWORDS = [
+    r"scope\s*1", r"scope\s*2", r"scope\s*3", r"ghg\s*emission",
+    r"co2e?", r"tco2", r"carbon\s*(di)?oxide",
+    r"energy\s*consumption", r"total\s*energy", r"electricity\s*consumption",
+    r"water\s*withdrawal", r"water\s*consumption", r"water\s*discharg",
+    r"waste\s*generat", r"hazardous\s*waste", r"non.hazardous",
+    r"renewable\s*energy", r"solar|wind\s*energy",
+    r"net[\s\-]*zero", r"carbon\s*neutral",
+    r"women.*workforce|female.*employ|gender\s*divers",
+    r"employee\s*turnover", r"attrition\s*rate",
+    r"ltifr|lost\s*time\s*injury", r"safety\s*incident",
+    r"training\s*hours", r"skill\s*develop",
+    r"csr\s*spend|corporate\s*social\s*responsibility\s*expend",
+    r"local\s*sourcing|local\s*procurement",
+    r"posh|sexual\s*harassment",
+    r"data\s*breach|cyber\s*security\s*incident",
+    r"anti[\s\-]*competitive|anti[\s\-]*trust",
+    r"customer\s*complaint",
+    r"median\s*remuneration|median\s*salary",
+    r"mwh|gwh|gigajoule|terajoule|gj\b|tj\b",
+    r"kilolitre|megalitre|kl\b|ml\b",
+    r"metric\s*ton|mt\b|tonnes?\b",
+    r"verification|third.party\s*assur|external\s*audit",
+    r"brsr|principle\s*[1-9]", r"gri\s*\d", r"tcfd", r"sasb",
+    r"gwp|boundary\s*approach|operational\s*control",
+    r"r&d\s*sustain|research.*sustain",
+]
+
+# --- Junk signals: pages that are ads, covers, or marketing fluff ---
+JUNK_SIGNALS = [
+    r"^.{0,200}$",                       # Nearly empty pages
+    r"all\s*rights\s*reserved",           # Legal disclaimers
+    r"forward[\s\-]*looking\s*statement", # Boilerplate legal
+    r"table\s*of\s*contents",             # TOC page
+    r"disclaimer",                        # Disclaimer pages
+    r"this\s*page\s*(is|has been)\s*(intentionally|left)\s*blank",
+]
+
+
+from typing import Tuple, Optional, Dict
+
+def _page_data_score(text: str) -> Tuple[int, int]:
+    """
+    Score a page by:
+    1. keyword_hits: how many distinct ESG data keywords appear
+    2. number_density: how many actual numbers (potential metric values) appear
+    Returns (keyword_hits, number_density).
+    """
+    t = text.lower()
+    keyword_hits = sum(1 for kw in DATA_KEYWORDS if re.search(kw, t))
+    # Count actual numbers on the page (dates and page numbers are short, real metrics are longer)
+    numbers = re.findall(r'\b\d[\d,\.]+\b', t)
+    # Filter out likely page numbers / years (1-4 digit standalone)
+    real_numbers = [n for n in numbers if len(n.replace(',','').replace('.','')) >= 2]
+    return keyword_hits, len(real_numbers)
+
+
+def _is_junk_page(text: str) -> bool:
+    """Return True if this page is a cover, ad, disclaimer, or blank."""
+    t = text.strip().lower()
+    if len(t) < 100:  # Nearly blank
+        return True
+    for pattern in JUNK_SIGNALS:
+        if re.search(pattern, t):
+            # Only reject if the page has very few real keywords
+            kw, _ = _page_data_score(t)
+            if kw < 2:
+                return True
+    return False
+
+
+def extract_text_from_pdf(pdf_path: str, max_pages: int = 300) -> str:
+    """
+    Data-only extraction: scans ALL pages, keeps ONLY pages that contain
+    both ESG keywords AND actual numeric values. Skips ads, covers,
+    CEO letters, and marketing fluff entirely.
+    
+    Typically reduces a 150-page PDF to just 10-20 high-signal pages.
+    """
     try:
         doc = fitz.open(pdf_path)
+        total = min(doc.page_count, max_pages)
+        
+        # Phase 1: Score and classify every page
+        scored_pages = []
+        skipped = 0
+        for i in range(total):
+            page_text = doc[i].get_text()
+            
+            # Skip junk pages immediately
+            if _is_junk_page(page_text):
+                skipped += 1
+                continue
+            
+            kw_hits, num_density = _page_data_score(page_text)
+            
+            # Combined score: keywords matter most, but numbers confirm it's a data page
+            # A page needs BOTH keywords and numbers to score well
+            combined = kw_hits * 2 + (1 if num_density >= 5 else 0)
+            
+            scored_pages.append({
+                "idx": i,
+                "text": page_text,
+                "kw_hits": kw_hits,
+                "num_density": num_density,
+                "combined": combined,
+            })
+        
+        # Phase 2: Keep only pages that actually contain data (combined score >= 3)
+        # This means at least 2 keyword hits, or 1 keyword + numbers
+        data_pages = [p for p in scored_pages if p["combined"] >= 3]
+        
+        # If too few data pages found, lower the threshold
+        if len(data_pages) < 5:
+            data_pages = [p for p in scored_pages if p["combined"] >= 1]
+        
+        # Sort by combined score descending, cap at 40 pages max
+        data_pages.sort(key=lambda p: p["combined"], reverse=True)
+        data_pages = data_pages[:40]
+        
+        # Re-sort by page order for coherent reading
+        data_pages.sort(key=lambda p: p["idx"])
+        
+        # Phase 3: Assemble text
         text = ""
-        for i in range(min(doc.page_count, max_pages)):
-            text += f"\n--- Page {i+1} ---\n"
-            text += doc[i].get_text()
+        for p in data_pages:
+            text += f"\n--- Page {p['idx']+1} [kw:{p['kw_hits']} nums:{p['num_density']}] ---\n"
+            text += p["text"]
+        
+        avg_kw = sum(p["kw_hits"] for p in data_pages) / max(len(data_pages), 1)
+        avg_nums = sum(p["num_density"] for p in data_pages) / max(len(data_pages), 1)
+        print(f"INFO: Data-only filter: {len(data_pages)} data pages kept, "
+              f"{skipped} junk skipped, {total - len(data_pages) - skipped} low-signal dropped "
+              f"(avg keywords: {avg_kw:.1f}, avg numbers: {avg_nums:.1f})",
+              file=sys.stderr)
         return text
     except Exception as e:
         print(f"ERROR: Reading PDF: {e}", file=sys.stderr)
         return ""
 
-BRSR_SYSTEM_PROMPT = """You are an expert SEBI BRSR (Business Responsibility and Sustainability Reporting) Auditor.
-Your task is to extract structured ESG data from corporate sustainability reports.
-Focus on BRSR Principle 6 (Environment) and Principle 3 (Employees) indicators.
-Return ONLY valid JSON - no markdown, no prose, no backticks."""
 
-def build_brsr_prompt(text: str) -> str:
-    return f"""Extract BRSR Core indicators from this report across multiple principles.
+BRSR_SYSTEM_PROMPT = """You are an expert ESG/BRSR data extraction engine.
+Your ONLY job is to find numeric values in sustainability reports and return them as JSON.
+You MUST return ONLY valid JSON — no markdown, no explanation, no backticks.
+If you cannot find a specific value, use null. NEVER make up numbers."""
+
+METRIC_FIELDS = [
+    "scope_1", "scope_2", "scope_3", "energy_consumption",
+    "water_withdrawal", "waste_generated", "renewable_energy_pct", "women_workforce_pct",
+    "rd_spend_sustainability", "net_zero_target_year", "employee_turnover_rate",
+    "median_remuneration", "posh_complaints", "ltifr", "training_hours_per_employee",
+    "csr_spend", "local_sourcing_pct", "trade_associations_count", "anti_competitive_fines",
+    "customer_complaints", "data_breach_incidents"
+]
+
+def build_brsr_prompt(text: str, char_limit: int = 120000) -> str:
+    truncated = text[:char_limit]
+    return f"""Extract BRSR/ESG Core indicators from this sustainability report.
 
 Return ONLY this JSON format:
 {{
@@ -71,44 +211,145 @@ Return ONLY this JSON format:
     "reported_total_emissions": <number or null>
 }}
 
-RULES:
-- All numeric values must be raw numbers (int/float), never strings with units.
-- If a value is a year (e.g., 2040), return it as an integer.
-- If a value is a count (e.g., number of complaints), return as an integer.
-- If not found, return null — never return 0 or "Not disclosed".
-- reported_total_emissions is the total GHG emissions reported in the text (if explicitly stated, else null).
+CRITICAL RULES:
+- All numeric values MUST be raw numbers (int/float). NEVER return strings with units.
+- Scope 1 = direct emissions (combustion, vehicles, fugitive). Usually in tCO2e or tonnes CO2.
+- Scope 2 = purchased electricity/heat. Usually in tCO2e.
+- Scope 3 = value chain (supply chain, business travel, employee commuting).
+- energy_consumption = total energy in GJ (gigajoules) or TJ. Convert MWh to GJ by multiplying by 3.6.
+- water_withdrawal = total water in kilolitres (KL) or megalitres (ML). Convert ML to KL by multiplying by 1000.
+- If a number has "million" or "M" suffix: multiply by 1,000,000.
+- If a number has "lakh" suffix: multiply by 100,000.
+- If a number has "crore" suffix: multiply by 10,000,000.
+- If a number has "Mt" suffix: multiply by 1,000,000.
+- If not found, return null — NEVER return 0 as a substitute for "not found".
+- 0 IS valid when the report explicitly states zero (e.g., "zero data breaches").
 
-Report text (truncated):
-{text[:45000]}"""
+Report text:
+{truncated}"""
+
+
+def _parse_json_robust(raw: str) -> Optional[Dict]:
+    """Try multiple strategies to parse LLM JSON output."""
+    text = raw.strip()
+    
+    # Strip markdown code fences
+    if text.startswith("```json"): text = text[7:]
+    elif text.startswith("```"): text = text[3:]
+    if text.endswith("```"): text = text[:-3]
+    text = text.strip()
+    
+    # Strategy 1: Direct parse
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    
+    # Strategy 2: Find first { and last }
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+    if first_brace != -1 and last_brace > first_brace:
+        try:
+            return json.loads(text[first_brace:last_brace + 1])
+        except json.JSONDecodeError:
+            pass
+    
+    # Strategy 3: Try fixing common LLM mistakes (trailing commas, comments)
+    import re as re2
+    cleaned = re2.sub(r',\s*}', '}', text)  # Remove trailing commas
+    cleaned = re2.sub(r',\s*]', ']', cleaned)
+    cleaned = re2.sub(r'//[^\n]*\n', '\n', cleaned)  # Remove line comments
+    if first_brace != -1:
+        try:
+            return json.loads(cleaned[cleaned.find("{"):cleaned.rfind("}") + 1])
+        except json.JSONDecodeError:
+            pass
+    
+    return None
+
+
+def _merge_metrics(base: dict, overlay: dict) -> dict:
+    """Merge two metrics dicts, preferring non-null values from overlay."""
+    merged = dict(base)
+    for k, v in overlay.items():
+        if v is not None and (merged.get(k) is None):
+            merged[k] = v
+    return merged
+
 
 async def extract_brsr_data(text: str, filename: str) -> dict | None:
-    """Run BRSR audit via resilient LLM router."""
-    prompt = build_brsr_prompt(text)
-    result = await llm_call(prompt, system=BRSR_SYSTEM_PROMPT, task_id=f"brsr_pipeline_{filename[:30]}")
+    """
+    Multi-pass BRSR extraction:
+    Pass 1: Send full text (up to 120K chars) to the LLM.
+    Pass 2: If >50% of metrics are null, split into chunks and retry with focused prompts.
+    """
+    tag = f"brsr_pipeline_{filename[:30]}"
+    
+    # === PASS 1: Full-text extraction ===
+    print(f"INFO: Pass 1 — Full text extraction ({len(text)} chars)", file=sys.stderr)
+    prompt = build_brsr_prompt(text, char_limit=120000)
+    result = await llm_call(prompt, system=BRSR_SYSTEM_PROMPT, task_id=tag)
 
-    if result["error"]:
-        print(f"ERROR: LLM Router error: {result['error']}", file=sys.stderr)
-        return None
-
-    raw = result["text"].strip()
-    if raw.startswith("```json"): raw = raw[7:]
-    elif raw.startswith("```"): raw = raw[3:]
-    if raw.endswith("```"): raw = raw[:-3]
-
-    try:
-        data = json.loads(raw.strip())
-    except json.JSONDecodeError:
-        print(f"ERROR: Failed to parse LLM JSON: {raw[:300]}", file=sys.stderr)
-        return None
-
-    # Coerce numeric values
+    data = None
+    if not result["error"] and result["text"]:
+        data = _parse_json_robust(result["text"])
+        if data:
+            print(f"INFO: Pass 1 success via {result['provider_used']}", file=sys.stderr)
+    
+    if not data:
+        print(f"WARNING: Pass 1 failed ({result.get('error', 'parse error')}), trying chunked pass", file=sys.stderr)
+        data = {"reporting_year": None, "metrics": {f: None for f in METRIC_FIELDS}, "reported_total_emissions": None}
+    
+    # Check how many metrics were extracted
     metrics = data.get("metrics", {})
-    for field in ["scope_1", "scope_2", "scope_3", "energy_consumption", 
-                  "water_withdrawal", "waste_generated", "renewable_energy_pct", "women_workforce_pct",
-                  "rd_spend_sustainability", "net_zero_target_year", "employee_turnover_rate",
-                  "median_remuneration", "posh_complaints", "ltifr", "training_hours_per_employee",
-                  "csr_spend", "local_sourcing_pct", "trade_associations_count", "anti_competitive_fines",
-                  "customer_complaints", "data_breach_incidents"]:
+    null_count = sum(1 for f in METRIC_FIELDS if metrics.get(f) is None)
+    total_metrics = len(METRIC_FIELDS)
+    extraction_rate = (total_metrics - null_count) / total_metrics
+    
+    print(f"INFO: Pass 1 extraction rate: {extraction_rate*100:.0f}% ({total_metrics - null_count}/{total_metrics} metrics)", file=sys.stderr)
+    
+    # === PASS 2: Chunked extraction if needed ===
+    if extraction_rate < 0.5:
+        print(f"INFO: Pass 2 — Chunked extraction (extraction rate too low)", file=sys.stderr)
+        
+        # Split text into 3 overlapping chunks
+        text_len = len(text)
+        chunk_size = min(60000, text_len // 2)
+        chunks = []
+        
+        if text_len <= chunk_size:
+            chunks = [text]
+        else:
+            # Beginning, middle, end with overlap
+            chunks.append(text[:chunk_size])
+            mid_start = max(0, (text_len // 2) - (chunk_size // 2))
+            chunks.append(text[mid_start:mid_start + chunk_size])
+            chunks.append(text[max(0, text_len - chunk_size):])
+        
+        for ci, chunk in enumerate(chunks):
+            chunk_prompt = build_brsr_prompt(chunk, char_limit=60000)
+            chunk_result = await llm_call(chunk_prompt, system=BRSR_SYSTEM_PROMPT, task_id=f"{tag}_chunk{ci}")
+            
+            if not chunk_result["error"] and chunk_result["text"]:
+                chunk_data = _parse_json_robust(chunk_result["text"])
+                if chunk_data and "metrics" in chunk_data:
+                    metrics = _merge_metrics(metrics, chunk_data["metrics"])
+                    if data.get("reporting_year") is None and chunk_data.get("reporting_year"):
+                        data["reporting_year"] = chunk_data["reporting_year"]
+                    if data.get("reported_total_emissions") is None and chunk_data.get("reported_total_emissions") is not None:
+                        data["reported_total_emissions"] = chunk_data["reported_total_emissions"]
+                    print(f"INFO: Chunk {ci+1}/{len(chunks)} added metrics via {chunk_result['provider_used']}", file=sys.stderr)
+            
+            await asyncio.sleep(1)  # Small delay between chunk calls
+        
+        data["metrics"] = metrics
+        
+        final_null = sum(1 for f in METRIC_FIELDS if metrics.get(f) is None)
+        final_rate = (total_metrics - final_null) / total_metrics
+        print(f"INFO: Pass 2 final extraction rate: {final_rate*100:.0f}% ({total_metrics - final_null}/{total_metrics} metrics)", file=sys.stderr)
+
+    # Coerce all values to proper floats
+    for field in METRIC_FIELDS:
         metrics[field] = coerce_float(metrics.get(field), field)
     
     data["metrics"] = metrics
@@ -142,22 +383,24 @@ def calculate_peer_baselines(sector: str) -> dict:
     try:
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN s1 IS NOT NULL THEN 1 ELSE 0 END) as s1,
-                SUM(CASE WHEN s2 IS NOT NULL THEN 1 ELSE 0 END) as s2,
-                SUM(CASE WHEN s3 IS NOT NULL THEN 1 ELSE 0 END) as s3,
-                SUM(CASE WHEN energy_consumption IS NOT NULL THEN 1 ELSE 0 END) as en,
-                SUM(CASE WHEN water_withdrawal IS NOT NULL THEN 1 ELSE 0 END) as ww,
-                SUM(CASE WHEN waste_generated IS NOT NULL THEN 1 ELSE 0 END) as wg,
-                SUM(CASE WHEN renewable_energy_pct IS NOT NULL THEN 1 ELSE 0 END) as re
-            FROM companies WHERE sector = %s
-        """, (sector,))
-        
-        row = cursor.fetchone()
-        cursor.close()
-        conn.close()
+        try:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN s1 IS NOT NULL THEN 1 ELSE 0 END) as s1,
+                    SUM(CASE WHEN s2 IS NOT NULL THEN 1 ELSE 0 END) as s2,
+                    SUM(CASE WHEN s3 IS NOT NULL THEN 1 ELSE 0 END) as s3,
+                    SUM(CASE WHEN energy_consumption IS NOT NULL THEN 1 ELSE 0 END) as en,
+                    SUM(CASE WHEN water_withdrawal IS NOT NULL THEN 1 ELSE 0 END) as ww,
+                    SUM(CASE WHEN waste_generated IS NOT NULL THEN 1 ELSE 0 END) as wg,
+                    SUM(CASE WHEN renewable_energy_pct IS NOT NULL THEN 1 ELSE 0 END) as re
+                FROM companies WHERE sector = %s
+            """, (sector,))
+            
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
 
         if row and row[0] > 0:
             total = float(row[0])

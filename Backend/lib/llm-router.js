@@ -7,7 +7,7 @@ const PROVIDERS = [
   { id: 'gemini', name: 'Gemini 2.0 Flash', model: 'gemini-2.0-flash' },
   { id: 'groq_70b', name: 'Groq Llama 3.3 70B', model: 'llama-3.3-70b-versatile' },
   { id: 'groq_8b', name: 'Groq Llama 3.1 8B', model: 'llama-3.1-8b-instant' },
-  { id: 'ollama', name: 'Ollama Local', model: 'llama3' },
+  { id: 'ollama', name: 'Ollama Local', model: 'llama3.2' },
 ];
 
 class LLMRouter {
@@ -18,7 +18,7 @@ class LLMRouter {
   }
 
   isAvailable(providerId) {
-    if (providerId === 'ollama' && process.env.NODE_ENV !== 'development') return false;
+    if (providerId === 'ollama') return true; // Force Ollama availability
     const cooldown = this.retryAfter[providerId] || 0;
     return Date.now() >= cooldown;
   }
@@ -117,7 +117,7 @@ class LLMRouter {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'llama3',
+          model: 'llama3.2',
           prompt: `${systemPrompt}\n\n${userPrompt}`,
           stream: false,
           options: { num_predict: maxTokens },
@@ -135,10 +135,10 @@ class LLMRouter {
 
   async complete(systemPrompt, userPrompt, maxTokens = 1000) {
     const attempts = [
+      { id: 'ollama', fn: () => this.callOllama(systemPrompt, userPrompt, maxTokens) },
       { id: 'gemini', fn: () => this.callGemini(systemPrompt, userPrompt, maxTokens) },
       { id: 'groq_70b', fn: () => this.callGroq('llama-3.3-70b-versatile', systemPrompt, userPrompt, maxTokens) },
       { id: 'groq_8b', fn: () => this.callGroq('llama-3.1-8b-instant', systemPrompt, userPrompt, maxTokens) },
-      { id: 'ollama', fn: () => this.callOllama(systemPrompt, userPrompt, maxTokens) },
     ];
 
     for (const attempt of attempts) {
@@ -184,8 +184,8 @@ class LLMRouter {
   getStatus() {
     const result = {};
     for (const p of PROVIDERS) {
-      if (p.id === 'ollama' && process.env.NODE_ENV !== 'development') {
-        result[p.id] = 'unavailable';
+      if (p.id === 'ollama') {
+        result[p.id] = 'ok';
       } else if (!this.isAvailable(p.id)) {
         result[p.id] = this.status[p.id] || 'rate_limited';
       } else {

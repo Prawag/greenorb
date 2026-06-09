@@ -92,7 +92,7 @@ def search_esg_urls(company_name: str) -> List[dict]:
         "starbucks": "https://stories.starbucks.com/uploads/2024/04/Starbucks-FY23-Global-Environmental-and-Social-Impact-Report.pdf",
         
         # Industrial
-        "3m": "https://multimedia.3m.com/mws/media/2345420O/3m-global-impact-report-2024.pdf",
+
         "caterpillar": "https://www.caterpillar.com/content/dam/caterpillarDotCom/social/sustainability/docs/Caterpillar-2023-ESG-Report.pdf",
         "honeywell": "https://www.honeywell.com/content/dam/honeywell/files/doc/Honeywell-2023-ESG-Report.pdf",
         "general electric": "https://www.ge.com/sites/default/files/ge2023_sustainability_report.pdf",

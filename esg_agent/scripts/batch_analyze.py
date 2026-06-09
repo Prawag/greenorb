@@ -30,6 +30,12 @@ def _ensure_chat_url(url: str) -> str:
 
 PROVIDERS = [
     {
+        "name": "Ollama (Local)",
+        "api_key": "ollama",
+        "url": "http://localhost:11434/v1/chat/completions",
+        "model": "llama3.2",
+    },
+    {
         "name": "Groq (Backend)",
         "api_key": os.getenv('GROQ_API_KEY') or os.getenv('LLM_API_KEY'),
         "url": _ensure_chat_url(os.getenv('LLM_BASE_URL', 'https://api.groq.com/openai/v1')),

@@ -31,7 +31,7 @@ class Provider(Enum):
     OLLAMA = "ollama"
 
 
-PROVIDER_CHAIN = [Provider.GROQ, Provider.OLLAMA]
+PROVIDER_CHAIN = [Provider.GEMINI, Provider.GROQ, Provider.OLLAMA]
 
 # ─── Rate-limit tracking ─────────────────────────────────────
 _rate_state = {
@@ -60,10 +60,12 @@ def _record_call(provider: Provider):
 
 # ─── Provider-specific callers ────────────────────────────────
 async def _call_gemini(prompt: str, system: str) -> str:
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is missing")
     import requests
     body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
     }
     if system:
         body["systemInstruction"] = {"parts": [{"text": system}]}
@@ -101,6 +103,8 @@ CRITICAL EXTRACTION RULES:
 """
 
 async def _call_groq(prompt: str, system: str) -> str:
+    if not GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY is missing")
     import requests
     messages = []
     
@@ -149,10 +153,10 @@ async def _call_ollama(prompt: str, system: str) -> str:
         asyncio.to_thread(
             requests.post,
             OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "prompt": full_prompt, "stream": False},
-            timeout=180
+            json={"model": OLLAMA_MODEL, "prompt": full_prompt, "stream": False, "format": "json", "options": {"num_ctx": 32768}},
+            timeout=300
         ),
-        timeout=200.0
+        timeout=320.0
     )
     if response.status_code != 200:
         raise RuntimeError(f"Ollama HTTP {response.status_code}")

@@ -3,10 +3,8 @@ import { Rw, Dot, M } from "./primitives";
 
 const NAV_ITEMS = [
     { key: "esg", label: "ESG Explorer" },
-    { key: "intel", label: "Company Intel" },
     { key: "compare", label: "Compare" },
     { key: "audit", label: "AI Auditor" },
-    { key: "facilities", label: "Facilities" },
     { key: "indore", label: "Smart Cities" },
 ];
 

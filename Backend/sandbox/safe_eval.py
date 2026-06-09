@@ -68,16 +68,36 @@ def coerce_float(value: Any, field_name: str = "") -> float | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
-        v = float(value)
-        return None if v == 0.0 else v   # Treat 0 from LLM as missing, not zero
+        return float(value)  # Zero IS a valid ESG value (e.g., 0 data breaches)
     cleaned = str(value).strip()
     if cleaned.lower() in ("", "n/a", "not disclosed", "not available",
                             "nil", "none", "-", "–", "not reported", "nr",
                             "nd", "unknown"):
         return None
-    # Strip non-numeric characters except decimal point and minus
-    numeric = re.sub(r"[^\d.\-]", "", cleaned.replace(",", ""))
+    # Find the first number-like string (handles ranges by stopping at the hyphen or space if it's not a minus sign)
+    match = re.search(r'-?\d+[\d,.]*', cleaned)
+    if not match:
+        return None
+        
+    num_str = match.group().strip()
+    
+    # Check if it's European format (e.g., "1.200,50")
+    last_comma = num_str.rfind(',')
+    last_dot = num_str.rfind('.')
+    
+    if last_comma > last_dot and last_comma != -1:
+        # European format: 1.200,50 -> 1200.50
+        num_str = num_str.replace('.', '').replace(',', '.')
+    else:
+        # US format: 1,200.50 -> 1200.50
+        num_str = num_str.replace(',', '')
+        
+    # If there are still multiple dots (e.g. "1.200.5" typo), keep only the last one
+    if num_str.count('.') > 1:
+        parts = num_str.rsplit('.', 1)
+        num_str = parts[0].replace('.', '') + '.' + parts[1]
+        
     try:
-        return float(numeric) if numeric else None
+        return float(num_str)
     except ValueError:
         return None

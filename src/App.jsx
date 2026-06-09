@@ -1,18 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
 import TopBar from "./components/TopBar";
 import AuditTab from "./tabs/AuditTab";
-import CompanyProfileTab from "./tabs/CompanyProfileTab";
+
 import ESGDataTab from "./tabs/ESGDataTab";
-import FacilitiesTab from "./tabs/FacilitiesTab";
 import CompareTab from "./tabs/CompareTab";
 import CityDashboard from "./tabs/CityDashboard";
 
 const TABS = [
     { key: "esg", Component: ESGDataTab },
-    { key: "intel", Component: CompanyProfileTab },
     { key: "compare", Component: CompareTab },
     { key: "audit", Component: AuditTab },
-    { key: "facilities", Component: FacilitiesTab },
     { key: "indore", Component: CityDashboard },
 ];
 

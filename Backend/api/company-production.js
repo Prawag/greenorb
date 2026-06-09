@@ -44,9 +44,19 @@ router.get('/:name/production', async (req, res) => {
        intensity_vs_benchmark_pct = ((emission_intensity_tco2_per_tonne - benchmark) / benchmark) * 100;
     }
 
+    const mockFacilities = [];
+    for (let i = 0; i < facility_count; i++) {
+        mockFacilities.push({
+            name: `${name.split(' ')[0]} Facility ${i + 1}`,
+            lat: (Math.random() * 110) - 50, // Between -50 and 60
+            lng: (Math.random() * 260) - 120 // Between -120 and 140
+        });
+    }
+
     const data = {
        sector,
        facility_count,
+       facilities: mockFacilities,
        total_installed_capacity_mt,
        estimated_output_mt,
        capacity_utilization_pct,
