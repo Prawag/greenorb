@@ -45,7 +45,7 @@ export default function mountDisastersProximity(app, sql) {
                 }
 
                 // 2. Coral Bleaching Alert2 (50km radius)
-                const alert2Corals = coralData.filter(d => d.alert_level === 'Alert2');
+                const alert2Corals = coralData.filter(d => d.alert_level === 'ALERT_LEVEL_2');
                 for (const act of alert2Corals) {
                     const dist = haversineDist(c.lat, c.lng, act.lat, act.lng);
                     if (dist <= 50) {

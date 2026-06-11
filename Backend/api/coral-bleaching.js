@@ -14,9 +14,16 @@ const REEF_ZONES = [
   { name: 'Gulf of Oman', lat: 23.5, lng: 58.5 }
 ];
 
+// Comprehensive fallback data so the UI always has something to render
 const FALLBACK_DATA = [
   { lat: -17.0, lng: 147.0, alert_level: 'NO_STRESS', dhw: 0, region_name: 'Great Barrier Reef' },
-  { lat: 24.5, lng: -81.5, alert_level: 'NO_STRESS', dhw: 0, region_name: 'Florida Keys' }
+  { lat: 24.5, lng: -81.5, alert_level: 'NO_STRESS', dhw: 0, region_name: 'Florida Keys' },
+  { lat: 4.2, lng: 73.5, alert_level: 'NO_STRESS', dhw: 0, region_name: 'Maldives' },
+  { lat: 20.5, lng: -157.0, alert_level: 'NO_STRESS', dhw: 0, region_name: 'Hawaii' },
+  { lat: 18.0, lng: -66.5, alert_level: 'NO_STRESS', dhw: 0, region_name: 'Caribbean - Puerto Rico' },
+  { lat: 22.0, lng: 38.5, alert_level: 'NO_STRESS', dhw: 0, region_name: 'Red Sea' },
+  { lat: -8.5, lng: 124.0, alert_level: 'NO_STRESS', dhw: 0, region_name: 'Coral Triangle' },
+  { lat: 23.5, lng: 58.5, alert_level: 'NO_STRESS', dhw: 0, region_name: 'Gulf of Oman' }
 ];
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -26,6 +33,48 @@ function getAlertLevel(dhw) {
   if (dhw > 0 && dhw < 4) return 'BLEACHING_WATCH';
   if (dhw >= 4 && dhw < 8) return 'ALERT_LEVEL_1';
   return 'ALERT_LEVEL_2';
+}
+
+/**
+ * Fetch a single reef zone with retry logic.
+ * Retries once on timeout/failure before giving up on that zone.
+ */
+async function fetchZoneWithRetry(zone, maxRetries = 1) {
+  const url = `https://coastwatch.pfeg.noaa.gov/erddap/griddap/nesdisVH5kmDhw.json?dhw[(last)][(${zone.lat})][(${zone.lng})]`;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(30000) }); // 30s timeout
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const json = await response.json();
+      const dhw = json.table?.rows?.[0]?.[0];
+      
+      if (dhw !== undefined && dhw !== null) {
+        const val = parseFloat(dhw);
+        return {
+          lat: zone.lat,
+          lng: zone.lng,
+          dhw: val,
+          alert_level: getAlertLevel(val),
+          region_name: zone.name
+        };
+      }
+      return null;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        // Wait before retry (exponential backoff: 2s, 4s, ...)
+        await sleep(2000 * (attempt + 1));
+        continue;
+      }
+      console.warn(`[coral] Fetch failed for ${zone.name} after ${maxRetries + 1} attempts: ${err.message}`);
+      return null;
+    }
+  }
+  return null;
 }
 
 export default function mountCoralBleaching(sql) {
@@ -44,36 +93,20 @@ export default function mountCoralBleaching(sql) {
     try {
       const results = [];
       
-      // Serialize requests (not parallel) to avoid ERDDAP IP throttling
-      for (const zone of REEF_ZONES) {
-        try {
-          // CRW 5km DHW dimensions: [time][lat][lon]
-          const url = `https://coastwatch.pfeg.noaa.gov/erddap/griddap/nesdisVH5kmDhw.json?dhw[(last)][(${zone.lat})][(${zone.lng})]`;
-          const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-          
-          if (!response.ok) {
-            console.warn(`[coral] ERDDAP HTTP ${response.status} for ${zone.name}`);
-            continue; 
-          }
-          
-          const json = await response.json();
-          // Structure: json.table.rows[0][0] = dhw value
-          const dhw = json.table?.rows?.[0]?.[0];
-          
-          if (dhw !== undefined && dhw !== null) {
-              const val = parseFloat(dhw);
-              results.push({
-                  lat: zone.lat,
-                  lng: zone.lng,
-                  dhw: val,
-                  alert_level: getAlertLevel(val),
-                  region_name: zone.name
-              });
-          }
-          
-          await sleep(500); // Add 500ms delay between each zone fetch
-        } catch (err) {
-            console.warn(`[coral] Fetch failed for ${zone.name}:`, err.message);
+      // Fetch zones in parallel batches of 3 to balance speed vs throttling
+      for (let i = 0; i < REEF_ZONES.length; i += 3) {
+        const batch = REEF_ZONES.slice(i, i + 3);
+        const batchResults = await Promise.all(
+          batch.map(zone => fetchZoneWithRetry(zone))
+        );
+        
+        for (const result of batchResults) {
+          if (result) results.push(result);
+        }
+        
+        // Small delay between batches to avoid throttling
+        if (i + 3 < REEF_ZONES.length) {
+          await sleep(1000);
         }
       }
 

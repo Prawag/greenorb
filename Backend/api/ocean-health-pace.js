@@ -21,7 +21,7 @@ export default function mountOceanHealthPace(sql) {
             // Query: latest time, all lats/lngs sampled every 10 points
             const query = '?chla[(last)][(0.0):10:(0.0)][(-180.0):10:(180.0)]';
             
-            const resp = await fetch(baseUrl + query);
+            const resp = await fetch(baseUrl + query, { signal: AbortSignal.timeout(30000) });
             if (!resp.ok) throw new Error(`ERDDAP Error: ${resp.status}`);
             
             const json = await resp.json();
