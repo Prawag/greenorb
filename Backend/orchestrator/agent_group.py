@@ -5,6 +5,158 @@ import time
 import argparse
 import base64
 import requests
+import asyncio
+import re
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
+from duckduckgo_search import DDGS
+
+def free_robust_pdf_search(company_name: str) -> str:
+    """
+    Finds the 2024 ESG PDF link for a company completely for free.
+    Uses DuckDuckGo's API client (no key required, no scraping).
+    """
+    query = f"{company_name} sustainability report 2024 filetype:pdf"
+    
+    # Try DuckDuckGo API first (Highly reliable, no CAPTCHAs)
+    try:
+        with DDGS() as ddgs:
+            # Fetch top 5 results safely
+            results = list(ddgs.text(query, max_results=5))
+            for result in results:
+                url = result.get('href', '')
+                # Prioritize direct PDFs or corporate URLs
+                if '.pdf' in url.lower() or 'company.com' in url or 'ir.' in url:
+                    return url
+            
+            # Fallback: Return the very first link found if no direct PDF match
+            if results:
+                return results[0].get('href')
+    except Exception as e:
+        print(f"⚠️ DuckDuckGo API limited or failed: {e}")
+        
+    # Final Fallback: If everything fails, construct a predictable fallback URL
+    # Many large corporations use standard investor relations patterns
+    domain_guess = company_name.lower().replace(" ", "")
+    print(f"🔮 Falling back to heuristic guess for {company_name}")
+    return f"https://www.{domain_guess}.com/sustainability"
+
+DOWNLOAD_DIR = "./downloaded_reports"
+STATIC_URL_BASE = "http://localhost:5000/downloaded_reports"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+def score_link(href: str, text: str) -> int:
+    """Scores a link based on how likely it is to be the 2024 ESG PDF."""
+    score = 0
+    href_lower = href.lower()
+    text_lower = text.lower()
+    
+    # Critical anchors
+    if ".pdf" in href_lower:
+        score += 50
+    if "sustainability" in href_lower or "sustainability" in text_lower:
+        score += 20
+    if "report" in href_lower or "report" in text_lower:
+        score += 20
+    if "2024" in href_lower or "2024" in text_lower:
+        score += 30
+    if "impact" in href_lower or "esg" in href_lower:
+        score += 15
+        
+    # Negative signals (skip archives, old years, or generic social links)
+    if any(yr in href_lower or yr in text_lower for yr in ["2020", "2021", "2022", "2023"]):
+        score -= 40
+    if "twitter" in href_lower or "linkedin" in href_lower or "privacy" in href_lower:
+        score -= 100
+        
+    return score
+
+async def crawl4ai_esg_downloader(target_url: str, filename: str) -> str:
+    """
+    Advanced ESG downloader. If the target URL is an HTML landing page,
+    it automatically hunts, scores, and downloads the best matching PDF link on that page.
+    """
+    file_path = os.path.join(DOWNLOAD_DIR, filename)
+    download_url_path = None
+
+    config = CrawlerRunConfig(
+        cache_mode=CacheMode.BYPASS,
+        wait_for_images=False,
+    )
+
+    async with AsyncWebCrawler() as crawler:
+        # Hook into before_goto to manage responses and direct PDF downloads
+        async def on_before_goto(page, context, **kwargs):
+            # Intercept native browser download streams
+            page.on("download", lambda download: asyncio.create_task(save_download(download)))
+            
+            # Catch raw incoming network traffic serving a PDF
+            async def handle_response(response):
+                nonlocal download_url_path
+                if response.status == 200 and "application/pdf" in response.headers.get("content-type", "").lower():
+                    try:
+                        content = await response.body()
+                        with open(file_path, "wb") as f:
+                            f.write(content)
+                        download_url_path = f"{STATIC_URL_BASE}/{filename}"
+                    except Exception:
+                        pass
+
+            page.on("response", handle_response)
+
+        async def save_download(download):
+            nonlocal download_url_path
+            await download.save_as(file_path)
+            download_url_path = f"{STATIC_URL_BASE}/{filename}"
+
+        crawler.crawler_strategy.set_hook("before_goto", on_before_goto)
+
+        try:
+            print(f"🔍 Crawl4AI analyzing: {target_url}")
+            result = await crawler.arun(url=target_url, config=config)
+            
+            # If the direct stream catch worked, we are done!
+            if download_url_path:
+                return download_url_path
+
+            # --- PHASE 2: SMART LINK HUNTING ---
+            # If no direct PDF stream was caught, treat the page as an HTML Hub/Landing Page
+            if result.success and result.html:
+                print("📋 URL resolved to an HTML page. Commencing deep Link Hunting...")
+                soup = BeautifulSoup(result.html, "html.parser")
+                best_link = None
+                highest_score = -100
+                
+                # Scan every single anchor tag on the corporate portal
+                for a_tag in soup.find_all("a", href=True):
+                    href = a_tag["href"]
+                    link_text = a_tag.get_text(strip=True)
+                    
+                    # Resolve relative URLs (e.g., /assets/report.pdf -> https://microsoft.com)
+                    absolute_url = urljoin(target_url, href)
+                    
+                    # Calculate relevance
+                    current_score = score_link(absolute_url, link_text)
+                    
+                    if current_score > highest_score:
+                        highest_score = current_score
+                        best_link = absolute_url
+
+                # Threshold to ensure we don't randomly click a garbage link
+                if best_link and highest_score > 30:
+                    print(f"🎯 Best candidate discovered (Score {highest_score}): {best_link}")
+                    print("🚀 Re-routing Crawl4AI loop into discovered target...")
+                    
+                    # Recursively fetch the actual PDF link discovered
+                    return await crawl4ai_esg_downloader(best_link, filename)
+                else:
+                    print("❌ No high-probability PDF links discovered on this landing page.")
+
+        except Exception as e:
+            print(f"⚠️ Crawl4AI error during extraction loop: {str(e)}")
+
+    return download_url_path
 
 # Set stdout/stderr to configure UTF-8 to prevent windows-based terminal encoding errors
 if hasattr(sys.stdout, 'reconfigure'):
@@ -49,23 +201,25 @@ class AgentGroup:
         """Updates overall run state in the Express backend."""
         if not self.run_id:
             return
-        try:
-            payload = {
-                "runId": int(self.run_id),
-                "status": status
-            }
-            if error_message:
-                payload["errorMessage"] = error_message
-            if verification_path:
-                payload["verificationPath"] = verification_path
+            
+        payload = {"runId": int(self.run_id), "status": status}
+        if error_message:
+            payload["errorMessage"] = error_message
+        if verification_path:
+            payload["verificationPath"] = verification_path
 
-            requests.post(
-                f"{self.backend_url}/api/internal/agents/update-run",
-                json=payload,
-                timeout=5
-            )
+        try:
+            requests.post(f"{self.backend_url}/api/internal/agents/update-run-status", json=payload, timeout=5)
         except Exception as e:
-            print(f"⚠️ Internal status update failed: {e}")
+            print(f"⚠️ Internal update-run-status failed: {e}")
+
+    def get_data_file_path(self):
+        """Finds data.json relative to the current working directory."""
+        cwd = os.getcwd()
+        if os.path.basename(cwd) == "Backend":
+            return os.path.join(cwd, "data.json")
+        else:
+            return os.path.join(cwd, "Backend", "data.json")
 
     def generate_verification_screenshot(self, company_name):
         """Generates a visual crop graphic representing the failed page element."""
@@ -113,24 +267,34 @@ class AgentGroup:
         # 1. SCOUT AGENT (Discovery)
         # ----------------------------------------------------
         self.log(f"🔍 Scout Agent: Starting ESG report discovery for '{self.company}'...", "scout")
-        time.sleep(3)
         
-        self.log("🔍 Scout Agent: Scanning regional carbon report registries...", "scout")
-        time.sleep(2)
-
         # Determine if we should mock a verification failure path
-        # If the company has "verify", "fail", "critical", or "isolation" in the name, trigger human validation!
         is_verification_test = any(kw in self.company.lower() for kw in ["verify", "fail", "critical", "isolation"])
         
         pdf_filename = f"{self.company.lower().replace(' ', '_')}_sustainability_report_2024.pdf"
+        
+        self.log(f"🔍 Scout Agent: Searching web for '{self.company} sustainability report 2024 filetype:pdf'...", "scout")
+        try:
+            target_url = free_robust_pdf_search(self.company)
+
+            if target_url:
+                self.log(f"✅ Scout Agent: Found target URL: {target_url}", "scout", "success")
+                self.log(f"📥 Scout Agent: Initializing Crawl4AI to bypass anti-bot and download PDF...", "scout")
+                
+                # Execute the async downloader in the synchronous run() function
+                download_url_path = asyncio.run(crawl4ai_esg_downloader(target_url, pdf_filename))
+                
+                if download_url_path:
+                    self.log(f"📂 Scout Agent: Report successfully cached at: '{download_url_path}'", "scout", "success")
+                else:
+                    self.log(f"❌ Scout Agent: Failed to extract PDF from {target_url}.", "scout")
+            else:
+                self.log(f"❌ Scout Agent: No PDF links found for {self.company}.", "scout")
+        except Exception as e:
+            self.log(f"❌ Scout Agent: Search/Download error: {str(e)}", "scout")
+            
+        # Fallback to local path for the rest of the mock pipeline
         local_pdf_path = f"./downloaded_reports/{pdf_filename}"
-        
-        self.log(f"✅ Scout Agent: ESG PDF Report discovered at official domain.", "scout", "success")
-        self.log(f"📥 Scout Agent: Downloading report file directly to disk...", "scout")
-        time.sleep(2.5)
-        
-        self.log(f"📂 Scout Agent: Report successfully cached at: '{local_pdf_path}'", "scout", "success")
-        time.sleep(1.5)
 
         # ----------------------------------------------------
         # 2. ANALYST AGENT (Diligence)
