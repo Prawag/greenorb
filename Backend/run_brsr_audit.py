@@ -424,7 +424,8 @@ def verify_scope2_with_grid(country: str, reported_scope2: float, reported_energ
         return None
 
     try:
-        r = requests.get("http://localhost:5000/api/globe/grid", timeout=5)
+        _api_base = os.environ.get('INTERNAL_API_BASE', 'http://localhost:5000')
+        r = requests.get(f"{_api_base}/api/globe/grid", timeout=5)
         grid_data = r.json().get("data", [])
         
         country_grid = next(

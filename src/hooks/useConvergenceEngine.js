@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { API_BASE } from '../utils.js';
 
 export function useConvergenceEngine({ companies, fires, airQuality, disasters = [] }) {
   const [alerts, setAlerts]     = useState([]);
@@ -15,7 +16,7 @@ export function useConvergenceEngine({ companies, fires, airQuality, disasters =
         // Dispatch to backend to persist physical proximity alerts to DB
         const physicalAlerts = data.alerts.filter(a => a.signals.some(s => s.type === 'PHYSICAL_PROXIMITY_ALERT'));
         if (physicalAlerts.length > 0) {
-            fetch('http://localhost:5000/api/disasters-proximity', {
+            fetch(`${API_BASE}/disasters-proximity`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ alerts: physicalAlerts })

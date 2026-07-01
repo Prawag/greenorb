@@ -19,7 +19,8 @@ import fitz  # PyMuPDF
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s"
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-API_BASE = "http://localhost:5000/api"
+INTERNAL_API_BASE = os.environ.get('INTERNAL_API_BASE', 'http://localhost:5000')
+API_BASE = f"{INTERNAL_API_BASE}/api"
 RAW_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "RawData", "ESG_Reports")
 PROCESSED_DIR = os.path.join(RAW_DATA_DIR, "Processed")
 

@@ -43,7 +43,8 @@ def free_robust_pdf_search(company_name: str) -> str:
     return f"https://www.{domain_guess}.com/sustainability"
 
 DOWNLOAD_DIR = "./downloaded_reports"
-STATIC_URL_BASE = "http://localhost:5000/downloaded_reports"
+INTERNAL_API_BASE = os.environ.get('INTERNAL_API_BASE', 'http://localhost:5000')
+STATIC_URL_BASE = f"{INTERNAL_API_BASE}/downloaded_reports"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 def score_link(href: str, text: str) -> int:
@@ -83,6 +84,7 @@ async def crawl4ai_esg_downloader(target_url: str, filename: str) -> str:
     config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
         wait_for_images=False,
+        page_timeout=30000,
     )
 
     async with AsyncWebCrawler() as crawler:
@@ -165,7 +167,9 @@ if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8')
 
 class AgentGroup:
-    def __init__(self, company, run_id=None, backend_url="http://localhost:5000"):
+    def __init__(self, company, run_id=None, backend_url=None):
+        if backend_url is None:
+            backend_url = os.environ.get('INTERNAL_API_BASE', 'http://localhost:5000')
         self.company = company
         self.run_id = run_id
         self.backend_url = backend_url

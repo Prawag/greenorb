@@ -6,6 +6,7 @@ import { useConvergenceEngine } from '../hooks/useConvergenceEngine';
 import { Bdg, M, Rw } from '../components/primitives';
 import { TimelineScrubber } from '../components/TimelineScrubber';
 import { latLngToCell, cellToLatLng } from 'h3-js';
+import { API_BASE } from '../utils.js';
 import './GlobeTab.css';
 
 // ─── Debounce utility ─────────────────────────────────────────────────────────
@@ -789,7 +790,7 @@ export default function GlobeTab({ setTab }) {
 
         const initWaterStress = async () => {
             try {
-                const res = await fetch('http://localhost:5000/api/water-stress');
+                const res = await fetch(`${API_BASE}/water-stress`);
                 const json = await res.json();
                 const basins = json.data;
                 if (!basins || basins.length === 0) {

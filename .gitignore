@@ -27,3 +27,5 @@ esg_agent/**/__pycache__/
 
 # Stitch Skills (cloned repo)
 stitch-skills/
+downloaded_reports/
+venv/

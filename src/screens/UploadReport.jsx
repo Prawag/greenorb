@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const API = "http://localhost:5000";
+import { API_SERVER as API } from "../utils.js";
 
 const PIPELINE_STEPS = [
   {
@@ -49,7 +49,10 @@ export default function UploadReport() {
     try {
       const res = await fetch(`${API}/api/crawl`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-internal-key": import.meta.env.VITE_INTERNAL_API_KEY || ""
+        },
         body: JSON.stringify({ url: url.trim() }),
       });
 

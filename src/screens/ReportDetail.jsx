@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-const API = "http://localhost:5000";
+import { API_SERVER as API } from "../utils.js";
 
 function fmtCO2(val) {
   if (val == null || val === "") return "—";

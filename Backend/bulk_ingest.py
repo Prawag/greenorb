@@ -7,7 +7,8 @@ import fitz  # PyMuPDF
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s"
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-API_URL = "http://localhost:5000/api/scout"
+INTERNAL_API_BASE = os.environ.get('INTERNAL_API_BASE', 'http://localhost:5000')
+API_URL = f"{INTERNAL_API_BASE}/api/scout"
 RAW_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "RawData")
 
 PROMPT = """You are a highly precise data extraction AI. Read the following text and extract ANY companies mentioned along with their sector, country, and main products/services/focus.

@@ -1,13 +1,15 @@
 const http = require('http');
 
+const INTERNAL_API_BASE = process.env.INTERNAL_API_BASE || 'http://localhost:5000';
+
 const endpoints = [
-  'http://localhost:5000/api/globe/companies',
-  'http://localhost:5000/api/sentinel-5p',
-  'http://localhost:5000/api/water-stress',
-  'http://localhost:5000/api/coral-bleaching',
-  'http://localhost:5000/api/globe/assets',
-  'http://localhost:5000/api/biodiversity',
-  'http://localhost:5000/api/globe/air-quality'
+  `${INTERNAL_API_BASE}/api/globe/companies`,
+  `${INTERNAL_API_BASE}/api/sentinel-5p`,
+  `${INTERNAL_API_BASE}/api/water-stress`,
+  `${INTERNAL_API_BASE}/api/coral-bleaching`,
+  `${INTERNAL_API_BASE}/api/globe/assets`,
+  `${INTERNAL_API_BASE}/api/biodiversity`,
+  `${INTERNAL_API_BASE}/api/globe/air-quality`
 ];
 
 async function verify() {

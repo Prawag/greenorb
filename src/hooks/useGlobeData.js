@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LAYERS } from '../config/layers.config';
 
-const API_BASE = 'http://localhost:5000';
+import { API_SERVER as API_BASE } from '../utils.js';
 
 class GlobeDataStore {
   constructor() {

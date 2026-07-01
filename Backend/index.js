@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 import { neon } from '@neondatabase/serverless';
 import { execFile } from 'child_process';
 import path from 'path';
+import { URL } from 'url';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import NodeCache from 'node-cache';
 import cron from 'node-cron';
 import { existsSync, mkdirSync, readFileSync } from 'fs';
@@ -91,7 +94,39 @@ if (!process.env.DATABASE_URL) {
 
 const sql = neon(process.env.DATABASE_URL);
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGIN?.split(',') || 'http://localhost:5173',
+  credentials: true
+}));
+
+app.use(helmet());
+
+const generalLimiter = rateLimit({ windowMs: 60 * 1000, max: 60 });
+app.use(generalLimiter);
+
+const llmLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
+app.use(['/api/ask', '/api/scout', '/api/analyze', '/api/risk', '/api/strategy', '/api/embeddings'], llmLimiter);
+
+function requireInternalKey(req, res, next) {
+  const key = req.headers['x-internal-key'];
+  if (key !== process.env.INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+function isUrlAllowed(urlString) {
+  try {
+    const url = new URL(urlString);
+    if (!['http:', 'https:'].includes(url.protocol)) return false;
+    const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254'];
+    if (blockedHosts.includes(url.hostname)) return false;
+    if (url.hostname.startsWith('10.') || url.hostname.startsWith('192.168.') || url.hostname.startsWith('172.')) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/audit_failures', express.static(path.join(process.cwd(), 'audit_failures')));
@@ -107,7 +142,7 @@ app.get('/api/llm/status', llmStatus);
 // ==========================================
 mountSatelliteVerify(app);
 
-app.post('/api/brsr/ingest', async (req, res) => {
+app.post('/api/brsr/ingest', requireInternalKey, async (req, res) => {
     try {
         const results = await runBrsrIngestion(sql);
         res.json(results);
@@ -353,7 +388,7 @@ app.get('/api/esg/companies', async (req, res) => {
 });
 
 // POST Scout data
-app.post('/api/scout', async (req, res) => {
+app.post('/api/scout', requireInternalKey, async (req, res) => {
     const { name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year } = req.body;
     if (!name || typeof name !== 'string' || name.trim() === '') {
         return res.status(400).json({ error: "Valid company name is required" });
@@ -383,7 +418,7 @@ app.post('/api/scout', async (req, res) => {
 });
 
 // POST Analyst data
-app.post('/api/analyze', async (req, res) => {
+app.post('/api/analyze', requireInternalKey, async (req, res) => {
     const { company, score, e_score, s_score, g_score, trend, peer, strengths, weaknesses, recommendation } = req.body;
     try {
         await sql`
@@ -407,7 +442,7 @@ app.post('/api/analyze', async (req, res) => {
 });
 
 // POST Risk data
-app.post('/api/risk', async (req, res) => {
+app.post('/api/risk', requireInternalKey, async (req, res) => {
     const { company, greenwash, reg_risk, climate_exp, data_quality, red_flags, compliance } = req.body;
     try {
         await sql`
@@ -428,7 +463,7 @@ app.post('/api/risk', async (req, res) => {
 });
 
 // POST Strategy data
-app.post('/api/strategy', async (req, res) => {
+app.post('/api/strategy', requireInternalKey, async (req, res) => {
     const { company, action, confidence, rationale, price_impact, catalyst, timeline } = req.body;
     try {
         await sql`
@@ -449,7 +484,7 @@ app.post('/api/strategy', async (req, res) => {
 });
 
 // POST Vector Embeddings
-app.post('/api/embeddings', async (req, res) => {
+app.post('/api/embeddings', requireInternalKey, async (req, res) => {
     const { company_name, content, embedding, page_number, report_year, metadata, is_first_chunk } = req.body;
     if (!Array.isArray(embedding)) {
         return res.status(400).json({ error: "Valid embedding array is required" });
@@ -474,7 +509,7 @@ app.post('/api/embeddings', async (req, res) => {
 });
 
 // POST Ask a question about a company (RAG)
-app.post('/api/ask', async (req, res) => {
+app.post('/api/ask', requireInternalKey, async (req, res) => {
     const { company, question } = req.body;
     if (!company || !question) return res.status(400).json({ error: "Company and question are required" });
 
@@ -539,11 +574,15 @@ ${context}`;
 });
 
 // POST Crawl URL using Crawl4AI Python script
-app.post('/api/crawl', (req, res) => {
+app.post('/api/crawl', requireInternalKey, (req, res) => {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: "URL is required" });
+    if (!isUrlAllowed(url)) return res.status(400).json({ error: 'URL not allowed: blocked host or protocol' });
 
-    const pythonPath = path.join(process.cwd(), 'venv', 'Scripts', 'python.exe');
+    const isWindows = process.platform === 'win32';
+    const pythonPath = process.env.PYTHON_PATH || (isWindows
+      ? path.join(process.cwd(), 'venv', 'Scripts', 'python.exe')
+      : path.join(process.cwd(), 'venv', 'bin', 'python'));
     const scriptPath = path.join(process.cwd(), 'crawler.py');
 
     execFile(pythonPath, [scriptPath, url], { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
@@ -604,7 +643,7 @@ app.get('/api/emissions/globe-points', async (req, res) => {
 });
 
 // ─── Verdict submission (human-in-the-loop) ───────────────
-app.post('/api/verdicts', async (req, res) => {
+app.post('/api/verdicts', requireInternalKey, async (req, res) => {
     const { auditId, verdict, company } = req.body;
     console.log(`[Verdicts] ${company || auditId}: ${verdict}`);
     // In production: write to audit_results table
@@ -731,7 +770,10 @@ async function launchAgentGroup(companyName) {
     const runId = run.id;
 
     // Path to Python virtual environment
-    const pythonPath = path.join(process.cwd(), 'venv', 'Scripts', 'python.exe');
+    const isWindows = process.platform === 'win32';
+    const pythonPath = process.env.PYTHON_PATH || (isWindows
+      ? path.join(process.cwd(), 'venv', 'Scripts', 'python.exe')
+      : path.join(process.cwd(), 'venv', 'bin', 'python'));
     const scriptPath = path.join(process.cwd(), 'orchestrator', 'agent_group.py');
 
     console.log(`[agents/run] Spawning Agent Group for ${companyName} (Run ID: ${runId})`);
@@ -775,7 +817,7 @@ async function launchAgentGroup(companyName) {
 }
 
 // POST trigger a new agent group run for a company (async background job)
-app.post('/api/agents/run', async (req, res) => {
+app.post('/api/agents/run', requireInternalKey, async (req, res) => {
     const { companyName } = req.body;
     if (!companyName) return res.status(400).json({ error: 'companyName is required' });
 
@@ -789,7 +831,7 @@ app.post('/api/agents/run', async (req, res) => {
 });
 
 // POST submit a human override verification value
-app.post('/api/agents/verify', async (req, res) => {
+app.post('/api/agents/verify', requireInternalKey, async (req, res) => {
     const { runId, value } = req.body;
     if (!runId || value === undefined) return res.status(400).json({ error: 'runId and value are required' });
 
@@ -822,7 +864,7 @@ app.post('/api/agents/verify', async (req, res) => {
 });
 
 // POST internal update endpoint used by Python scripts to update running state
-app.post('/api/internal/agents/update-run', async (req, res) => {
+app.post('/api/internal/agents/update-run', requireInternalKey, async (req, res) => {
     const { runId, status, currentStep, logEntry, errorMessage, verificationPath } = req.body;
     if (!runId) return res.status(400).json({ error: 'runId is required' });
 

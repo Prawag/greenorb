@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-const API_BASE = "http://localhost:5000";
+import { API_SERVER as API_BASE } from "../utils.js";
 
 export default function AuditFlags({ onSelectCompany }) {
   const [data, setData] = useState([]);

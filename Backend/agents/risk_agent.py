@@ -1,4 +1,7 @@
+import os
 from orchestrator.state import AgentState
+
+INTERNAL_API_BASE = os.environ.get('INTERNAL_API_BASE', 'http://localhost:5000')
 from sandbox.safe_eval import safe_eval
 
 def verify_scope2_with_grid(state: dict) -> dict:
@@ -18,7 +21,7 @@ def verify_scope2_with_grid(state: dict) -> dict:
     try:
         import httpx
         with httpx.Client(timeout=10) as client:
-            r = client.get(f"http://localhost:5000/api/globe/grid")
+            r = client.get(f"{INTERNAL_API_BASE}/api/globe/grid")
             grid_data = r.json().get("data", [])
 
         # Find matching zone
