@@ -86,7 +86,7 @@ pillow==12.1.1
 playwright==1.58.0
 pluggy==1.6.0
 polyfactory==3.3.0
-primp==1.1.2
+primp
 propcache==0.4.1
 psutil==7.2.2
 psycopg2-binary==2.9.12
