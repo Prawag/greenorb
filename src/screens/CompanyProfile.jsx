@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 import { API_SERVER as API } from "../utils.js";
+import FALLBACK_COMPANIES from "../data/fallbackData.js";
 
 function scoreColor(val) {
   if (val == null) return "";
@@ -119,12 +120,19 @@ export default function CompanyProfile({ companyId, onSelectReport, onBack }) {
         return r.json();
       })
       .then((data) => {
-        const match = data.find(
+        const sourceData = Array.isArray(data) && data.length > 0 ? data : FALLBACK_COMPANIES;
+        const match = sourceData.find(
           (c) => c.name && c.name.toLowerCase() === companyId.toLowerCase()
         );
         setCompany(match || null);
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => {
+        const match = FALLBACK_COMPANIES.find(
+          (c) => c.name && c.name.toLowerCase() === companyId.toLowerCase()
+        );
+        setCompany(match || null);
+        setError(e.message);
+      })
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -150,18 +158,7 @@ export default function CompanyProfile({ companyId, onSelectReport, onBack }) {
     );
   }
 
-  if (error) {
-    return (
-      <div style={{ padding: 48 }}>
-        <button className="go-btn go-btn-ghost" onClick={onBack}>
-          ← Back to Directory
-        </button>
-        <div className="go-status go-status-error" style={{ marginTop: 24 }}>
-          Failed to load data: {error}
-        </div>
-      </div>
-    );
-  }
+
 
   if (!company) {
     return (
@@ -206,6 +203,12 @@ export default function CompanyProfile({ companyId, onSelectReport, onBack }) {
       >
         ← Back to Directory
       </button>
+
+      {error && (
+        <div className="go-status go-status-error" style={{ marginBottom: 24, backgroundColor: 'var(--bg-hover)', color: 'var(--ink)', border: '1px solid var(--semantic-warn)' }}>
+          ⚠ Using offline data (API unreachable)
+        </div>
+      )}
 
       {/* Company header */}
       <div className="go-card" style={{ marginBottom: 24 }}>

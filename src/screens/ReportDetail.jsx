@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 import { API_SERVER as API } from "../utils.js";
+import FALLBACK_COMPANIES from "../data/fallbackData.js";
 
 function fmtCO2(val) {
   if (val == null || val === "") return "—";
@@ -29,8 +30,11 @@ export default function ReportDetail({ reportId, onSelectReport, onBack }) {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((d) => setData(d))
-      .catch((e) => setError(e.message))
+      .then((d) => setData(Array.isArray(d) && d.length > 0 ? d : FALLBACK_COMPANIES))
+      .catch((e) => {
+        setData(FALLBACK_COMPANIES);
+        setError(e.message);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -56,19 +60,7 @@ export default function ReportDetail({ reportId, onSelectReport, onBack }) {
     );
   }
 
-  // --- Error ---
-  if (error) {
-    return (
-      <div style={{ padding: 48 }}>
-        <button className="go-btn go-btn-ghost" onClick={onBack}>
-          ← Back
-        </button>
-        <div className="go-status go-status-error" style={{ marginTop: 24 }}>
-          Failed to load data: {error}
-        </div>
-      </div>
-    );
-  }
+
 
   // --- List View (if no reportId is selected) ---
   if (!reportId) {
@@ -76,6 +68,11 @@ export default function ReportDetail({ reportId, onSelectReport, onBack }) {
     
     return (
       <div style={{ padding: 32, maxWidth: 1000, margin: "0 auto" }}>
+        {error && (
+          <div className="go-status go-status-error" style={{ marginBottom: 24, backgroundColor: 'var(--bg-hover)', color: 'var(--ink)', border: '1px solid var(--semantic-warn)' }}>
+            ⚠ Using offline data (API unreachable: {error})
+          </div>
+        )}
         <div style={{ marginBottom: 32 }}>
           <h1 style={{ marginBottom: 8 }}>ESG Reports</h1>
           <p style={{ color: "var(--body-text)", margin: 0 }}>
@@ -220,6 +217,12 @@ export default function ReportDetail({ reportId, onSelectReport, onBack }) {
       >
         ← Back to Reports
       </button>
+
+      {error && (
+        <div className="go-status go-status-error" style={{ marginBottom: 24, backgroundColor: 'var(--bg-hover)', color: 'var(--ink)', border: '1px solid var(--semantic-warn)' }}>
+          ⚠ Using offline data (API unreachable: {error})
+        </div>
+      )}
 
       {/* Report header card */}
       <div className="go-card" style={{ marginBottom: 24 }}>

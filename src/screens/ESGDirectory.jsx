@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 import { API_SERVER as API_BASE } from "../utils.js";
+import FALLBACK_COMPANIES from "../data/fallbackData.js";
 
 export default function ESGDirectory({ onSelectCompany }) {
   const [data, setData] = useState([]);
@@ -16,10 +17,13 @@ export default function ESGDirectory({ onSelectCompany }) {
         const res = await fetch(`${API_BASE}/api/esg/companies`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        if (!cancelled) setData(Array.isArray(json) ? json : []);
+        if (!cancelled) setData(Array.isArray(json) && json.length > 0 ? json : FALLBACK_COMPANIES);
       } catch (e) {
         console.error("ESGDirectory fetch error:", e);
-        if (!cancelled) setError(e.message);
+        if (!cancelled) {
+          setData(FALLBACK_COMPANIES);
+          setError(e.message);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -85,8 +89,8 @@ export default function ESGDirectory({ onSelectCompany }) {
 
       {/* Error banner */}
       {error && (
-        <div className="go-status go-status-error" style={{ marginBottom: 24 }}>
-          ⚠ Could not load company data — API may be offline. ({error})
+        <div className="go-status go-status-error" style={{ marginBottom: 24, backgroundColor: 'var(--bg-hover)', color: 'var(--ink)', border: '1px solid var(--semantic-warn)' }}>
+          ⚠ Using offline data (API unreachable: {error})
         </div>
       )}
 
