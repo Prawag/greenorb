@@ -95,7 +95,7 @@ if (!process.env.DATABASE_URL) {
 const sql = neon(process.env.DATABASE_URL);
 
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGIN?.split(',') || 'http://localhost:5173',
+  origin: process.env.ALLOWED_ORIGIN?.split(',') || '*', // Allow Vercel frontend or any origin if not set
   credentials: true
 }));
 
