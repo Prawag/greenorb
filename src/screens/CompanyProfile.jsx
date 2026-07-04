@@ -99,7 +99,7 @@ function EmissionBar({ label, value, maxVal }) {
   );
 }
 
-const TABS = ["overview", "emissions", "footprint", "risk", "strategy"];
+const TABS = ["overview", "emissions", "risk", "strategy"];
 
 export default function CompanyProfile({ companyId, onSelectReport, onBack }) {
   const [company, setCompany] = useState(null);
@@ -304,9 +304,8 @@ export default function CompanyProfile({ companyId, onSelectReport, onBack }) {
             key={t}
             className={`go-tab ${tab === t ? "go-tab-active" : ""}`}
             onClick={() => setTab(t)}
-            style={{ textTransform: "capitalize" }}
           >
-            {t === "footprint" ? "operational footprint" : t}
+            {t}
           </button>
         ))}
       </div>
@@ -314,7 +313,6 @@ export default function CompanyProfile({ companyId, onSelectReport, onBack }) {
       {/* Tab content */}
       {tab === "overview" && <OverviewTab company={company} onSelectReport={onSelectReport} />}
       {tab === "emissions" && <EmissionsTab company={company} s1={s1} s2={s2} s3={s3} maxScope={maxScope} />}
-      {tab === "footprint" && <FootprintTab company={company} />}
       {tab === "risk" && <RiskTab company={company} />}
       {tab === "strategy" && <StrategyTab company={company} />}
     </div>
@@ -332,10 +330,6 @@ function OverviewTab({ company, onSelectReport }) {
     ["Report Year", fmt(company.report_year)],
     ["ESG Grade", fmt(company.esg)],
     ["Products", fmt(company.products)],
-    ["EBITDA", company.ebitda ? `${fmtNum(company.ebitda, 0)} Cr` : "—"],
-    ["Local Procurement Spend", company.local_procurement_pct ? `${company.local_procurement_pct}%` : "—"],
-    ["Employees Engaged", company.employee_count ? fmtNum(company.employee_count, 0) : "—"],
-    ["Manufacturing Capacity", company.operational_capacity ? `${fmtNum(company.operational_capacity, 0)} ${company.capacity_unit || 'MW'}` : "—"],
   ];
 
   return (
@@ -410,35 +404,33 @@ function EmissionsTab({ company, s1, s2, s3, maxScope }) {
         <div
           style={{
             marginTop: 24,
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 16,
-            marginBottom: 24
+            padding: 20,
+            background: "var(--bg)",
+            borderRadius: "var(--radius)",
           }}
         >
-          <div style={{ padding: 16, background: "var(--bg)", borderRadius: "var(--radius)" }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--body-text)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-              Total CO₂ Footprint
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--ink)" }}>
-              {fmtCO2(totalCO2)}
-            </div>
+          <div
+            style={{
+              fontFamily: "var(--body)",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--body-text)",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              marginBottom: 6,
+            }}
+          >
+            Total CO₂ Footprint
           </div>
-          <div style={{ padding: 16, background: "var(--bg)", borderRadius: "var(--radius)" }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--body-text)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-              Electricity Consumption
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--ink)" }}>
-              {fmt(company.energy_consumption)}
-            </div>
-          </div>
-          <div style={{ padding: 16, background: "var(--bg)", borderRadius: "var(--radius)" }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--body-text)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-              Water Withdrawal
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--ink)" }}>
-              {company.water_withdrawal ? `${fmtNum(company.water_withdrawal, 0)} kL` : "—"}
-            </div>
+          <div
+            style={{
+              fontFamily: "var(--disp)",
+              fontSize: 28,
+              fontWeight: 700,
+              color: "var(--ink)",
+            }}
+          >
+            {fmtCO2(totalCO2)}
           </div>
         </div>
 
@@ -688,95 +680,6 @@ function StrategyTab({ company }) {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Footprint Tab ────────────────────────────────────────── */
-function FootprintTab({ company }) {
-  const [facilities, setFacilities] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch(`${API}/api/facilities?company=${encodeURIComponent(company.name)}`)
-      .then((r) => r.json())
-      .then((res) => {
-        setFacilities(res.data || []);
-      })
-      .catch((err) => {
-        console.error("Error fetching facilities:", err);
-      })
-      .finally(() => setLoading(false));
-  }, [company.name]);
-
-  if (loading) {
-    return (
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <div
-          style={{
-            width: 20,
-            height: 20,
-            border: "2px solid var(--bd)",
-            borderTopColor: "var(--ink)",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-            margin: "0 auto 8px",
-          }}
-        />
-        <p style={{ fontFamily: "var(--body)", fontSize: 13, color: "var(--body-text)" }}>
-          Loading facilities footprint…
-        </p>
-      </div>
-    );
-  }
-
-  if (facilities.length === 0) {
-    return (
-      <div className="go-card">
-        <div className="go-card-content" style={{ textAlign: "center", padding: 48 }}>
-          <h4 style={{ fontFamily: "var(--disp)", marginBottom: 8, color: "var(--body-text)" }}>
-            No facilities footprint indexed
-          </h4>
-          <p style={{ fontFamily: "var(--body)", fontSize: 13, color: "var(--body-text)" }}>
-            Physical locations for this company have not yet been extracted from the reports.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="go-card">
-      <div className="go-card-content">
-        <h3 style={{ fontFamily: "var(--disp)", marginBottom: 20 }}>
-          Physical Operational Footprint ({facilities.length} Locations)
-        </h3>
-        <table className="go-table">
-          <thead>
-            <tr>
-              <th>Location / Site Name</th>
-              <th>Type / Technology</th>
-              <th>Coordinates</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {facilities.map((f, i) => (
-              <tr key={i}>
-                <td style={{ fontWeight: 600 }}>{f.facility_name}</td>
-                <td>{f.facility_type}</td>
-                <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
-                  {f.lat ? f.lat.toFixed(4) : "—"}, {f.lng ? f.lng.toFixed(4) : "—"}
-                </td>
-                <td>
-                  <span className="go-badge go-badge-success">{f.status}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );
