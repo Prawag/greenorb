@@ -3,7 +3,7 @@ import os
 import re
 import time
 import warnings
-import requests
+from curl_cffi import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from duckduckgo_search import DDGS
@@ -25,12 +25,12 @@ HEADERS = {
     "Upgrade-Insecure-Requests": "1",
 }
 
-SESSION = requests.Session()
+SESSION = requests.Session(impersonate="chrome110")
 SESSION.headers.update(HEADERS)
 
 
-def score_link(href: str, text: str) -> int:
-    """Score a link on how likely it is to be a 2024 ESG/sustainability PDF."""
+def score_link(href: str, text: str, target_year: str = "2024") -> int:
+    """Score a link on how likely it is to be a target year ESG/sustainability PDF."""
     score = 0
     href_lower = href.lower()
     text_lower = text.lower()
@@ -43,15 +43,17 @@ def score_link(href: str, text: str) -> int:
         score += 20
     if "report" in href_lower or "report" in text_lower:
         score += 15
-    if "2024" in href_lower or "2024" in text_lower:
+    if target_year in href_lower or target_year in text_lower:
         score += 30
     if "impact" in href_lower or "impact" in text_lower:
         score += 10
     if "environment" in href_lower or "environment" in text_lower:
         score += 10
 
-    # Penalize old years and noise
-    for yr in ["2020", "2021", "2022", "2023"]:
+    # Penalize other years and noise
+    all_years = ["2020", "2021", "2022", "2023", "2024", "2025"]
+    other_years = [y for y in all_years if y != target_year]
+    for yr in other_years:
         if yr in href_lower or yr in text_lower:
             score -= 40
     for noise in ["twitter", "linkedin", "facebook", "privacy", "cookie", "terms", "instagram"]:
@@ -99,7 +101,7 @@ def download_pdf(url: str, filepath: str) -> bool:
         return False
 
 
-def hunt_pdf_on_page(page_url: str) -> str | None:
+def hunt_pdf_on_page(page_url: str, target_year: str = "2024") -> str | None:
     """Scrape an IR/sustainability landing page and return the best PDF link."""
     try:
         resp = SESSION.get(page_url, timeout=20)
@@ -113,7 +115,7 @@ def hunt_pdf_on_page(page_url: str) -> str | None:
             href = a_tag["href"]
             text = a_tag.get_text(strip=True)
             absolute_url = urljoin(page_url, href)
-            s = score_link(absolute_url, text)
+            s = score_link(absolute_url, text, target_year)
             if s > highest_score:
                 highest_score = s
                 best_link = absolute_url
@@ -148,18 +150,18 @@ def get_free_proxies():
     except Exception as e:
         print(f"[WARN] Failed to load proxies: {e}")
 
-def search_for_company(company_name: str) -> str | None:
+def search_for_company(company_name: str, target_year: str = "2024") -> str | None:
     """Find the best ESG report URL using Yahoo Search (bypasses IP bans)."""
     queries = [
-        f"{company_name} sustainability report 2024 filetype:pdf",
-        f"{company_name} ESG report 2024",
+        f"{company_name} sustainability report {target_year} filetype:pdf",
+        f"{company_name} ESG report {target_year}",
     ]
 
     for query in queries:
         print(f"[SEARCH] Querying Yahoo for: {query}")
         try:
             time.sleep(2)  # Small delay to be polite
-            url = f"https://search.yahoo.com/search?p={requests.utils.quote(query)}"
+            url = f"https://search.yahoo.com/search?p={urllib.parse.quote(query)}"
             resp = requests.get(url, headers=HEADERS, timeout=10)
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "html.parser")
@@ -212,11 +214,12 @@ def search_for_company(company_name: str) -> str | None:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python bulk_scout_only.py <company_name>")
+        print("Usage: python bulk_scout_only.py <company_name> [target_year]")
         sys.exit(1)
 
     company_name = sys.argv[1]
-    pdf_filename = f"{company_name.lower().replace(' ', '_').replace('&', 'and')}_sustainability_report_2024.pdf"
+    target_year = sys.argv[2] if len(sys.argv) > 2 else "2024"
+    pdf_filename = f"{company_name.lower().replace(' ', '_').replace('&', 'and')}_sustainability_report_{target_year}.pdf"
     file_path = os.path.join(DOWNLOAD_DIR, pdf_filename)
 
     # Skip if already downloaded
@@ -225,8 +228,8 @@ def main():
         print(f"STATIC_URL_RESULT: {static_url}")
         sys.exit(0)
 
-    print(f"[SEARCH] Searching for: {company_name}")
-    target_url = search_for_company(company_name)
+    print(f"[SEARCH] Searching for: {company_name} ({target_year})")
+    target_url = search_for_company(company_name, target_year)
 
     if not target_url:
         print(f"[FAIL] No URL found for {company_name}")
@@ -241,7 +244,7 @@ def main():
 
     # Phase 2: Scrape the landing page for a PDF link
     print(f"[SCRAPE] Scraping landing page: {target_url}")
-    pdf_link = hunt_pdf_on_page(target_url)
+    pdf_link = hunt_pdf_on_page(target_url, target_year)
 
     if pdf_link and ".pdf" in pdf_link.lower():
         if download_pdf(pdf_link, file_path):
@@ -259,7 +262,7 @@ def main():
     ]
     for fb_url in fallback_urls:
         try:
-            fb_pdf = hunt_pdf_on_page(fb_url)
+            fb_pdf = hunt_pdf_on_page(fb_url, target_year)
             if fb_pdf and ".pdf" in fb_pdf.lower():
                 if download_pdf(fb_pdf, file_path):
                     static_url = f"{STATIC_URL_BASE}/{pdf_filename}"
