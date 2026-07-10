@@ -61,50 +61,34 @@ GreenOrb operates through a 4-agent network described in `AGENTS.md`:
 
 ---
 
-## 🛰️ Data Extraction Methodology
+## 🛰️ Data Extraction & Ingestion Methodology
 
-### 1. Advanced PDF Extraction (Coordinate-Aware)
-To achieve high accuracy on complex financial tables, GreenOrb uses a **Coordinate-Aware Table Reconstruction** engine:
-*   **Spatial Parsing**: PDF text is parsed with (x, y) coordinates.
-*   **Markdown Serialization**: Rows are reconstructed using pipe separators `|` to preserve column integrity.
-*   **LLM Context**: The structured markdown is passed to Gemini 1.5 Flash, allowing it to correctly read multi-row cells and subtotals.
+### 1. Safe Block-Level PDF Layout Parsing
+Instead of raw line splitting, GreenOrb utilizes PyMuPDF's coordinate-aware block extraction (`page.get_text("blocks")`) to isolate paragraphs natively layout-by-layout. 
+- **Domain-Specific Budgets**: Paragraphs are dynamically scored for relevance and assigned to exclusive single-domain budgets (Emissions, Financials, and Operations) to prevent context duplication.
+- **Global Deduplication**: A global tracking engine ensures text elements never pollute multiple categories.
 
-### 2. Satellite & Real-Time Flow
-*   **Cloud-Free Mosaic**: Fetches Sentinel-2 metadata from CDSE, selecting the most recent date with `< 10%` cloud cover for local facility verification.
-*   **AIS Vessel Tracking**: A persistent WebSocket worker connects to `stream.aisstream.io`, tracking vessels in major global maritime zones and caching positions in `vessel_positions`.
+### 2. Direct Local Processing & Self-Healing Parser
+To ensure zero rate limits (429s), the platform supports a 100% free offline mode running Local Llama 3 (via Ollama) with:
+- **Intelligent Sliding Window**: Context is distributed dynamically based on document depth (e.g., pulling emissions from the back of the report and financials from the front).
+- **Self-Healing Bracket Balancer**: Reconstructs incomplete or truncated JSON payloads on-the-fly by balancing bracket state and quote boundaries.
+- **Predict Token Optimization**: Configured to `2048` predict tokens for robust, multi-pass structured output.
 
----
-
-## 📐 Scientific Formulas & Logic
-
-| Value | Formula / Logic |
-|-------|----------------|
-| **Logistics Score** | Inverse distance decay to nearest global port: `< 50km = 10`, `< 200km = 7`, `< 500km = 4`. |
-| **Shipping Emissions** | `Distance (km) * Cargo (MT) * Emission Factor (GLEC WTW)`. |
-| **Fuzzy Spatial Dedup** | `Haversine Distance < 500m` AND `Levenshtein Name Sim > 0.6` = MERGE. |
-| **Greendex Score** | `(0.4 * E) + (0.3 * S) + (0.2 * G) + (0.1 * Trend_Signal)`. |
-| **CBAM Liability** | `(Product_Tonnage * Embedded_Intensity) * (EU_ETS_Price - Home_Carbon_Price)`. |
-
----
-
-## 🚦 Pre-set Rate Limits & Capacity
-
-To ensure platform stability and budget control, the following limits are enforced:
-*   **OpenStreetMap (Overpass)**: 10s cooldown between zone fetches per background worker.
-*   **Dataloy Distances**: Strictly cached to 25 lifetime routes (Free Tier limit).
-*   **SEC EDGAR**: Limited to 10 requests/sec as per SEC developer policy (handled by internal throttle).
-*   **ImportYeti Scraping**: 7-day database cache per company to minimize scraping footprint.
-*   **OSM Indexer**: Background job runs monthly (cron `@monthly`) via `osm-indexer.js`.
+### 3. Automatic Unit Normalization
+All metrics undergo deterministic scale normalization before PostgreSQL storage:
+- **CO₂**: Auto-normalizes `ktCO₂e`, `MtCO₂e`, and thousand metric tons to standard Metric Tonnes (`tCO₂e`).
+- **Energy**: Auto-converts Gigajoules (`GJ`), Terajoules (`TJ`), and `GWh` to standard Megawatt-hours (`MWh`).
+- **Water**: Auto-normalizes Megaliters (`ML`) and million liters to standard cubic meters (`m³` / `kL`).
 
 ---
 
 ## 🛠 Tech Stack
 
 *   **Frontend**: React 18, Vite 6, Three.js (3D Globe), Cesium (Satellite Maps).
-*   **Backend**: Node.js (Express), Neon PostgreSQL (Serverless).
-*   **AI Engine**: Google Gemini 1.5 Flash (via LLM Router for failover to Groq).
+*   **Backend**: Node.js (Express), Neon PostgreSQL (Serverless via WebSocket pool).
+*   **AI Engine**: Dual-Model Consensus (Gemini 2.0 Flash + Groq Llama 3.3 70B) or 100% Offline Local Llama 3 (Ollama) with 8k context mapping.
 *   **Logistics**: `ws` for maritime tracking, `GLEC Framework v3` for emissions.
-*   **Workers**: Node-cron for background spatial indexing and PDF ingestion queues.
+*   **Workers**: Python watchers for continuous PDF ingestion and JSON normalization.
 
 ---
 

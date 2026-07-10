@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { neon } from '@neondatabase/serverless';
+import pg from 'pg';
 import { execFile } from 'child_process';
 import path from 'path';
 import { URL } from 'url';
@@ -92,7 +92,22 @@ if (!process.env.DATABASE_URL) {
     process.exit(1);
 }
 
-const sql = neon(process.env.DATABASE_URL);
+const pool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
+
+async function sql(strings, ...values) {
+    let queryText = '';
+    for (let i = 0; i < strings.length; i++) {
+        queryText += strings[i];
+        if (i < values.length) {
+            queryText += `$${i + 1}`;
+        }
+    }
+    const result = await pool.query(queryText, values);
+    return result.rows;
+}
 
 app.use(cors({
   origin: process.env.ALLOWED_ORIGIN?.split(',') || '*', // Allow Vercel frontend or any origin if not set
@@ -253,7 +268,16 @@ const initDb = async () => {
             ADD COLUMN IF NOT EXISTS renewable_energy_pct NUMERIC,
             ADD COLUMN IF NOT EXISTS scope2_location NUMERIC,
             ADD COLUMN IF NOT EXISTS scope2_market NUMERIC,
-            ADD COLUMN IF NOT EXISTS net_zero_year INTEGER
+            ADD COLUMN IF NOT EXISTS net_zero_year INTEGER,
+            ADD COLUMN IF NOT EXISTS revenue NUMERIC,
+            ADD COLUMN IF NOT EXISTS profit NUMERIC,
+            ADD COLUMN IF NOT EXISTS supply_chain_budget NUMERIC,
+            ADD COLUMN IF NOT EXISTS facilities_list TEXT,
+            ADD COLUMN IF NOT EXISTS services TEXT,
+            ADD COLUMN IF NOT EXISTS production_volume TEXT,
+            ADD COLUMN IF NOT EXISTS manufacturing_process TEXT,
+            ADD COLUMN IF NOT EXISTS manufacturing_co2 NUMERIC,
+            ADD COLUMN IF NOT EXISTS lifecycle_co2 TEXT
         `;
 
         await sql`
@@ -389,14 +413,14 @@ app.get('/api/esg/companies', async (req, res) => {
 
 // POST Scout data
 app.post('/api/scout', requireInternalKey, async (req, res) => {
-    const { name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year } = req.body;
+    const { name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year, revenue, profit, water_withdrawal, energy_consumption, supply_chain_budget, facilities_list, services, production_volume, manufacturing_process, manufacturing_co2, lifecycle_co2, ebitda, local_procurement_pct, employee_count, operational_capacity, capacity_unit, facilities } = req.body;
     if (!name || typeof name !== 'string' || name.trim() === '') {
         return res.status(400).json({ error: "Valid company name is required" });
     }
     try {
         await sql`
-            INSERT INTO companies (name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year)
-            VALUES (${name}, ${sector}, ${country}, ${co2}, ${esg}, ${url}, ${products}, ${methodology}, ${s1}, ${s2}, ${s3}, ${report_year})
+            INSERT INTO companies (name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year, revenue, profit, water_withdrawal, energy_consumption, supply_chain_budget, facilities_list, services, production_volume, manufacturing_process, manufacturing_co2, lifecycle_co2, ebitda, local_procurement_pct, employee_count, operational_capacity, capacity_unit)
+            VALUES (${name}, ${sector}, ${country}, ${co2}, ${esg}, ${url}, ${products}, ${methodology}, ${s1}, ${s2}, ${s3}, ${report_year}, ${revenue || null}, ${profit || null}, ${water_withdrawal || null}, ${energy_consumption || null}, ${supply_chain_budget || null}, ${facilities_list || null}, ${services || null}, ${production_volume || null}, ${manufacturing_process || null}, ${manufacturing_co2 || null}, ${lifecycle_co2 || null}, ${ebitda || null}, ${local_procurement_pct || null}, ${employee_count || null}, ${operational_capacity || null}, ${capacity_unit || null})
             ON CONFLICT (name) DO UPDATE SET
                 sector = EXCLUDED.sector,
                 country = EXCLUDED.country,
@@ -409,8 +433,67 @@ app.post('/api/scout', requireInternalKey, async (req, res) => {
                 s2 = EXCLUDED.s2,
                 s3 = EXCLUDED.s3,
                 report_year = EXCLUDED.report_year,
+                revenue = EXCLUDED.revenue,
+                profit = EXCLUDED.profit,
+                water_withdrawal = EXCLUDED.water_withdrawal,
+                energy_consumption = EXCLUDED.energy_consumption,
+                supply_chain_budget = EXCLUDED.supply_chain_budget,
+                facilities_list = EXCLUDED.facilities_list,
+                services = EXCLUDED.services,
+                production_volume = EXCLUDED.production_volume,
+                manufacturing_process = EXCLUDED.manufacturing_process,
+                manufacturing_co2 = EXCLUDED.manufacturing_co2,
+                lifecycle_co2 = EXCLUDED.lifecycle_co2,
+                ebitda = EXCLUDED.ebitda,
+                local_procurement_pct = EXCLUDED.local_procurement_pct,
+                employee_count = EXCLUDED.employee_count,
+                operational_capacity = EXCLUDED.operational_capacity,
+                capacity_unit = EXCLUDED.capacity_unit,
                 ts = CURRENT_TIMESTAMP
         `;
+
+        if (Array.isArray(facilities) && facilities.length > 0) {
+            for (const f of facilities) {
+                if (f.facility_name && f.lat && f.lng) {
+                    await sql`
+                        INSERT INTO facilities (company_name, facility_name, facility_type, lat, lng, status)
+                        VALUES (${name}, ${f.facility_name}, ${f.facility_type || 'Operational Site'}, ${f.lat}, ${f.lng}, ${f.status || 'OPERATIONAL'})
+                        ON CONFLICT (company_name, facility_name) DO UPDATE SET
+                            facility_type = EXCLUDED.facility_type,
+                            lat = EXCLUDED.lat,
+                            lng = EXCLUDED.lng,
+                            status = EXCLUDED.status
+                    `.catch(e => console.error('[api/scout] Facility insert failed:', e.message));
+                }
+            }
+        }
+
+        if (report_year) {
+            const existing = await sql`
+                SELECT id FROM esg_sources 
+                WHERE company_name = ${name} AND report_year = ${report_year}
+            `;
+            if (existing.length === 0) {
+                await sql`
+                    INSERT INTO esg_sources (
+                        company_name, source, scope1_mt, scope2_location_mt, scope3_mt, report_year, report_url, water_withdrawal_kl
+                    ) VALUES (
+                        ${name}, 'scout_pipeline', ${s1 || null}, ${s2 || null}, ${s3 || null}, ${report_year}, ${url || null}, ${water_withdrawal || null}
+                    )
+                `;
+            } else {
+                await sql`
+                    UPDATE esg_sources SET
+                        scope1_mt = ${s1 || null},
+                        scope2_location_mt = ${s2 || null},
+                        scope3_mt = ${s3 || null},
+                        report_url = ${url || null},
+                        water_withdrawal_kl = ${water_withdrawal || null}
+                    WHERE company_name = ${name} AND report_year = ${report_year}
+                `;
+            }
+        }
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

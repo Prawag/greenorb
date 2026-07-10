@@ -1,23 +1,23 @@
-"""Test the new Markdown-aware Map-Reduce extraction on Microsoft's report."""
-import sys, os
-sys.path.insert(0, '.')
-from esg_discovery_agent import process_single_pdf
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+import os
+import json
+from process_esg_reports import extract_text_from_pdf, analyze_with_llama
 
-# Ensure we are in the Backend directory
-pdf_path = r'C:\Users\prawa\Desktop\GreenOrb\RawData\2025-Microsoft-Environmental-Sustainability-Report.pdf'
+def run_test():
+    pdf_path = os.path.join("downloaded_reports", "360_one_wam_ltd._sustainability_report_2024.pdf")
+    
+    print(f"Extracting {pdf_path}...")
+    text = extract_text_from_pdf(pdf_path)
+    print(f"Extracted length: {len(text)} characters.")
+    
+    if text:
+        print("Sending to Gemini...")
+        data = analyze_with_llama(text, "360_one_wam.pdf")
+        print("\n=== EXTRACTED JSON ===\n")
+        print(json.dumps(data, indent=4))
+    else:
+        print("No text extracted.")
 
-if not os.path.exists(pdf_path):
-    print(f"❌ File not found: {pdf_path}")
-    # Try to find it in Processed
-    pdf_path = r'C:\Users\prawa\Desktop\GreenOrb\RawData\ESG_Reports\Processed\2025-Microsoft-Environmental-Sustainability-Report.pdf'
-    if not os.path.exists(pdf_path):
-        print(f"❌ File still not found. Check RawData directory.")
-        sys.exit(1)
-
-print(f"🚀 Starting test on: {pdf_path}")
-success = process_single_pdf(pdf_path)
-
-if success:
-    print("\n✅ Extraction complete. Check database and JSON results.")
-else:
-    print("\n❌ Extraction failed.")
+if __name__ == "__main__":
+    run_test()
