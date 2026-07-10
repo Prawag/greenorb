@@ -17,6 +17,7 @@ import requests
 import random
 import fitz  # PyMuPDF
 import pytesseract
+import pdfmux
 from PIL import Image
 from dotenv import load_dotenv
 
@@ -58,39 +59,114 @@ def run_page_ocr(page, index):
     return ""
 
 def extract_text_from_pdf(pdf_path):
-    """Extract text by cleanly isolating structural page blocks and assigning unique budgets."""
+    """Extract ordered text layouts using pdfmux, falling back seamlessly to PyMuPDF/OCR if empty."""
+    filename = os.path.basename(pdf_path)
+    
+    cat_financial = ["revenue", "profit", "net income", "finance", "ebitda", "pat", "turnover", "income statement", "financial summary"]
+    cat_emissions = ["scope 1", "scope 2", "scope 3", "ghg", "co2", "emissions", "water", "electricity", "energy", "renewable", "consumption", "tco2e"]
+    cat_operations = ["facilities", "services", "products", "production", "manufacturing", "lifecycle", "csr", "location", "employees", "headcount", "procurement"]
+    noise_words = ["forward-looking statement", "safe harbor", "board of directors", "forward looking statement"]
+
+    # ─── LAYER A: TRY HIGH-FIDELITY PDFMUX ENGINE FIRST ───
+    try:
+        print(f"    🧠 Invoking pdfmux structured layout analyzer for {filename}...")
+        extracted_layout = pdfmux.extract_text(pdf_path)
+        
+        if extracted_layout and len(extracted_layout.strip()) > 300:
+            seen_paragraphs = set()
+            list_financial = []
+            list_emissions = []
+            list_operations = []
+            
+            segments = extracted_layout.split('\n\n')
+            for segment in segments:
+                para_clean = segment.strip()
+                if not para_clean or len(para_clean) < 30 or para_clean in seen_paragraphs:
+                    continue
+                para_lower = para_clean.lower()
+                if any(noise in para_lower for noise in noise_words):
+                    continue
+                
+                matches_fin = any(kw in para_lower for kw in cat_financial)
+                matches_ems = any(kw in para_lower for kw in cat_emissions)
+                matches_ops = any(kw in para_lower for kw in cat_operations)
+                if not (matches_fin or matches_ems or matches_ops):
+                    continue
+                
+                digit_count = len(re.findall(r'\d', para_clean))
+                if digit_count < 2 and not ("net zero" in para_lower or "carbon" in para_lower):
+                    continue
+                
+                score = 0
+                all_kws = cat_financial + cat_emissions + cat_operations
+                for kw in all_kws:
+                    if kw in para_lower:
+                        score += 3
+                
+                if matches_ems and any(x in para_lower for x in ["total scope 1", "total scope 2", "tco2e", "ghg emissions"]):
+                    score += 120  
+                if matches_fin and any(x in para_lower for x in ["revenue from operations", "profit after tax", "net profit", "consolidated financial"]):
+                    score += 100
+                
+                if digit_count > 0:
+                    score = score * (1 + min(digit_count // 4, 4))
+                
+                entry = (score, para_clean)
+                seen_paragraphs.add(para_clean)
+                
+                if matches_ems:
+                    list_emissions.append(entry)
+                elif matches_fin:
+                    list_financial.append(entry)
+                else:
+                    list_operations.append(entry)
+            
+            list_financial.sort(key=lambda x: x[0], reverse=True)
+            list_emissions.sort(key=lambda x: x[0], reverse=True)
+            list_operations.sort(key=lambda x: x[0], reverse=True)
+            
+            cover_page_section = f"--- [COVER CONFIGURATION] ---\n{extracted_layout[:1500]}\n\n"
+            financial_section = "".join([f"{p[1]}\n\n" for p in list_financial[:12]])
+            emissions_section = "".join([f"{p[1]}\n\n" for p in list_emissions[:12]])
+            operations_section = "".join([f"{p[1]}\n\n" for p in list_operations[:12]])
+            
+            extracted_text = (
+                f"<cover_page>\n{cover_page_section}</cover_page>\n\n"
+                f"<financials>\n{financial_section}</financials>\n\n"
+                f"<emissions>\n{emissions_section}</emissions>\n\n"
+                f"<operations>\n{operations_section}</operations>\n\n"
+            )
+            print(f"    🎯 pdfmux Budget Formatted: Fin: {len(list_financial[:12])} | Ems: {len(list_emissions[:12])} | Ops: {len(list_operations[:12])}")
+            return extracted_text
+            
+        print(f"    ⚠️ pdfmux layout returned insufficient string volume. Routing to native fallback.")
+    except Exception as mux_err:
+        print(f"    ⚠️ pdfmux execution failed: {mux_err}. Invoking native extraction engines.")
+
+    # ─── LAYER B: RESILIENT PYMUPDF & TESSERACT OCR FALLBACK ENGINE ───
     try:
         doc = fitz.open(pdf_path)
         if len(doc) == 0:
+            print(f"    ⚠️ Warning: PDF file is empty or corrupted: {filename}")
             return ""
             
-        # 1. Scanned Document Auto-Detection
         sample_pages = min(20, len(doc))
         total_sample_chars = 0
         for i in range(sample_pages):
             total_sample_chars += len(doc[i].get_text().strip())
             
         avg_chars_per_page = total_sample_chars / sample_pages if sample_pages > 0 else 0
-        is_scanned = avg_chars_per_page < 100
+        is_scanned = avg_chars_per_page < 1500
         
         if is_scanned:
-            print(f"    ℹ️ Scanned PDF detected (Avg: {avg_chars_per_page:.1f}). OCR activated.")
+            print(f"    ℹ️ Fallback Core: Scanned PDF profile verified (Avg: {avg_chars_per_page:.1f}). OCR engine active.")
         else:
-            print(f"    ℹ️ Digital PDF detected (Avg: {avg_chars_per_page:.1f}). Block parsing active.")
+            print(f"    ℹ️ Fallback Core: High-Density Digital profile verified (Avg: {avg_chars_per_page:.1f}). Block engine active.")
 
-        # 2. Cover Page Extraction
         cover_page_text = doc[0].get_text("text").strip()
         if len(cover_page_text) < 100:
             cover_page_text = run_page_ocr(doc[0], 0)
             
-        # 3. Keyword Architecture
-        cat_financial = ["revenue", "profit", "net income", "budget", "finance", "ebitda", "pat", "assets", "turnover", "income statement"]
-        cat_emissions = ["scope 1", "scope 2", "scope 3", "ghg", "co2", "emissions", "water", "electricity", "energy", "renewable", "consumption", "tco2e"]
-        cat_operations = ["facilities", "services", "products", "production", "manufacturing", "lifecycle", "csr", "location", "employees", "headcount", "procurement"]
-
-        noise_words = ["forward-looking statement", "safe harbor", "board of directors", "forward looking statement"]
-
-        # Track strings globally to prevent cross-category cross-contamination
         seen_paragraphs = set()
         list_financial = []
         list_emissions = []
@@ -101,25 +177,22 @@ def extract_text_from_pdf(pdf_path):
         
         for i in range(1, pages_to_scan):
             page = doc[i]
-            
-            # Extract Native Structural Layout Blocks instead of splitting raw string
             blocks = []
-            if is_scanned:
-                page_text = page.get_text().strip()
-                if len(page_text) < 100:
-                    page_text = run_page_ocr(page, i)
-                blocks = page_text.split('\n\n')
+            
+            page_text_len = len(page.get_text().strip())
+            
+            if is_scanned or page_text_len < 150:
+                ocr_res = run_page_ocr(page, i)
+                if ocr_res:
+                    blocks = ocr_res.split('\n\n')
             else:
-                # "blocks" mode isolates structural paragraphs natively layout-by-layout
                 text_blocks = page.get_text("blocks")
-                # SAFE CHECK: Ensure 'b' is subscriptable and contains at least 5 elements
                 for b in text_blocks:
                     if isinstance(b, (tuple, list)) and len(b) > 4:
                         txt = str(b[4]).strip()
                         if txt:
                             blocks.append(txt)
 
-            # Handle Markdown Table extractions cleanly
             table_markdowns = []
             try:
                 tabs = page.find_tables()
@@ -140,41 +213,37 @@ def extract_text_from_pdf(pdf_path):
                 para_clean = para.strip()
                 if not para_clean or len(para_clean) < 30 or para_clean in seen_paragraphs:
                     continue
-                    
                 para_lower = para_clean.lower()
                 if any(noise in para_lower for noise in noise_words):
                     continue
                 
-                # Check metrics alignment
                 matches_fin = any(kw in para_lower for kw in cat_financial)
                 matches_ems = any(kw in para_lower for kw in cat_emissions)
                 matches_ops = any(kw in para_lower for kw in cat_operations)
-                
                 if not (matches_fin or matches_ems or matches_ops):
                     continue
                 
-                # Base scoring
+                digit_count = len(re.findall(r'\d', para_clean))
+                if digit_count < 2 and not ("net zero" in para_lower or "carbon" in para_lower):
+                    continue
+                
                 score = 0
                 all_kws = cat_financial + cat_emissions + cat_operations
                 for kw in all_kws:
                     if kw in para_lower:
                         score += 3
                 
-                # High-Intent Table Modifiers
-                if matches_ems and any(x in para_lower for x in ["total scope 1", "total scope 2", "tco2e"]):
-                    score += 100  # Strongly prioritize emission tables
-                if matches_fin and any(x in para_lower for x in ["revenue from operations", "profit after tax", "net profit"]):
-                    score += 80
+                if matches_ems and any(x in para_lower for x in ["total scope 1", "total scope 2", "tco2e", "ghg emissions"]):
+                    score += 120  
+                if matches_fin and any(x in para_lower for x in ["revenue from operations", "profit after tax", "net profit", "consolidated financial"]):
+                    score += 100
                 
-                # Digit Density Scaling (Critical for factual table prioritization)
-                digit_count = len(re.findall(r'\d', para_clean))
                 if digit_count > 0:
                     score = score * (1 + min(digit_count // 4, 4))
                 
                 entry = (score, para_clean)
-                seen_paragraphs.add(para_clean)  # Lock paragraph globally from duplicating
+                seen_paragraphs.add(para_clean) 
                 
-                # Route safely to the Single Best Primary Domain Category
                 if matches_ems:
                     list_emissions.append(entry)
                 elif matches_fin:
@@ -182,14 +251,11 @@ def extract_text_from_pdf(pdf_path):
                 else:
                     list_operations.append(entry)
                     
-        # Sort contexts deterministically by total density score
         list_financial.sort(key=lambda x: x[0], reverse=True)
         list_emissions.sort(key=lambda x: x[0], reverse=True)
         list_operations.sort(key=lambda x: x[0], reverse=True)
         
-        # Build Section Strings (Expanded to top 12 chunks to capture broken tables safely)
         cover_page_section = f"--- [COVER PAGE] ---\n{cover_page_text[:1500]}\n\n"
-        
         financial_section = "".join([f"{p[1]}\n\n" for p in list_financial[:12]])
         emissions_section = "".join([f"{p[1]}\n\n" for p in list_emissions[:12]])
         operations_section = "".join([f"{p[1]}\n\n" for p in list_operations[:12]])
@@ -200,11 +266,17 @@ def extract_text_from_pdf(pdf_path):
             f"<emissions>\n{emissions_section}</emissions>\n\n"
             f"<operations>\n{operations_section}</operations>\n\n"
         )
-        print(f"    🎯 Budget Delivered: Fin Chunks: {len(list_financial[:12])} | Ems Chunks: {len(list_emissions[:12])} | Ops Chunks: {len(list_operations[:12])}")
+        print(f"    🎯 Fallback Budget Delivered: Fin Chunks: {len(list_financial[:12])} | Ems Chunks: {len(list_emissions[:12])} | Ops Chunks: {len(list_operations[:12])}")
+        doc.close()
         return extracted_text
         
-    except Exception as e:
-        print(f"    ⚠️ Error opening PDF: {e}")
+    except Exception as fallback_err:
+        print(f"    ❌ Fatal Failure: Both pdfmux and PyMuPDF fallback failed for {filename}: {fallback_err}")
+        try:
+            if 'doc' in locals() and doc:
+                doc.close()
+        except:
+            pass
         return ""
 
 def build_analyze_prompt(text):
@@ -330,31 +402,212 @@ def parse_llm_json(result, filename):
     print(f"    RAW SYSTEM RESPONSE: {result}")
     return {}
 
+def isolate_keyword_windows(text, keywords, window_size=300):
+    """Extract strict context windows around specific target metrics to reduce model noise."""
+    text_clean = " ".join(text.split())
+    text_lower = text_clean.lower()
+    windows = []
+    
+    for kw in keywords:
+        for match in re.finditer(re.escape(kw.lower()), text_lower):
+            start = max(0, match.start() - window_size)
+            end = min(len(text_clean), match.end() + window_size)
+            windows.append(text_clean[start:end])
+            
+    # Remove duplicate overlapping matches and limit count to prevent context blowup
+    unique_windows = []
+    for w in windows:
+        if not any(w in other for other in unique_windows):
+            unique_windows.append(w)
+            
+    return "\n---\n".join(unique_windows[:5])
+
+def analyze_with_regex_and_tables(pdf_path, text, filename):
+    """Layer 1: Deterministic extraction layer using regex and pdfplumber grid-tables."""
+    data = {
+        "company_name": None,
+        "report_year": None,
+        "revenue": None,
+        "profit": None,
+        "esg_grade": None,
+        "net_zero_target": None,
+        "co2_estimate": None,
+        "co2_unit": None,
+        "s1": None,
+        "s2": None,
+        "s3": None,
+        "water_withdrawal": None,
+        "water_unit": None,
+        "energy_consumption": None,
+        "energy_unit": None,
+        "facilities_list": None,
+        "services": None,
+        "products": None,
+        "sustainability_summary": "Extracted via High-Precision Regex & Tables"
+    }
+
+    # Extract company name from filename
+    name_match = re.match(r'^(.*?)_sustainability_report', filename)
+    if name_match:
+        data["company_name"] = name_match.group(1).replace("_", " ").title()
+
+    # Extract year
+    year_match = re.search(r'\b(202[0-9])\b', filename)
+    if year_match:
+        data["report_year"] = int(year_match.group(1))
+
+    # Extract Net Zero Target year
+    nz_match = re.search(r'(?i)net[\s-]?zero.*?(20[3-5][0-9])', text)
+    if nz_match:
+        try:
+            data["net_zero_target"] = int(nz_match.group(1))
+        except:
+            pass
+
+    # Scan tables via pdfplumber
+    try:
+        import pdfplumber
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                page_text_lower = page_text.lower()
+                
+                # Check for scopes or water/energy/financials
+                if any(k in page_text_lower for k in ["scope 1", "scope 2", "scope 3", "emissions", "revenue", "profit", "water", "energy"]):
+                    tables = page.extract_tables()
+                    for table in tables:
+                        if not table:
+                            continue
+                        cleaned_rows = [[str(cell).strip() for cell in row if cell] for row in table if any(row)]
+                        for row in cleaned_rows:
+                            row_str = " | ".join(row).lower()
+                            
+                            # Scope 1
+                            if "scope 1" in row_str or "scope1" in row_str:
+                                for cell in row:
+                                    cell_clean = cell.replace(",", "").strip()
+                                    num_match = re.search(r'^\b\d+(?:\.\d+)?\b$', cell_clean)
+                                    if num_match:
+                                        val = float(num_match.group())
+                                        if val > 10 and not data["s1"]:
+                                            data["s1"] = val
+                            # Scope 2
+                            if "scope 2" in row_str or "scope2" in row_str:
+                                for cell in row:
+                                    cell_clean = cell.replace(",", "").strip()
+                                    num_match = re.search(r'^\b\d+(?:\.\d+)?\b$', cell_clean)
+                                    if num_match:
+                                        val = float(num_match.group())
+                                        if val > 10 and not data["s2"]:
+                                            data["s2"] = val
+                            # Scope 3
+                            if "scope 3" in row_str or "scope3" in row_str:
+                                for cell in row:
+                                    cell_clean = cell.replace(",", "").strip()
+                                    num_match = re.search(r'^\b\d+(?:\.\d+)?\b$', cell_clean)
+                                    if num_match:
+                                        val = float(num_match.group())
+                                        if val > 10 and not data["s3"]:
+                                            data["s3"] = val
+    except Exception as e:
+        print(f"    ⚠️ pdfplumber table extraction failed: {e}")
+
+    # Fallback to precise regex matching on clean text
+    # Scope 1 Regex
+    if not data["s1"]:
+        s1_match = re.search(r'(?i)scope\s*1\s*(?:direct)?\s*(?:ghg)?\s*emissions?\s*(?:location-based|market-based)?\s*[:\-]?\s*([\d,]+(?:\.\d+)?)', text)
+        if s1_match:
+            try:
+                data["s1"] = float(s1_match.group(1).replace(",", ""))
+            except:
+                pass
+
+    # Scope 2 Regex
+    if not data["s2"]:
+        s2_match = re.search(r'(?i)scope\s*2\s*(?:indirect)?\s*(?:ghg)?\s*emissions?\s*(?:location-based|market-based)?\s*[:\-]?\s*([\d,]+(?:\.\d+)?)', text)
+        if s2_match:
+            try:
+                data["s2"] = float(s2_match.group(1).replace(",", ""))
+            except:
+                pass
+
+    # Scope 3 Regex
+    if not data["s3"]:
+        s3_match = re.search(r'(?i)scope\s*3\s*(?:other\s*indirect)?\s*(?:ghg)?\s*emissions?\s*[:\-]?\s*([\d,]+(?:\.\d+)?)', text)
+        if s3_match:
+            try:
+                data["s3"] = float(s3_match.group(1).replace(",", ""))
+            except:
+                pass
+
+    # Derive CO2 estimate from Scope 1 and Scope 2
+    if data["s1"] or data["s2"]:
+        s1_val = data["s1"] or 0.0
+        s2_val = data["s2"] or 0.0
+        data["co2_estimate"] = s1_val + s2_val
+
+    # Revenue Regex
+    rev_match = re.search(r'(?i)revenue.*?\$?([\d,]+\.?\d*)\s*(million|billion|crore)?', text)
+    if rev_match:
+        try:
+            val = float(rev_match.group(1).replace(',', ''))
+            mult = rev_match.group(2)
+            if mult:
+                mult_lower = mult.lower()
+                if 'billion' in mult_lower: val *= 1000000000.0
+                elif 'million' in mult_lower: val *= 1000000.0
+                elif 'crore' in mult_lower: val *= 10000000.0
+            data["revenue"] = val
+        except:
+            pass
+
+    # Profit Regex
+    prof_match = re.search(r'(?i)profit.*?\$?([\d,]+\.?\d*)\s*(million|billion|crore)?', text)
+    if prof_match:
+        try:
+            val = float(prof_match.group(1).replace(',', ''))
+            mult = prof_match.group(2)
+            if mult:
+                mult_lower = mult.lower()
+                if 'billion' in mult_lower: val *= 1000000000.0
+                elif 'million' in mult_lower: val *= 1000000.0
+                elif 'crore' in mult_lower: val *= 10000000.0
+            data["profit"] = val
+        except:
+            pass
+
+    return data
+
 def analyze_with_ollama(text, filename):
     """Use Local Ollama with an intelligent sliding-window strategy to extract data safely."""
-    print(f"    ⚠️ Falling back to Local Ollama (llama3) for {filename}...")
+    print(f"    ⚠️ Falling back to Local Ollama (llama3.2) for {filename}...")
     
     # Clean up the raw text to save space
     text_clean = re.sub(r'\n+', '\n', text).strip()
     total_length = len(text_clean)
 
-    # FIX: Smart text distribution based on document depth
-    # Cover pages/metadata are at the beginning
+    # FIX: Smart text distribution based on targeted context isolation windows
     cover = text_clean[:5000]
     
-    # Financials are typically in the first third or financial tables
-    financials = text_clean[5000:25000] if total_length > 25000 else text_clean[5000:]
-    
-    # Emissions/GRI tables are overwhelmingly at the back/middle of ESG reports
-    emissions = text_clean[-30000:-5000] if total_length > 35000 else text_clean
-    
-    # Operations data spans the body
-    operations = text_clean[15000:45000] if total_length > 45000 else text_clean
+    financials_kws = ["revenue", "profit", "net income", "ebitda", "pat", "turnover", "financial summary"]
+    financials = isolate_keyword_windows(text_clean, financials_kws, 400)
+    if not financials.strip():
+        financials = text_clean[5000:25000] if total_length > 25000 else text_clean[5000:]
+        
+    emissions_kws = ["scope 1", "scope 2", "scope 3", "ghg", "co2", "emissions", "water", "electricity", "energy", "consumption", "tco2e"]
+    emissions = isolate_keyword_windows(text_clean, emissions_kws, 400)
+    if not emissions.strip():
+        emissions = text_clean[-30000:-5000] if total_length > 35000 else text_clean
+        
+    operations_kws = ["facilities", "services", "products", "manufacturing", "lifecycle", "csr", "location", "employees", "headcount", "procurement"]
+    operations = isolate_keyword_windows(text_clean, operations_kws, 400)
+    if not operations.strip():
+        operations = text_clean[15000:45000] if total_length > 45000 else text_clean
 
     def run_pass(pass_num, prompt_template):
         # FIX: Expand context to 8192 so Llama 3 can actually read the data tables
         body = {
-            "model": "llama3",
+            "model": "llama3.2",
             "prompt": prompt_template,
             "stream": False,
             "format": "json",
@@ -377,58 +630,55 @@ def analyze_with_ollama(text, filename):
             print(f"      ❌ Pass {pass_num} Request error: {e}")
         return {}
 
-    # Prompt 1: Focuses on Metadata and high-level strategy
     prompt_1 = (
         "You are an expert ESG Data Analyst. Read the provided text and extract ONLY the requested keys into a flat JSON object.\n"
-        "IMPORTANT: Do not copy the example values from the template if they are not explicitly present in the text. Return null instead.\n"
+        "IMPORTANT: If a metric is not explicitly present in the text, you MUST return null. Do not include template sentences, instructions, or fallback values.\n"
         "Treat Markdown tables as the primary source of truth for numeric values.\n\n"
         "JSON Format:\n"
         "{\n"
-        '  "company_name": "Full name of the company",\n'
-        '  "company_sector": "Industry sector (e.g. Financial Services, Energy, Heavy Manufacturing, Technology, Healthcare, Mining, Automotive, Consumer Goods, Utilities, Oil & Gas)",\n'
+        '  "company_name": null,\n'
+        '  "company_sector": null,\n'
         '  "report_year": null,\n'
         '  "revenue": null,\n'
         '  "profit": null,\n'
-        '  "esg_grade": "AAA or AA or A etc.",\n'
-        '  "net_zero_target": "Year of net zero target"\n'
+        '  "esg_grade": null,\n'
+        '  "net_zero_target": null\n'
         "}\n\n"
         f"Text:\n{cover}\n\n{financials}"
     )
 
-    # Prompt 2: Focuses strictly on Environment/Emissions (fed from back-half of report)
     prompt_2 = (
         "You are an expert ESG Data Analyst specializing in extracting carbon emissions metrics. "
         "Read the text and extract ONLY the requested keys into a flat JSON object. Return clean numbers as float/int numbers (no commas, no text suffixes).\n"
-        "IMPORTANT: If a specific metric is not mentioned in the text, return null.\n\n"
+        "IMPORTANT: If a specific metric is not mentioned in the text, you MUST return null. Do not include template sentences, instructions, or fallback values.\n\n"
         "JSON Format:\n"
         "{\n"
         '  "co2_estimate": null,\n'
-        '  "co2_unit": "tCO2e or ktCO2e or MtCO2e",\n'
+        '  "co2_unit": null,\n'
         '  "scope_1": null,\n'
         '  "scope_2": null,\n'
         '  "scope_3": null,\n'
         '  "water_withdrawal": null,\n'
-        '  "water_unit": "kL or m3 or ML",\n'
+        '  "water_unit": null,\n'
         '  "energy_consumption": null,\n'
-        '  "energy_unit": "MWh or GWh or GJ or TJ"\n'
+        '  "energy_unit": null\n'
         "}\n\n"
         f"Text:\n{emissions}"
     )
 
-    # Prompt 3: Operations & Summary
     prompt_3 = (
         "You are an expert ESG Data Analyst. Read the provided text and extract ONLY the requested keys into a flat JSON object.\n"
-        "IMPORTANT: If a metric is not present, return null.\n\n"
+        "IMPORTANT: If a metric is not present, you MUST return null. Do not include template sentences, instructions, or fallback values.\n\n"
         "JSON Format:\n"
         "{\n"
-        '  "facilities_list": "Locations mentioned",\n'
-        '  "services": "Type of services",\n'
-        '  "products": "Main products",\n'
+        '  "facilities_list": null,\n'
+        '  "services": null,\n'
+        '  "products": null,\n'
         '  "production_volume": null,\n'
         '  "manufacturing_process": null,\n'
         '  "manufacturing_co2": null,\n'
         '  "lifecycle_co2": null,\n'
-        '  "sustainability_summary": "One sentence summary",\n'
+        '  "sustainability_summary": null,\n'
         '  "ebitda": null,\n'
         '  "local_procurement_pct": null,\n'
         '  "employee_count": null\n'
@@ -753,9 +1003,14 @@ def save_to_db(data, filename):
                 multiplier = 1000000.0
             elif "crore" in s_lower:
                 multiplier = 10000000.0
+            elif "lakh" in s_lower:
+                multiplier = 100000.0
                 
-            # FIX BUG C: Isolate only the first valid decimal chunk to ignore parentheses or years
-            numeric_match = re.search(r'[-+]?\d*\.\d+|\d+', s)
+            # FIX: Strip formatting commas out globally first so numbers don't get truncated!
+            s_uncommad = s.replace(",", "")
+            
+            # Isolate only the first valid decimal chunk to ignore parentheses or years
+            numeric_match = re.search(r'[-+]?\d*\.\d+|\d+', s_uncommad)
             if not numeric_match:
                 return None
                 
@@ -768,21 +1023,23 @@ def save_to_db(data, filename):
         # Unit Normalization Layer
         if unit_val and isinstance(unit_val, str):
             unit_clean = unit_val.strip().lower()
-            # CO2 Normalization to standard Metric Tonnes (tCO2e)
-            if any(k in unit_clean for k in ["ktco2e", "kt", "kilo-tonne", "thousand"]):
-                num_val *= 1000.0
-            elif any(m in unit_clean for m in ["mtco2e", "mt", "million tonne"]):
-                num_val *= 1000000.0
-            # Energy Normalization to standard MWh
-            elif unit_clean == "gj":
-                num_val /= 3.6  # 1 MWh = 3.6 GJ
-            elif unit_clean == "tj":
-                num_val = (num_val * 1000.0) / 3.6  # 1 TJ = 1000 GJ
-            elif unit_clean == "gwh":
-                num_val *= 1000.0  # 1 GWh = 1000 MWh
-            # Water Normalization to standard cubic meters (m3) / kL
-            elif any(w in unit_clean for w in ["ml", "million liter", "megaliter"]):
-                num_val *= 1000.0  # 1 ML = 1000 kL / m3
+            # Verify unit string isn't an instruction description template
+            if len(unit_clean) < 15:
+                # CO2 Normalization to standard Metric Tonnes (tCO2e)
+                if any(k in unit_clean for k in ["ktco2e", "kt", "kilo-tonne", "thousand"]):
+                    num_val *= 1000.0
+                elif any(m in unit_clean for m in ["mtco2e", "mt", "million tonne"]):
+                    num_val *= 1000000.0
+                # Energy Normalization to standard MWh
+                elif unit_clean == "gj":
+                    num_val /= 3.6  # 1 MWh = 3.6 GJ
+                elif unit_clean == "tj":
+                    num_val = (num_val * 1000.0) / 3.6  # 1 TJ = 1000 GJ
+                elif unit_clean == "gwh":
+                    num_val *= 1000.0  # 1 GWh = 1000 MWh
+                # Water Normalization to standard cubic meters (m3) / kL
+                elif any(w in unit_clean for w in ["ml", "million liter", "megaliter"]):
+                    num_val *= 1000.0  # 1 ML = 1000 kL / m3
 
         return num_val
 
@@ -793,8 +1050,8 @@ def save_to_db(data, filename):
     report_year = None
     if data.get("report_year"):
         try:
-            year_str = re.sub(r'[^\d]', '', str(data["report_year"]))
-            report_year = int(year_str) if year_str else None
+            year_match = re.search(r'\d{4}', str(data["report_year"]))
+            report_year = int(year_match.group()) if year_match else None
         except:
             report_year = None
 
@@ -876,7 +1133,7 @@ def main():
                 print(f"📄 Processing: {filename}")
                 
                 # 1. Extract text
-                print(f"    Extracting text from PDF (up to 30 pages)...")
+                print(f"    Extracting text from PDF...")
                 text = extract_text_from_pdf(pdf)
                 
 
@@ -886,9 +1143,28 @@ def main():
                     
                 print(f"    Extracted {len(text)} characters.")
                 
-                # 2. Direct Local Llama 3 Processing (Bypassing Cloud completely)
-                print(f"    Analyzing directly with Local Ollama (llama3)...")
-                extracted_data = analyze_with_ollama(text, filename)
+                # 2. Layer 1: Attempt Deterministic/Regex & Table Extraction
+                print(f"    🔬 Running Layer 1: Deterministic Regex & Table parsing...")
+                deterministic_data = analyze_with_regex_and_tables(pdf, text, filename)
+                
+                # Check if we have successfully extracted the critical metrics
+                has_scopes = deterministic_data.get("s1") is not None or deterministic_data.get("s2") is not None
+                has_financials = deterministic_data.get("revenue") is not None or deterministic_data.get("profit") is not None
+                
+                # 3. Layer 2: LLM Fallback (Only run on missing metrics!)
+                if not (has_scopes and has_financials) or deterministic_data.get("report_year") is None:
+                    print(f"    ⚠️ Missing critical metrics. Triggering Layer 2: Local LLM Fallback (llama3.2)...")
+                    extracted_data = analyze_with_ollama(text, filename)
+                    print("🔍 DEBUG RAW LLM DICT:", json.dumps(extracted_data, indent=2))
+                    
+                    # Merge LLM output into the deterministic output, keeping high-confidence regex/table values first!
+                    for k, v in extracted_data.items():
+                        if deterministic_data.get(k) is None and v is not None and v != "":
+                            deterministic_data[k] = v
+                else:
+                    print(f"    ✅ All critical metrics resolved deterministically. Skipping LLM fallback!")
+                    
+                extracted_data = deterministic_data
                 
                 if extracted_data:
                     print(f"    Company: {extracted_data.get('company_name')}")
@@ -903,8 +1179,7 @@ def main():
                     if len(filled_keys) <= 1:
                         print(f"    ⚠️ Critical Alert: Output is nearly empty for {filename}. Checking logic fallback.")
                     
-                    
-                    # 3. Save to DB
+                    # 4. Save to DB
                     success = save_to_db(extracted_data, filename)
                     if success:
                         with open(PROCESSED_LOG, "a") as f:

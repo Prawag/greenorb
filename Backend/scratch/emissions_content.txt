@@ -1,0 +1,419 @@
+7.	
+Provide details of greenhouse gas emissions (Scope 1 and Scope 2 emissions) & its intensity, in the following 
+format: 
+Parameter
+Unit
+FY 2024-25
+(Current Financial Year)
+FY 2023-24
+(Previous Financial Year)
+Total Scope 1 emissions
+tCo2e
+33.02
+20.22
+Total Scope 2 emissions
+tCo2e
+2,746.20
+2,361.74
+Total Scope 1 and Scope 2 emissions per rupee 
+of turnover (Total Scope 1 and Scope 2 GHG 
+emissions/ Revenue from operations)
+tCo2e/ ₹
+0.00000012
+0.00000011
+Total Scope 1 and Scope 2 emissions intensity 
+per rupee of turnover adjusted for Purchasing 
+Power Parity (PPP)* (Total Scope 1 and Scope 
+2 GHG emissions / Revenue from operations 
+adjusted for PPP)
+tCo2e/ per USD
+0.0000024
+0.0000024
+Total Scope 1 and Scope 2 emission intensity in 
+terms of physical output
+-
+NA
+NA
+Total Scope 1 and Scope 2 emission intensity
+(Total Scope 1 and Scope 2 emissions/Full time 
+employees)
+tCo2e/FTE
+0.29
+0.28
+	
+*The PPP conversion rate is 20.66 as published by International Monetary Fund (IMF) on its website. 
+	
+Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? 
+(Y/N) If yes, name of the external agency.
+	
+Yes, the assessment of GHG emissions was carried out by independent consultant firm, Care Analytics and Advisory Pvt. Ltd 
+and the same has been assured by assurance provider.
+8.	
+Does the entity have any project related to reducing Green House Gas emission? If Yes, then provide details.
+	
+The Company is striving to minimize its GHG emissions wherever feasible. The Central Support Office of the Company was 
+certified LEED Gold in May 2022. Further, through its CSR initiatives, the Company has taking forward its commitment to 
+an eco-friendly and sustainable future by proactively undertaking various projects on environmental sustainability like Tree 
+plantation drive – ‘Each One Plant One’ initiative and plantation drive organized by NHB under  ‘Meri Maati Mera Desh' initiative 
+led by Government of India, investment in clean energy, and Green Housing Initiative.
+ Savings from
+ Carbon Reduction (tCo2e)
+620 KWP solar plants
+905.20
+13,051 Tree Plantation
+420.94
+Total Savings
+1,326.14
+9.	
+Provide details related to waste management by the entity:
+	
+As the nature of business of the Company is providing housing finance, the key waste products are plastic, paper and e-waste. 
+Parameter
+FY 2024-25
+(Current Financial Year)
+FY 2023-24
+(Previous Financial Year)
+Total Waste generated (in metric tonnes)
+Plastic waste* (A)
+3.954
+4.825
+E-waste (B)
+2.950
+-
+Bio-medical waste (C)
+-
+-
+Construction and demolition waste (D)
+-
+-
+Battery waste (E)
+-
+-
+Radioactive Waste (F)
+-
+-
+Other hazardous waste. Please specify if any. (G)
+-
+-
+Other non–hazardous waste- Paper Waste* (H)
+6.056
+-
+Total (A+B+C+D+E+F+G+H)
+12.960
+4.825
+Waste intensity per rupee of  turnover (Total waste generated / Revenue from 
+operations) MT/ ₹
+0.00000000055
+0.00000000022
+31
+
+|format:|Col2|Col3|
+|---|---|---|
+|**Parameter**<br>**Unit**|**FY 2024-25**<br>**(Current Financial Year)**|**FY 2023-24**<br>**(Previous Financial Year)**|
+|**Total Scope 1 emissions**<br>tCo2e|33.02|20.22|
+|**Total Scope 2 emissions**<br>tCo2e|2,746.20|2,361.74|
+|**Total Scope 1 and Scope 2 emissions per rupee**<br>**of turnover** (Total Scope 1 and Scope 2 GHG<br>emissions/ Revenue from operations)<br>tCo2e/ ₹|0.00000012|0.00000011|
+|**Total Scope 1 and Scope 2 emissions intensity**<br>**per rupee of turnover adjusted for Purchasing**<br>**Power Parity (PPP)*** (Total Scope 1 and Scope<br>2 GHG emissions / Revenue from operations<br>adjusted for PPP)<br>tCo2e/ per USD|0.0000024|0.0000024|
+|**Total Scope 1 and Scope 2 emission intensity in**<br>**terms of physical output**<br>-|NA|NA|
+|**Total Scope 1 and Scope 2 emission intensity**<br>(Total Scope 1 and Scope 2 emissions/Full time<br>employees)<br>tCo2e/FTE|0.29|0.28|
+
+Environment:
+•	
+The Company has significantly neutralised its total Scope 1 and Scope 2 emissions by 47.72%, marking a major milestone in its journey 
+toward carbon neutrality.
+•	
+The Company has implemented measures to monitor paper usage at its Central Support Office, launched paper recycling initiatives, 
+and reduced plastic consumption across its offices, branches, and promotional activities.
+•	
+The Company under its Go Green Initiative digitized its operations to minimize paperwork and facilitate online applications for home 
+loans through its web portal and mobile application. The Company has initiated a pilot phase for E-signing in its loan documentation 
+process.
+•	
+The Company under its CSR wing planted more than 13,051 trees and installed 620 KWP Solar plant which resulted in carbon saving.
+•	
+The Company has built 348 Self-Built Green Homes, saving more than 402 tCo2, 16,830 m3 water and 542 MWh energy per year.
+Social:
+•	
+The Company’s workforce includes 5.69% women overall, with 26.91% in the Central Support Office and related offices at the end of FY 
+24-25.
+•	
+To promote gender equality, the Company has implemented various range of initiatives, such as Prerna Mentor-Mentee program, Prerna 
+webinars, wellness sessions, women wellness leave, workplace hygiene measures, and the Women Excellence Award.
+•	
+Under Employee health and well-being, the Company provides flexible working hours, Group insurance, Accidental and Health insurance 
+as well Maternity and Paternity leaves.
+•	
+A dedicated Creche facility has been established at the Central Support Office, offering a safe, nurturing, and engaging environment for 
+employee’s children.
+•	
+Through its CSR program, the Company engaged with 3,42,012+ beneficiaries in Education & Holistic Development.
+•	
+Through the CSR program, the Company has reached 3,526+ beneficiaries through women empowerment and the Gram Siddhi Program.
+Governance:
+•	
+The Company has a CSR & ESG Committee as well as ESG Policy to highlight its increased focus on ESG matters.
+•	
+The Company has voluntarily complied with BRSR Core Assurance which is in line with SEBI's mandate.
+•	
+The Company has received ESG ratings from various ESG rating providers such as CRISIL given 63, ESG Risk Assessment & Insights 
+has rating of 70.62, and SES has given a rating of 77.8. The Company has not collaborated with any of these providers, all ratings were 
+independently assigned based solely on publicly available data.
+•	
+The Company is consecutively honoured with the Best Mid-Cap – Service Sector Award in the Sustainability Reporting Awards 2023-24 
+by the Institute of Chartered Accountants of India (ICAI) for Excellence in BRSR.
+Governance, leadership and oversight
+7.	
+Statement by Director responsible for business responsibility report, highlighting ESG related challenges, 
+targets and achievements.
+	
+The Company takes immense pride in our significant strides towards embracing green and sustainable solutions within the 
+workplace and beyond. Believing that charity begins at home, the Company initiated this journey by obtaining a green building 
+certification for our Central Support Office.
+	
+In the Indian housing finance sector, we are pioneering solutions by bridging the financing gap for self-built green homes, 
+particularly in the affordable segment. The Company empower lower and middle-income households to construct energy-
+efficient, independent Green Homes, achieving a remarkable 20% reduction in materials, energy usage and water consumption. 
+This initiative not only reduces the cost of home ownership but also strengthens our commitment to environmental stewardship, 
+setting an unparalleled global example of scalable, inclusive and affordable climate action.
+	
+The Company is equally dedicated to fostering an inclusive environment for our new hires and advancing gender equality. 
+Initiatives like Prerna, the Mentor-Mentee Program, Prerna Webinars and the Women Excellence Award reflect our commitment 
+to empowering women professionals, promoting leadership, and creating a more equitable workplace.
+	
+The Company is consecutively honoured with the Best Mid-Cap – Service Sector Award in the Sustainability Reporting Awards 
+organized by the ICAI for Excellence in BRSR. Our holistic approach to sustainability spans multiple dimensions, including 
+climate action, resource efficiency, diversity and inclusion. Additionally, the Company emphasized digitization and robust 
+data security systems to enhance operational efficiency. By conducting initiatives such as green housing financing, women’s 
+wellness policies, and leadership development programs, sustainability is embedded deeply within our ethos.
+	
+The Company remain steadfast in our mission to drive positive change within the Company and in the wider community, making 
+a meaningful impact on the world we share. Together, we are shaping a sustainable and inclusive future.
+9
+
+Parameter
+FY 2024-25
+(Current Financial Year)
+FY 2023-24
+(Previous Financial Year)
+(v)	 Others
+-
+-
+	
+-	
+No treatment
+-
+-
+	
+-	
+With treatment-please specify level of treatment
+-
+-
+Total water discharged (in kilolitres)
+-
+-
+	
+Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? 
+(Yes/No) If yes, name of the external agency.
+	
+No.
+2.	
+Please provide details of total Scope 3 emissions & its intensity in the following format:
+Parameter
+Unit
+FY 2024-25
+(Current Financial Year)
+FY 2023-24
+(Previous Financial Year)
+Total Scope 3 emissions
+tCo2e
+14,430.15
+13,387
+Total Scope 3 emissions per rupee of turnover
+tCo2e/ ₹
+0.0000006
+0.0000007
+Total Scope 3 emission intensity (optional) – (Total Scope 3 
+Emission /Full Time Employees)
+tCo2e /FTE
+1.53
+1.57
+	
+Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? 
+(Yes/No) If yes, name of the external agency.
+	
+No.
+3.	
+With respect to the ecologically sensitive areas reported at Question 11 of Essential Indicators above, provide 
+details of significant direct & indirect impact of the entity on biodiversity in such areas along-with prevention 
+and remediation activities.
+	
+As the Company is providing financial services, it does not cause any significant, direct impact on biodiversity. The Company’s 
+offices and branches are not operated in and around the ecologically sensitive areas.
+4.	
+If the entity has undertaken any specific initiatives or used innovative technology or solutions to improve 
+resource efficiency, or reduce impact due to emissions / effluent discharge / waste generated, please provide 
+details of the same as well as outcome of such initiatives, as per the following format:
+S. 
+No
+Initiative 
+undertaken
+Details of the initiative (Web-link, if any, may be provided along-with 
+summary)
+Outcome of the initiative
+1.
+GATI
+Aavas is committed to continuous improvement and has embarked on 
+a digital-first initiative called Project ‘GATI’. The project involves building 
+a single platform to streamline the entire loan origination and customer 
+service journey, providing customers with a more seamless experience.
+The new system has significantly reduce 
+manual data entry, paper work and project 
+assessment time, thereby ensuring a 
+seamless customer experience.
+2.
+Green Building 
+Certification
+The Company has actively integrated green and sustainable solutions 
+into its operations. The Company achieved a significant milestone by 
+securing LEED Gold certification for the Central Support Office, making 
+it the first existing commercial building in Jaipur, Rajasthan to receive the 
+prestigious recognition. 
+The initiative has significantly improved 
+energy 
+efficiency, 
+reduced 
+water 
+consumption, and elevated indoor air 
+quality, ensuring a more sustainable and 
+healthier environment.
+3.
+LED lightening 
+& robust IT 
+systems
+LED lighting, insulation to reduce air conditioning usage, and the 
+Company prioritise energy-efficient equipment with higher star ratings, 
+utilises power supervision technology, and has adopted cloud-based 
+technology and virtualised information centres.
+It 
+reduces 
+energy 
+consumption, 
+decreases 
+air 
+conditioning 
+demand, 
+lowers expenses, enhances comfort, and 
+promotes sustainability.
+4.
+Go Green 
+Initiative
+The Company under its Go Green Initiative digitized its operations to 
+minimize paperwork and facilitate online applications for home loans 
+through its web portal and mobile application.
+It minimizes paper consumption in loan 
+documentation and contributes to cost 
+savings by optimizing file storage.
+5.
+E-Signing 
+of Loan 
+Documentation
+The Company has initiated a pilot phase for E-signing in its loan 
+documentation process. This digital transformation aims to enhance 
+efficiency, reduce paper usage, and streamline operations, making loan 
+processing more seamless and cost-effective. By integrating electronic 
+signatures, the Company seeks to improve customer experience, 
+strengthen security measures, and contribute to environmental 
+sustainability.
+Through this initiative the Company will 
+pave the way for a broader adoption of 
+digital documentation.
+34
+Annual Report 2024-25
+AAVAS FINANCIERS LIMITED
+
+|Parameter Unit|FY 2024-25<br>(Current Financial Year)|FY 2023-24<br>(Previous Financial Year)|
+|---|---|---|
+|**Total Scope 3 emissions**<br>tCo2e|14,430.15|13,387|
+|**Total Scope 3 emissions per rupee of turnover**<br>tCo2e/ ₹|0.0000006|0.0000007|
+|**Total Scope 3 emission intensity** (optional) – (Total Scope 3<br>Emission /Full Time Employees)<br>tCo2e /FTE|1.53|1.57|
+
+Parameter
+FY 2024-25
+(Current Financial Year)
+FY 2023-24
+(Previous Financial Year)
+Waste intensity per rupee of turnover adjusted for Purchasing Power Parity 
+(PPP) (Total waste generated/ Revenue from operations adjusted for PPP)
+0.0000000114
+0.0000000049
+Waste intensity in terms of physical output
+NA
+NA
+Waste intensity (optional) – (Total waste generated /Full Time Employees) MT/
+FTE
+0.00137
+0.00056
+For each category of waste generated, total waste recovered through recycling, 
+reusing or other recovery operations (in metric tonnes)
+Category of Waste
+(i) Recycled
+4.34
+-
+(ii) Re-used
+-
+0.24
+(iii)Other Recovery Operations
+-
+-
+Total
+4.34
+0.24
+For each category of waste generated, total waste disposed by nature of disposal method (in metric tonnes)
+(i)	 Incineration
+-
+-
+(ii)	 Landfilling
+-
+-
+(iii)	 Other disposal operations
+8.62
+4.58
+Total
+8.62
+4.58
+	
+* Computed with respect to the Central Support Office only.
+	
+Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? 
+(Y/N) If yes, name of the external agency.
+	
+Yes, the assessment of GHG Emissions was carried out by independent consultant firm, Care Analytics and Advisory Pvt. Ltd 
+and the same has been assured by assurance provider.
+10.	 Briefly describe the waste management practices adopted in your establishments. Describe the strategy 
+adopted by your Company to reduce usage of hazardous and toxic chemicals in your products and processes 
+and the practices adopted to manage such wastes.
+	
+As the nature of business of the Company is providing housing finance, there has been no hazardous waste generated by the 
+Company. In the current Financial Year, approximately 12.96 metric tons of waste was generated at the Central Support Office 
+out of which 4.34 metric tons of paper and e-waste was recycled through authorized vendors.
+	
+The Company has already launched  ‘Go Green Initiative' to reduce paper consumption, thereby reducing paper waste. The 
+Company monitors and regulates the printing and photocopy operations. The Company also strives to adopt measures to 
+segregate waste and ensure recycling/reuse of waste, wherever practicable.
+11.	 If the entity has operations/offices in/around ecologically sensitive areas (such as national parks, wildlife 
+sanctuaries, biosphere reserves, wetlands, biodiversity hotspots, forests, coastal regulation zones etc.) 
+where environmental approvals / clearances are required, please specify details in the following format:
+	
+All the offices as well as branches of the Company are in premises which have the requisite building permits, including 
+environmental approvals.
+S.No
+Location of operations/
+offices
+Type of operations
+Whether the conditions of environmental approval / clearance 
+are being complied with? (Y/N) If no, the reasons thereof and the 
+corrective actions taken if any.
+Nil
+32
+Annual Report 2024-25
+AAVAS FINANCIERS LIMITED
