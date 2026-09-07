@@ -114,14 +114,15 @@ export default function CompanyProfile({ companyId, onSelectReport, onBack }) {
     }
     setLoading(true);
     setError(null);
-    fetch(`${API}/api/data`)
+    fetch(`${API}/api/data?search=${encodeURIComponent(companyId)}&limit=10`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((data) => {
-        const sourceData = Array.isArray(data) && data.length > 0 ? data : FALLBACK_COMPANIES;
-        const match = sourceData.find(
+      .then((json) => {
+        const sourceData = json.data || (Array.isArray(json) ? json : []);
+        const items = sourceData.length > 0 ? sourceData : FALLBACK_COMPANIES;
+        const match = items.find(
           (c) => c.name && c.name.toLowerCase() === companyId.toLowerCase()
         );
         setCompany(match || null);

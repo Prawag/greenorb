@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 import { API_SERVER as API_BASE } from "../utils.js";
 import FALLBACK_COMPANIES from "../data/fallbackData.js";
@@ -9,40 +9,66 @@ export default function ESGDirectory({ onSelectCompany }) {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [sectorFilter, setSectorFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sectors, setSectors] = useState(["All"]);
+  const itemsPerPage = 20;
+
+  // Debounced search value
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, sectorFilter]);
+
+  // Fetch data from server with pagination
+  const fetchPage = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: itemsPerPage,
+      });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (sectorFilter !== "All") params.set("sector", sectorFilter);
+
+      const res = await fetch(`${API_BASE}/api/esg/companies?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      // Handle paginated response
+      if (json.data && Array.isArray(json.data)) {
+        setData(json.data);
+        setTotalPages(json.totalPages || 1);
+        setTotalCount(json.total || json.data.length);
+        if (json.sectors) setSectors(["All", ...json.sectors]);
+      } else if (Array.isArray(json)) {
+        // Backward compat: old API returns plain array
+        setData(json.length > 0 ? json : FALLBACK_COMPANIES);
+        setTotalPages(1);
+        setTotalCount(json.length);
+      }
+      setError(null);
+    } catch (e) {
+      console.error("ESGDirectory fetch error:", e);
+      setData(FALLBACK_COMPANIES);
+      setError(e.message);
+      setTotalPages(1);
+      setTotalCount(FALLBACK_COMPANIES.length);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, debouncedSearch, sectorFilter]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function fetchCompanies() {
-      try {
-        const res = await fetch(`${API_BASE}/api/esg/companies`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (!cancelled) setData(Array.isArray(json) && json.length > 0 ? json : FALLBACK_COMPANIES);
-      } catch (e) {
-        console.error("ESGDirectory fetch error:", e);
-        if (!cancelled) {
-          setData(FALLBACK_COMPANIES);
-          setError(e.message);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    fetchCompanies();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Derive sectors
-  const sectors = ["All", ...Array.from(new Set(data.map(c => c.sector).filter(Boolean))).sort()];
-
-  // Filter data
-  const filtered = data.filter(c => {
-    const matchesSearch = !search ||
-      (c.name && c.name.toLowerCase().includes(search.toLowerCase())) ||
-      (c.country && c.country.toLowerCase().includes(search.toLowerCase()));
-    const matchesSector = sectorFilter === "All" || c.sector === sectorFilter;
-    return matchesSearch && matchesSector;
-  });
+    fetchPage();
+  }, [fetchPage]);
 
   // Format CO2
   function fmtCO2(val) {
@@ -63,14 +89,17 @@ export default function ESGDirectory({ onSelectCompany }) {
     return "score-bad";
   }
 
-  if (loading) {
-    return (
-      <div style={{ padding: 48, textAlign: "center" }}>
-        <div className="go-status go-status-loading" style={{ display: "inline-block" }}>
-          Loading ESG directory…
-        </div>
-      </div>
-    );
+  // Generate page numbers for pagination
+  function getPageNumbers() {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start < maxVisible - 1) start = Math.max(1, end - maxVisible + 1);
+    if (start > 1) { pages.push(1); if (start > 2) pages.push("..."); }
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages) { if (end < totalPages - 1) pages.push("..."); pages.push(totalPages); }
+    return pages;
   }
 
   return (
@@ -81,9 +110,10 @@ export default function ESGDirectory({ onSelectCompany }) {
           ESG Report Directory
         </h1>
         <p style={{ fontFamily: "var(--body)", fontSize: 15, color: "var(--body-text)" }}>
-          {filtered.length} {filtered.length === 1 ? "company" : "companies"}
+          {totalCount} {totalCount === 1 ? "company" : "companies"}
           {sectorFilter !== "All" ? ` in ${sectorFilter}` : " indexed"}
-          {search ? ` matching "${search}"` : ""}
+          {debouncedSearch ? ` matching "${debouncedSearch}"` : ""}
+          {totalPages > 1 && ` · Page ${currentPage} of ${totalPages}`}
         </p>
       </div>
 
@@ -123,16 +153,21 @@ export default function ESGDirectory({ onSelectCompany }) {
                 Clear filters
               </button>
             )}
+            {loading && (
+              <span style={{ fontSize: 13, color: "var(--muted)", fontFamily: "var(--body)" }}>
+                Loading…
+              </span>
+            )}
           </div>
         </div>
       </div>
 
       {/* Table */}
       <div className="go-card">
-        {filtered.length === 0 ? (
+        {data.length === 0 && !loading ? (
           <div className="go-card-content" style={{ textAlign: "center", padding: "40px 24px" }}>
             <p style={{ fontFamily: "var(--body)", fontSize: 14, color: "var(--muted)" }}>
-              {data.length === 0
+              {totalCount === 0
                 ? "No companies loaded yet. Sync data from the backend to get started."
                 : "No companies match your current filters."}
             </p>
@@ -152,11 +187,12 @@ export default function ESGDirectory({ onSelectCompany }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c, i) => (
+                {data.map((c, i) => (
                   <tr
                     key={c.name || i}
                     data-clickable="true"
                     onClick={() => onSelectCompany && onSelectCompany(c.name)}
+                    style={loading ? { opacity: 0.5 } : {}}
                   >
                     <td>
                       <span style={{ fontWeight: 600 }}>{c.name || "Unknown"}</span>
@@ -194,6 +230,61 @@ export default function ESGDirectory({ onSelectCompany }) {
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div style={{
+          display: "flex", justifyContent: "center", alignItems: "center",
+          gap: 4, marginTop: 24, flexWrap: "wrap"
+        }}>
+          <button
+            className="go-btn go-btn-ghost"
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            style={{ padding: "6px 10px", fontSize: 13 }}
+          >
+            ⟨⟨
+          </button>
+          <button
+            className="go-btn go-btn-ghost"
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            style={{ padding: "6px 12px", fontSize: 13 }}
+          >
+            ← Prev
+          </button>
+          {getPageNumbers().map((p, i) =>
+            p === "..." ? (
+              <span key={`ellipsis-${i}`} style={{ padding: "6px 4px", color: "var(--muted)", fontSize: 13 }}>…</span>
+            ) : (
+              <button
+                key={p}
+                className={`go-btn ${p === currentPage ? 'go-btn-primary' : 'go-btn-ghost'}`}
+                onClick={() => setCurrentPage(p)}
+                style={{ padding: "6px 12px", fontSize: 13, minWidth: 36 }}
+              >
+                {p}
+              </button>
+            )
+          )}
+          <button
+            className="go-btn go-btn-ghost"
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            style={{ padding: "6px 12px", fontSize: 13 }}
+          >
+            Next →
+          </button>
+          <button
+            className="go-btn go-btn-ghost"
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            style={{ padding: "6px 10px", fontSize: 13 }}
+          >
+            ⟩⟩
+          </button>
+        </div>
+      )}
     </div>
   );
 }

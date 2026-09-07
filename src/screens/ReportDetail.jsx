@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 import { API_SERVER as API } from "../utils.js";
 import FALLBACK_COMPANIES from "../data/fallbackData.js";
@@ -18,28 +18,77 @@ function fmt(val, fallback = "—") {
 }
 
 export default function ReportDetail({ reportId, onSelectReport, onBack }) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const itemsPerPage = 20;
+
+  // Fetch paginated data
+  const fetchPage = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: itemsPerPage,
+      });
+      const res = await fetch(`${API}/api/data?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      if (json.data && Array.isArray(json.data)) {
+        setData(json.data);
+        setTotalPages(json.totalPages || 1);
+        setTotalCount(json.total || json.data.length);
+      } else if (Array.isArray(json)) {
+        // Backward compat
+        setData(json.length > 0 ? json : FALLBACK_COMPANIES);
+        setTotalPages(1);
+        setTotalCount(json.length);
+      }
+      setError(null);
+    } catch (e) {
+      console.error("ReportDetail fetch error:", e);
+      setData(FALLBACK_COMPANIES);
+      setError(e.message);
+      setTotalPages(1);
+      setTotalCount(FALLBACK_COMPANIES.length);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage]);
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetch(`${API}/api/data`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+    if (!reportId) fetchPage();
+  }, [reportId, fetchPage]);
+
+  // For single report detail, fetch that specific company
+  const [company, setCompany] = useState(null);
+  const [companyLoading, setCompanyLoading] = useState(false);
+
+  useEffect(() => {
+    if (!reportId) return;
+    setCompanyLoading(true);
+    fetch(`${API}/api/data?search=${encodeURIComponent(reportId)}&limit=5`)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(json => {
+        const items = json.data || json;
+        const found = items.find(c => c.name && c.name.toLowerCase() === reportId.toLowerCase());
+        setCompany(found || null);
       })
-      .then((d) => setData(Array.isArray(d) && d.length > 0 ? d : FALLBACK_COMPANIES))
-      .catch((e) => {
-        setData(FALLBACK_COMPANIES);
+      .catch(e => {
+        // Try fallback
+        const found = FALLBACK_COMPANIES.find(c => c.name && c.name.toLowerCase() === reportId.toLowerCase());
+        setCompany(found || null);
         setError(e.message);
       })
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => setCompanyLoading(false));
+  }, [reportId]);
 
   // --- Loading ---
-  if (loading) {
+  if ((loading && !reportId) || companyLoading) {
     return (
       <div style={{ padding: 48, textAlign: "center" }}>
         <div
@@ -60,7 +109,18 @@ export default function ReportDetail({ reportId, onSelectReport, onBack }) {
     );
   }
 
-
+  // Generate page numbers
+  function getPageNumbers() {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start < maxVisible - 1) start = Math.max(1, end - maxVisible + 1);
+    if (start > 1) { pages.push(1); if (start > 2) pages.push("..."); }
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages) { if (end < totalPages - 1) pages.push("..."); pages.push(totalPages); }
+    return pages;
+  }
 
   // --- List View (if no reportId is selected) ---
   if (!reportId) {
@@ -76,7 +136,8 @@ export default function ReportDetail({ reportId, onSelectReport, onBack }) {
         <div style={{ marginBottom: 32 }}>
           <h1 style={{ marginBottom: 8 }}>ESG Reports</h1>
           <p style={{ color: "var(--body-text)", margin: 0 }}>
-            {reports.length} reports available in the database.
+            {totalCount} reports available in the database.
+            {totalPages > 1 && ` · Page ${currentPage} of ${totalPages}`}
           </p>
         </div>
 
@@ -96,7 +157,7 @@ export default function ReportDetail({ reportId, onSelectReport, onBack }) {
                 {reports.map((r) => (
                   <tr 
                     key={r.name} 
-                    style={{ cursor: "pointer", borderBottom: "1px solid var(--bd)" }}
+                    style={{ cursor: "pointer", borderBottom: "1px solid var(--bd)", opacity: loading ? 0.5 : 1 }}
                     onClick={() => onSelectReport && onSelectReport(r.name)}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -111,7 +172,7 @@ export default function ReportDetail({ reportId, onSelectReport, onBack }) {
                 {reports.length === 0 && (
                   <tr>
                     <td colSpan={5} style={{ padding: 32, textAlign: "center", color: "var(--muted)" }}>
-                      No reports found in the database.
+                      No reports found on this page.
                     </td>
                   </tr>
                 )}
@@ -119,13 +180,66 @@ export default function ReportDetail({ reportId, onSelectReport, onBack }) {
             </table>
           </div>
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div style={{
+            display: "flex", justifyContent: "center", alignItems: "center",
+            gap: 4, marginTop: 24, flexWrap: "wrap"
+          }}>
+            <button
+              className="go-btn go-btn-ghost"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              style={{ padding: "6px 10px", fontSize: 13 }}
+            >
+              ⟨⟨
+            </button>
+            <button
+              className="go-btn go-btn-ghost"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              style={{ padding: "6px 12px", fontSize: 13 }}
+            >
+              ← Prev
+            </button>
+            {getPageNumbers().map((p, i) =>
+              p === "..." ? (
+                <span key={`ellipsis-${i}`} style={{ padding: "6px 4px", color: "var(--muted)", fontSize: 13 }}>…</span>
+              ) : (
+                <button
+                  key={p}
+                  className={`go-btn ${p === currentPage ? 'go-btn-primary' : 'go-btn-ghost'}`}
+                  onClick={() => setCurrentPage(p)}
+                  style={{ padding: "6px 12px", fontSize: 13, minWidth: 36 }}
+                >
+                  {p}
+                </button>
+              )
+            )}
+            <button
+              className="go-btn go-btn-ghost"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              style={{ padding: "6px 12px", fontSize: 13 }}
+            >
+              Next →
+            </button>
+            <button
+              className="go-btn go-btn-ghost"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              style={{ padding: "6px 10px", fontSize: 13 }}
+            >
+              ⟩⟩
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
   // --- Single Report Detail View ---
-  const company = data.find((c) => c.name && c.name.toLowerCase() === reportId.toLowerCase());
-
   if (!company) {
     return (
       <div style={{ padding: 48 }}>

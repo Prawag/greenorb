@@ -14,6 +14,13 @@ import { writeFile } from 'fs/promises';
 import { buildSpatialIndex } from './lib/spatial-water.js';
 
 // Globe API route modules
+process.on('uncaughtException', (err) => {
+  console.error('[Global] Uncaught Exception:', err.message);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Global] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 import mountGlobePoints from './api/globe-points.js';
 import mountCountryChoropleth from './api/country-choropleth.js';
 import mountEsgNews from './api/esg-news.js';
@@ -380,10 +387,28 @@ initDb();
 
 // ─── ROUTES ──────────────────────────────────────────────────────────────────
 
-// GET all companies + their associated data
+// GET all companies + their associated data (paginated)
 app.get('/api/data', async (req, res) => {
     try {
-        const data = await sql`
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+        const offset = (page - 1) * limit;
+        const search = req.query.search || '';
+        const sector = req.query.sector || '';
+
+        // Build WHERE clause fragments
+        let whereClause = '';
+        const conditions = [];
+        if (search) conditions.push(`c.name ILIKE '%' || '${search.replace(/'/g, "''")}' || '%'`);
+        if (sector && sector !== 'All') conditions.push(`c.sector = '${sector.replace(/'/g, "''")}'`);
+        if (conditions.length > 0) whereClause = 'WHERE ' + conditions.join(' AND ');
+
+        // Count total matching rows
+        const countResult = await sql.unsafe(`SELECT COUNT(*) as total FROM companies c ${whereClause}`);
+        const total = parseInt(countResult[0].total);
+
+        // Fetch paginated data
+        const data = await sql.unsafe(`
             SELECT 
                 c.*, 
                 a.score, a.e_score, a.s_score, a.g_score, a.trend, a.peer, a.strengths, a.weaknesses, a.recommendation,
@@ -393,19 +418,40 @@ app.get('/api/data', async (req, res) => {
             LEFT JOIN analysis a ON c.name = a.company
             LEFT JOIN risks r ON c.name = r.company
             LEFT JOIN strategies s ON c.name = s.company
+            ${whereClause}
             ORDER BY c.ts DESC
-        `;
-        res.json(data);
+            LIMIT ${limit} OFFSET ${offset}
+        `);
+        res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit) });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// GET all companies raw row data (for ESG Data Tab frontend)
+// GET all companies raw row data (for ESG Data Tab frontend) — paginated
 app.get('/api/esg/companies', async (req, res) => {
     try {
-        const data = await sql`SELECT * FROM companies ORDER BY name ASC`;
-        res.json(data);
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+        const offset = (page - 1) * limit;
+        const search = req.query.search || '';
+        const sector = req.query.sector || '';
+
+        let whereClause = '';
+        const conditions = [];
+        if (search) conditions.push(`name ILIKE '%' || '${search.replace(/'/g, "''")}' || '%'`);
+        if (sector && sector !== 'All') conditions.push(`sector = '${sector.replace(/'/g, "''")}'`);
+        if (conditions.length > 0) whereClause = 'WHERE ' + conditions.join(' AND ');
+
+        const countResult = await sql.unsafe(`SELECT COUNT(*) as total FROM companies ${whereClause}`);
+        const total = parseInt(countResult[0].total);
+
+        // Also fetch distinct sectors for the filter dropdown
+        const sectorsResult = await sql`SELECT DISTINCT sector FROM companies WHERE sector IS NOT NULL ORDER BY sector ASC`;
+        const sectors = sectorsResult.map(r => r.sector).filter(Boolean);
+
+        const data = await sql.unsafe(`SELECT * FROM companies ${whereClause} ORDER BY name ASC LIMIT ${limit} OFFSET ${offset}`);
+        res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit), sectors });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

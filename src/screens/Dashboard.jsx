@@ -12,10 +12,11 @@ export default function Dashboard({ onNavigateToDirectory, onNavigateToCompany }
     let cancelled = false;
     async function fetchData() {
       try {
-        const res = await fetch(`${API_BASE}/api/data`);
+        const res = await fetch(`${API_BASE}/api/data?limit=100`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        if (!cancelled) setData(Array.isArray(json) && json.length > 0 ? json : FALLBACK_COMPANIES);
+        const items = json.data || (Array.isArray(json) ? json : []);
+        if (!cancelled) setData(items.length > 0 ? items : FALLBACK_COMPANIES);
       } catch (e) {
         console.error("Dashboard fetch error:", e);
         if (!cancelled) {
