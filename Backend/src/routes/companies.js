@@ -19,7 +19,7 @@ const listQuery = pageQuery.extend({
   q: z.string().trim().max(120).optional(),
   sector: z.string().trim().max(120).optional(),
   country: z.string().trim().max(120).optional(),
-  has_data: z.enum(['true', 'false']).optional(),
+  has_data: z.enum(['true', 'false', 'all']).optional(),
   sort: z.enum(Object.keys(SORTS)).default('name'),
   order: z.enum(['asc', 'desc']).optional(),
 });
@@ -56,7 +56,7 @@ export function companiesRouter({ db, config }) {
         q.q ? likeEscape(q.q) : null,
         q.sector || null,
         q.country || null,
-        q.has_data === undefined ? null : q.has_data === 'true',
+        q.has_data === undefined || q.has_data === 'all' ? null : q.has_data === 'true',
         q.limit,
         offset,
       ],

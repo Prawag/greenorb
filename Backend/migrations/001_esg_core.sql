@@ -189,7 +189,8 @@ CREATE TABLE IF NOT EXISTS esg.audit_log (
 DROP VIEW IF EXISTS esg.company_summary;
 CREATE VIEW esg.company_summary AS
 WITH latest_year AS (
-  SELECT company_id, max(fiscal_year) AS fiscal_year
+  -- Prefer the latest year with cited (non-legacy) data; fall back to legacy imports.
+  SELECT company_id, coalesce(max(fiscal_year) FILTER (WHERE method <> 'legacy'), max(fiscal_year)) AS fiscal_year
   FROM esg.metrics
   WHERE is_primary AND status <> 'rejected' AND metric LIKE 'ghg_%'
   GROUP BY company_id

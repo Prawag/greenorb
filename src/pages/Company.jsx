@@ -57,25 +57,38 @@ export default function Company() {
 
   const byKey = useMemo(() => Object.fromEntries((data?.metrics || []).map((m) => [m.key, m])), [data]);
   const latestYear = data?.summary?.latest_year;
+  // For a tile covering several metric keys (e.g. Scope 2 market/location/unspecified), prefer the
+  // latest year, then verified extractions over unverified legacy imports, then the key order.
   const latestPoint = (keys) => {
-    for (const k of [].concat(keys)) {
-      const pts = byKey[k]?.points || [];
-      const p = pts.find((x) => x.fiscal_year === latestYear && x.value != null) || pts.find((x) => x.fiscal_year === latestYear)
-        || [...pts].reverse().find((x) => x.value != null);
-      if (p) return { point: p, key: k };
-    }
-    return { point: null, key: null };
+    const cands = [];
+    [].concat(keys).forEach((k, order) => (byKey[k]?.points || []).forEach((p) => cands.push({ p, k, order })));
+    if (!cands.length) return { point: null, key: null };
+    cands.sort((a, b) =>
+      (b.p.value != null) - (a.p.value != null) ||
+      (b.p.fiscal_year === latestYear) - (a.p.fiscal_year === latestYear) ||
+      (a.p.method === 'legacy') - (b.p.method === 'legacy') ||
+      b.p.fiscal_year - a.p.fiscal_year ||
+      a.order - b.order);
+    return { point: cands[0].p, key: cands[0].k };
   };
 
   const chart = useMemo(() => {
+    // One value per series and year; cited extractions win over unverified legacy imports.
     const rows = {};
-    const add = (key, alias) => (byKey[key]?.points || []).filter((p) => p.value != null).forEach((p) => {
-      rows[p.fiscal_year] ||= { year: p.fiscal_year };
-      rows[p.fiscal_year][alias || key] ??= p.value;
-    });
-    add('ghg_scope1');
-    ['ghg_scope2_market', 'ghg_scope2_location', 'ghg_scope2'].forEach((k) => add(k, 'scope2'));
-    add('ghg_scope3');
+    const add = (keys, alias) => {
+      const best = {};
+      keys.forEach((k, order) => (byKey[k]?.points || []).filter((p) => p.value != null).forEach((p) => {
+        const rank = (p.method === 'legacy' ? 10 : 0) + order;
+        if (!best[p.fiscal_year] || rank < best[p.fiscal_year].rank) best[p.fiscal_year] = { rank, value: p.value };
+      }));
+      Object.entries(best).forEach(([y, b]) => {
+        rows[y] ||= { year: Number(y) };
+        rows[y][alias] = b.value;
+      });
+    };
+    add(['ghg_scope1'], 'ghg_scope1');
+    add(['ghg_scope2_market', 'ghg_scope2_location', 'ghg_scope2'], 'scope2');
+    add(['ghg_scope3'], 'ghg_scope3');
     return Object.values(rows).sort((a, b) => a.year - b.year);
   }, [byKey]);
 
@@ -112,7 +125,7 @@ export default function Company() {
       ) : (
         <>
           <div className="grid-21 section">
-            <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0,1fr))' }}>
+            <div className="kpi-grid">
               {TILES.map((t) => {
                 const { point, key } = latestPoint(t.key);
                 return <Tile key={t.label} label={t.label} point={point} metricKey={key} latestYear={latestYear} />;

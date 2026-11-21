@@ -3,38 +3,49 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
+const LOCK_ID = 727274;
 
 /**
- * Apply SQL migrations in filename order. Files named `*.optional.sql` require the
- * pgvector extension; they are skipped (and retried on the next start) when it is missing.
- * Uses an advisory lock so several API instances can start at the same time safely.
+ * Apply SQL migrations in filename order, each in its own transaction guarded by a
+ * transaction-scoped advisory lock (safe with PgBouncer/Neon pooled connections and with
+ * several API instances starting at once). Files named `*.optional.sql` need pgvector; they
+ * are skipped, and retried on the next start, when the extension is unavailable.
  */
 export async function migrate(db, { log = console.log } = {}) {
   const client = await db.pool.connect();
+  const applied = [];
+  const skipped = [];
   try {
-    await client.query('SELECT pg_advisory_lock(727274)');
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [LOCK_ID]);
     await client.query('CREATE SCHEMA IF NOT EXISTS esg');
     await client.query(`CREATE TABLE IF NOT EXISTS esg.schema_migrations (
       version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-    const done = new Set((await client.query('SELECT version FROM esg.schema_migrations')).rows.map((r) => r.version));
+    await client.query('COMMIT');
     const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
-    const applied = [];
-    const skipped = [];
 
     for (const file of files) {
-      if (done.has(file)) continue;
-      if (file.endsWith('.optional.sql')) {
-        try {
-          await client.query('CREATE EXTENSION IF NOT EXISTS vector');
-        } catch (err) {
-          skipped.push(file);
-          log(`[migrate] skipping ${file}: pgvector unavailable (${err.message}). Ask-the-report will use full-text search.`);
-          continue;
-        }
-      }
       const sql = readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
       try {
         await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock($1)', [LOCK_ID]);
+        const done = await client.query('SELECT 1 FROM esg.schema_migrations WHERE version = $1', [file]);
+        if (done.rowCount) {
+          await client.query('COMMIT');
+          continue;
+        }
+        if (file.endsWith('.optional.sql')) {
+          await client.query('SAVEPOINT ext');
+          try {
+            await client.query('CREATE EXTENSION IF NOT EXISTS vector');
+          } catch (err) {
+            await client.query('ROLLBACK TO SAVEPOINT ext');
+            await client.query('COMMIT');
+            skipped.push(file);
+            log(`[migrate] skipping ${file}: pgvector unavailable (${err.message}). Ask-the-report will use full-text search.`);
+            continue;
+          }
+        }
         await client.query(sql);
         await client.query('INSERT INTO esg.schema_migrations (version) VALUES ($1)', [file]);
         await client.query('COMMIT');
@@ -47,7 +58,6 @@ export async function migrate(db, { log = console.log } = {}) {
     }
     return { applied, skipped };
   } finally {
-    await client.query('SELECT pg_advisory_unlock(727274)').catch(() => {});
     client.release();
   }
 }
