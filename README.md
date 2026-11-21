@@ -1,4 +1,11 @@
-# ◎ GreenOrb — ESG report intelligence
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/greenorb-logo-light.svg">
+    <img src="docs/brand/greenorb-logo.svg" alt="GreenOrb" height="56">
+  </picture>
+</p>
+
+# GreenOrb: ESG report intelligence
 
 GreenOrb reads corporate sustainability reports (BRSR, GRI, annual and integrated reports) and turns
 them into **emissions and environmental figures you can check**:
@@ -240,3 +247,9 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs all three on ev
 - The reviewer token is never built into the frontend. Each reviewer pastes it into their own browser.
 - All SQL is parameterised; inputs are validated with zod; uploads must be real PDFs; URL fetching
   blocks private networks.
+
+## Brand
+
+The logo lives in `docs/brand/`: `greenorb-logo.svg` (dark text, for light backgrounds), `greenorb-logo-light.svg`
+(light text, for dark backgrounds), `greenorb-orb.svg` (app icon) and the designer's original file. In the web app use
+the `<Logo />` and `<Orb />` components from `src/components/Logo.jsx`; don't redraw or recolour the orb.

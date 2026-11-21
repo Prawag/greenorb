@@ -194,12 +194,12 @@ export default function Company() {
           <div style={{ width: '100%', height: 260 }}>
             <ResponsiveContainer>
               <LineChart data={chart} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
-                <CartesianGrid stroke="#eceef0" vertical={false} />
-                <XAxis dataKey="year" tickFormatter={(y) => `FY${y}`} tick={{ fontSize: 12, fill: '#697584' }} axisLine={{ stroke: '#dce0e4' }} tickLine={false} />
-                <YAxis tickFormatter={fmtCompact} tick={{ fontSize: 12, fill: '#697584' }} width={60} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(v) => `${fmtFull(v)} tCO₂e`} labelFormatter={(y) => `FY${y}`} contentStyle={{ fontFamily: 'IBM Plex Sans', fontSize: 12, borderRadius: 4, borderColor: '#dce0e4' }} />
+                <CartesianGrid stroke="rgba(255,255,255,.06)" vertical={false} />
+                <XAxis dataKey="year" tickFormatter={(y) => `FY${y}`} tick={{ fontSize: 12, fill: '#8f9b91' }} axisLine={{ stroke: 'rgba(255,255,255,.1)' }} tickLine={false} />
+                <YAxis tickFormatter={fmtCompact} tick={{ fontSize: 12, fill: '#8f9b91' }} width={60} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v) => `${fmtFull(v)} tCO₂e`} labelFormatter={(y) => `FY${y}`} contentStyle={{ fontFamily: 'Manrope', fontSize: 12, borderRadius: 12, background: 'rgba(15,22,17,.94)', border: '1px solid rgba(255,255,255,.14)', color: '#f1f5ee' }} itemStyle={{ color: '#c9d2c9' }} cursor={{ stroke: 'rgba(198,243,107,.4)' }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} iconType="plainline" />
-                {[['s1', 'Scope 1', '#13273d'], ['s2', 'Scope 2', '#2e7d5b'], ['s3', 'Scope 3', '#8aa4bf']].filter(([k]) => chart.some((r) => r[k] != null)).map(([k, name, color]) => (
+                {[['s1', 'Scope 1', '#c6f36b'], ['s2', 'Scope 2', '#5fbf73'], ['s3', 'Scope 3', '#e9eee6']].filter(([k]) => chart.some((r) => r[k] != null)).map(([k, name, color]) => (
                   <Line key={k} type="linear" dataKey={k} name={name} stroke={color} strokeWidth={2} dot={{ r: 3, strokeWidth: 0, fill: color }} connectNulls isAnimationActive={false} />
                 ))}
               </LineChart>

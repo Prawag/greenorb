@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { KeyRound, UserCheck } from 'lucide-react';
+import { KeyRound, LogOut } from 'lucide-react';
+import { Logo } from './Logo.jsx';
 import { Notice } from './ui.jsx';
 import { api, getToken, setToken } from '../api.js';
 
@@ -67,7 +68,8 @@ function TokenDialog({ onClose, enabled }) {
     <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form className="modal" onSubmit={save} aria-labelledby="rv-title">
         <div className="modal-body">
-          <h2 id="rv-title">Sign in as reviewer</h2>
+          <Logo height={26} />
+          <h2 id="rv-title" style={{ marginTop: 6 }}>Sign in as reviewer</h2>
           <p className="small muted">
             Reviewers can add reports, confirm or dismiss flags, and correct figures. Paste the reviewer token your
             administrator gave you. It stays in this browser only.
@@ -92,13 +94,15 @@ export function ReviewerButton() {
   const r = useReviewer();
   if (r.isReviewer) {
     return (
-      <button className="btn btn-sm" onClick={r.signOut} title="Click to sign out of reviewer mode on this browser">
-        <UserCheck aria-hidden /> <span className="rv-label">Signed in as reviewer</span>
+      <button className="who" onClick={r.signOut} title="Sign out of reviewer mode on this browser">
+        <span className="avatar" aria-hidden>RV</span>
+        <span className="rv-label"><b>Reviewer</b><small>Click to sign out</small></span>
+        <LogOut aria-hidden className="rv-label" />
       </button>
     );
   }
   return (
-    <button className="btn btn-sm" onClick={r.open} aria-label="Reviewer sign-in">
+    <button className="btn" onClick={r.open} aria-label="Reviewer sign-in">
       <KeyRound aria-hidden /> <span className="rv-label">Reviewer sign-in</span>
     </button>
   );

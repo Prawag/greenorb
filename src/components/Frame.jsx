@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { ClipboardCheck, FileUp, Globe2, LayoutGrid, Search, Table2 } from 'lucide-react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Building2, ChevronRight, ClipboardCheck, FileUp, Globe2, Search } from 'lucide-react';
+import { Logo } from './Logo.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { ReviewerButton } from './Reviewer.jsx';
 import { timeAgo } from '../format.js';
@@ -13,7 +14,8 @@ export function useCrumbs(crumbs) {
   const key = JSON.stringify(crumbs);
   useEffect(() => {
     set(crumbs);
-    document.title = `${crumbs[crumbs.length - 1]?.label || 'GreenOrb'} · GreenOrb`;
+    const last = crumbs[crumbs.length - 1]?.label;
+    document.title = last && last !== 'Overview' ? `${last} – GreenOrb` : 'GreenOrb – ESG report intelligence';
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
@@ -51,7 +53,7 @@ function CompanySearch() {
       <input
         ref={ref}
         value={q}
-        placeholder="Find a company  ( / )"
+        placeholder="Search companies"
         aria-label="Find a company"
         onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(0); }}
         onFocus={() => setOpen(true)}
@@ -63,6 +65,7 @@ function CompanySearch() {
           if (e.key === 'Escape') { setOpen(false); ref.current?.blur(); }
         }}
       />
+      <kbd className="kbd" aria-hidden>/</kbd>
       {open && term.length >= 2 && (
         <div className="menu" role="listbox">
           {items.map((c, i) => (
@@ -81,64 +84,71 @@ function CompanySearch() {
 
 function SystemStatus() {
   const { data, error } = useApi('/health', { poll: 60000 });
-  if (error) return <div><span className="status-dot" style={{ background: '#e5675c' }} />API unreachable</div>;
-  if (!data) return <div><span className="status-dot" style={{ background: '#8fa1b5' }} />Checking status</div>;
-  const w = data.worker || {};
-  const queueText = w.running ? `${w.running} report processing` : w.queued ? `${w.queued} report${w.queued === 1 ? '' : 's'} queued` : 'Queue empty';
+  let tone = 'idle';
+  let text = 'Checking status';
+  let detail = '';
+  if (error) { tone = 'bad'; text = 'API unreachable'; }
+  else if (data) {
+    const w = data.worker || {};
+    tone = w.stalled ? 'warn' : 'ok';
+    text = w.stalled ? 'Reader not responding' : w.running ? 'Reading a report' : w.queued ? `${w.queued} report${w.queued === 1 ? '' : 's'} queued` : 'All systems normal';
+    detail = w.last_seen ? `Last report read ${timeAgo(w.last_seen)}` : '';
+  }
   return (
-    <>
-      <div><span className="status-dot" style={{ background: w.stalled ? '#e0a33a' : '#5fbf8f' }} />{w.stalled ? 'Worker not responding' : 'All systems normal'}</div>
-      <div>{queueText}</div>
-      {w.last_seen && <div>Last report read {timeAgo(w.last_seen)}</div>}
-    </>
+    <span className="status-chip" title={detail || text} role="status">
+      <span className={`status-dot ${tone}`} aria-hidden />{text}
+    </span>
   );
 }
 
 export function Frame({ children }) {
   const [crumbs, setCrumbs] = useState([]);
+  const { pathname } = useLocation();
+  const isHome = pathname === '/';
   const flags = useApi('/flags?limit=1', { poll: 60000 }).data;
   const open = flags?.total || 0;
   const nav = [
-    { to: '/', label: 'Overview', icon: LayoutGrid, end: true },
-    { to: '/companies', label: 'Companies', icon: Table2 },
+    { to: '/', label: 'Overview', icon: Globe2, end: true },
+    { to: '/companies', label: 'Companies', icon: Building2 },
     { to: '/review', label: 'Review queue', icon: ClipboardCheck, count: open },
     { to: '/ingest', label: 'Add a report', icon: FileUp },
-    { to: '/globe', label: 'Map', icon: Globe2 },
   ];
   return (
     <CrumbCtx.Provider value={{ set: setCrumbs }}>
-      <div className="shell">
-        <aside className="sidebar">
-          <Link to="/" className="brand" aria-label="GreenOrb home">
-            <span className="brand-mark" aria-hidden />
-            <span><span className="brand-name">GreenOrb</span><span className="brand-sub">Emissions disclosure data</span></span>
-          </Link>
-          <nav aria-label="Main" className="nav-list">
-            {nav.map(({ to, label, icon: Icon, end, count }) => (
-              <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-                <Icon aria-hidden strokeWidth={1.8} />
-                {label}
-                {count > 0 && <span className="nav-count" aria-label={`${count} open`}>{count > 999 ? '999+' : count}</span>}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="sidebar-foot"><SystemStatus /></div>
-        </aside>
-        <div className="main">
-          <header className="topbar">
-            <nav className="crumbs" aria-label="Breadcrumb">
-              {crumbs.map((c, i) => (
-                <React.Fragment key={i}>
-                  {i > 0 && <span className="sep" aria-hidden>/</span>}
-                  {c.to && i < crumbs.length - 1 ? <Link to={c.to}>{c.label}</Link> : <span className="here">{c.label}</span>}
-                </React.Fragment>
-              ))}
-            </nav>
-            <CompanySearch />
+      <div className={`app${isHome ? ' home' : ''}`}>
+        <div className="backdrop" aria-hidden />
+        <header className="topbar">
+          <Link to="/" className="brand" aria-label="GreenOrb overview"><Logo height={30} /></Link>
+          <CompanySearch />
+          <div className="topbar-right">
+            <SystemStatus />
             <ReviewerButton />
-          </header>
+          </div>
+        </header>
+        <nav className="rail" aria-label="Main">
+          {nav.map(({ to, label, icon: Icon, end, count }) => (
+            <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`} title={label}>
+              <Icon aria-hidden strokeWidth={1.9} />
+              <span className="label">{label}</span>
+              {count > 0 && <span className="nav-count" aria-label={`${count} open`}>{count > 99 ? '99+' : count}</span>}
+            </NavLink>
+          ))}
+        </nav>
+        <main className="main">
+          {!isHome && crumbs.length > 1 && (
+            <div className="content">
+              <nav className="crumbs" aria-label="Breadcrumb">
+                {crumbs.map((c, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && <ChevronRight className="sep" aria-hidden size={14} />}
+                    {c.to && i < crumbs.length - 1 ? <Link to={c.to}>{c.label}</Link> : <span className="here">{c.label}</span>}
+                  </React.Fragment>
+                ))}
+              </nav>
+            </div>
+          )}
           {children}
-        </div>
+        </main>
       </div>
     </CrumbCtx.Provider>
   );
