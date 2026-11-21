@@ -54,6 +54,7 @@ class Settings:
     ollama_base_url: str = ""
     ollama_model: str = "llama3.1:8b"
     embeddings_provider: str = "auto"
+    passage_limit: int = 16
     gemini_embed_model: str = "gemini-embedding-001"
     openai_embed_model: str = "text-embedding-3-small"
     ollama_embed_model: str = "nomic-embed-text"
@@ -88,10 +89,13 @@ class Settings:
             ollama_base_url=os.environ.get("OLLAMA_BASE_URL", ""),
             ollama_model=os.environ.get("OLLAMA_MODEL", "llama3.1:8b"),
             embeddings_provider=os.environ.get("EMBEDDINGS_PROVIDER", "auto"),
+            passage_limit=_int("PASSAGE_LIMIT", 16),
             gemini_embed_model=os.environ.get("GEMINI_EMBED_MODEL", "gemini-embedding-001"),
             openai_embed_model=os.environ.get("OPENAI_EMBED_MODEL", "text-embedding-3-small"),
             ollama_embed_model=os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text"),
         )
         if s.embeddings_provider == "auto":
-            s.embeddings_provider = "gemini" if s.gemini_api_key else "openai" if s.openai_api_key else "none"
+            # Vectors cost ~3 KB per passage and most free databases are 0.5 GB, so they are opt-in:
+            # set EMBEDDINGS_PROVIDER=gemini (or openai/ollama) to turn them on. Ask works without them.
+            s.embeddings_provider = "none"
         return s

@@ -52,7 +52,7 @@ _FY_LIKE = re.compile(
     r"|\b[FPC]\.?Y\.?\s*'?\d{2}\s*[-–/]\s*'?\d{2}(?!\d)",  # FY 23-24, PY 22-23
     re.I,
 )
-_RATIO = re.compile(r"/\s*$|/\s*\w|\bper\b|intensity|revenue|turnover", re.I)
+_RATIO = re.compile(r"/\s*$|/\s*\w|\bper\b|intensity|revenue|turnover|\bk?g\s+of\s+co2", re.I)
 _PLAIN_YEAR = re.compile(r"^\(?(?:FY|CY)?\s*((?:19|20)\d{2})\)?\*?$", re.I)
 
 
@@ -64,12 +64,18 @@ def _is_value_cell(c: Cell) -> bool:
 
 
 # First line of a unit that wraps onto the next row ("Metric" / "tonnes"): a unit, not a label.
-_UNIT_FRAGMENT = re.compile(r"^(?:metric|mt|tonnes?|kilo\s*-?\s*litres?|kl|gj|mwh|kwh|giga\s*joules?|cubic|m3|units?)\b[\w\s.]{0,12}$", re.I)
+_UNIT_FRAGMENT = re.compile(r"^(?:k?g\s+of\s+co2\w*|metric|mt|tonnes?|kilo\s*-?\s*litres?|kl|gj|mwh|kwh|giga\s*joules?|cubic|m3|units?)\b[\w\s.]{0,12}$", re.I)
+
+
+_SCOPE_LABEL = re.compile(r"\bscope\s*[123]\b|\bemissions?\b.*\(", re.I)
 
 
 def _is_unit_cell(c: Cell) -> bool:
     if _UNIT_FRAGMENT.match(c.text.strip()):
         return True
+    # "Scope 1 emissions (in tons CO2e)" is a label that carries its unit, not a unit cell.
+    if _SCOPE_LABEL.search(c.text) and len(c.text.split()) >= 3:
+        return False
     if _METRIC_WORDS.search(c.text) and not re.search(r"co2|equivalent", c.text, re.I):
         return False
     return any(match_unit(c.text, fam) for fam in ("ghg", "energy", "water", "waste")) and len(c.text) < 60
@@ -125,6 +131,9 @@ def _continuation(text: str, before: str = "") -> bool:
     b = before.strip()
     if b and (b[-1] in ",(-–/&" or b.count("(") > b.count(")")):
         return True
+    # "Total Scope 1 and" / "… per rupee of": the label clearly runs on to the next line.
+    if b and re.search(r"\b(?:and|or|of|per|in|from|to|for|by|the|with)$", b, re.I):
+        return True
     return t[0].islower() or t[0] in "(-–,&" or len(t.split()) <= 2
 
 
@@ -136,6 +145,9 @@ def _split_trailing_numbers(cells: list[Cell]) -> list[Cell]:
     out: list[Cell] = []
     for c in cells:
         m = _TRAILING_NUM.match(c.text)
+        # "Total Scope 1" / "Category 3" end in a number that is part of the label.
+        if m and re.search(r"\b(?:scope|category|cat\.?|tier|phase|unit|plant|no\.?)$", m.group("text").strip(), re.I):
+            m = None
         if m and not _is_value_cell(c) and (parse_number(m.group("num")) is not None or is_null_token(m.group("num"))):
             width = c.x1 - c.x0
             cut = c.x0 + width * len(m.group("text")) / max(1, len(c.text))
@@ -201,11 +213,11 @@ def extract_page(page: Page, *, locale: str = "us", doc_year: int | None = None)
             if t:
                 above.insert(0, t)
             j -= 1
-        below = col_text(rows[i + 1]) if i + 1 < len(rows) and not has_values[i + 1] and rows[i + 1].y - rows[i].y < 10 else ""
+        below = col_text(rows[i + 1]) if i + 1 < len(rows) and not has_values[i + 1] and rows[i + 1].y - rows[i].y < 13 else ""
 
         # A short continuation line right below belongs to this label ("Total energy consumed from" /
         # "renewable sources (A+B+C)"), so match on the joined text first.
-        own_full = f"{own} {below}".strip() if own and below and _continuation(below) else own
+        own_full = f"{own} {below}".strip() if own and below and _continuation(below, own) else own
         metric = match_metric(own_full, page.text) if own else None
         label_text = own_full
         if metric is None and (not own or _continuation(own, " ".join(above))):
@@ -220,7 +232,7 @@ def extract_page(page: Page, *, locale: str = "us", doc_year: int | None = None)
         # Ratios hide in unit cells and wrapped continuations ("… (MnT)/ | Revenue from operations"),
         # so also read the label lines below this row, up to the start of the next label.
         trailing: list[str] = []
-        for k in range(i + 1, min(len(rows), i + 4)):
+        for k in range(i + 2 if own_full != own else i + 1, min(len(rows), i + 5)):
             if has_values[k] or rows[k].y - row.y > 26:
                 break
             t = col_text(rows[k])
@@ -240,6 +252,9 @@ def extract_page(page: Page, *, locale: str = "us", doc_year: int | None = None)
             if row.y - rows[k].y > 380:
                 break
             cols = _header_columns(rows[k], doc_year)
+            # Side-by-side tables share rows: only use period headers that sit above these values.
+            lo, hi = values[0].x0 - 70, values[-1].x1 + 70
+            cols = [c for c in cols if lo <= c.xc <= hi]
             if cols and len(cols) >= min(2, len(values)):
                 header, header_idx = cols, k
                 for kk in range(k, max(-1, k - 4), -1):

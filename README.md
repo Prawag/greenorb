@@ -132,6 +132,20 @@ python -m greenorb_worker drain --harvest 8           # top up from the seed lis
 ```
 
 On Windows, double-click `worker\load-local-reports.cmd` to read everything in `Backend\downloaded_reports`.
+It creates `worker\.venv` on first run, uses `worker\.env` for the database and LLM keys, reads with three
+workers, also downloads the public reports in `worker/seeds/`, stops before the database passes 470 MB, and
+writes `Backend\bulk-log.txt` and `Backend\bulk-skipped.csv` (every file it skipped, with the reason).
+
+Before loading a PDF, `bulk` checks that it is a sustainability document (not a 10-K, press release or
+rating profile) and that its first pages name the company in the file name; the old downloader saved
+many reports under the wrong company. In a random sample of 61 files from `downloaded_reports`, 24 failed
+these checks. `--no-screen` loads everything anyway.
+
+**Database size.** Each report keeps its figures plus about 16 passages of text (always including every
+page a figure or flag cites, which is what the evidence view shows): roughly 60–70 KB per report, so the
+free 512 MB Neon plan holds a few thousand reports. Embeddings for Ask are off unless
+`EMBEDDINGS_PROVIDER` is set, because vectors would add about 3 KB per passage. `/api/health` reports
+`database_size_mb`.
 
 `bulk` takes the company name from the file name (`tata_steel_ltd._sustainability_report_2024.pdf`
 becomes "Tata Steel Ltd") and matches it to existing companies, ignoring suffixes like Ltd/Limited/Inc and
@@ -144,6 +158,9 @@ to keep the PDFs in Postgres so "Open PDF" works (this uses database storage; pa
 so the evidence view works without it).
 
 ### Keeping the database growing
+
+Public figures come only from report pages: v3 imports without a source are kept on their report page,
+marked unverified, but don't feed the directory, scores, map or overview (migration 004).
 
 The scheduled workflow `Process report queue` runs every 30 minutes. When fewer than eight reports are
 waiting it queues the next ones from `worker/seeds/*.csv` (newest first, one per company per run), then
@@ -182,7 +199,8 @@ PDFs (`bulk`) to replace them with cited values.
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | API, worker | `gemini-2.5-flash` | Uses Gemini's OpenAI-compatible endpoint. |
 | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | API, worker | `gpt-4o-mini` | Any OpenAI-compatible server works. |
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | API, worker | `llama3.1:8b` | Fully local option. |
-| `EMBEDDINGS_PROVIDER` | API, worker | `auto` | `gemini` / `openai` / `ollama` / `none`. **Must match** on API and worker (768-dim). |
+| `EMBEDDINGS_PROVIDER` | API, worker | `auto` | `gemini` / `openai` / `ollama` / `none`. On the worker `auto` means `none` (vectors are opt-in to save space). **Must match** on API and worker (768-dim). |
+| `PASSAGE_LIMIT` | worker | `16` | Passages kept per report for Ask and evidence, beyond the pages that are cited (`0` keeps all). |
 | `MAX_UPLOAD_MB` | API | `40` | |
 | `STORE_FETCHED_PDFS` | worker | `false` | Keep URL-downloaded PDFs in Postgres. |
 | `LLM_MAX_CALLS_PER_REPORT` | worker | `4` | Caps LLM cost and rate-limit pressure per report. |

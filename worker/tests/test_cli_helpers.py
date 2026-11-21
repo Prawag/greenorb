@@ -39,3 +39,16 @@ def test_bundled_seed_list_is_valid():
     seeds = load_seeds(sorted((Path(__file__).resolve().parent.parent / "seeds").glob("*.csv")))
     assert len(seeds) >= 30
     assert len({s["url"] for s in seeds}) == len(seeds)
+
+
+def test_company_mention_checks():
+    from greenorb_worker.screen import mentions_company, name_tokens
+
+    assert "akelius" in name_tokens("Akelius Residential Property")
+    assert mentions_company("Akelius Residential Property AB annual report", "Akelius Residential Property")
+    assert mentions_company("GSK Responsible Business Performance Report 2024", "Glaxosmithkline")
+    assert mentions_company("Bharat Heavy Electricals Limited (BHEL)", "Bharat Heavy Electricals Ltd")
+    assert mentions_company("3M India Limited", "3m India Ltd")
+    # Another company's report saved under this name
+    assert not mentions_company("ALLETE Sustainability Report 2021", "Altice Usa")
+    assert not mentions_company("PT Cakra Buana Resources Energi Tbk annual report", "Cbre Group")

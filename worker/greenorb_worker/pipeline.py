@@ -8,7 +8,7 @@ from collections import Counter
 from typing import Callable
 
 from . import db
-from .chunks import chunk_document
+from .chunks import chunk_document, select_chunks
 from .config import Settings
 from .extract_llm import extract_with_llm
 from .fetch import FetchError, fetch_pdf
@@ -96,7 +96,13 @@ def analyse(
     flags = evaluate(candidates, report_year=year, assurance=assurance, claims=claims, conflicts=conflicts, history=history or {})
 
     progress("index", "Building passages for Ask-the-report", 80)
-    chunks = chunk_document(doc)
+    cited = {c.page for c in candidates if c.page}
+    for f in flags:
+        ev = getattr(f, "evidence", None) or {}
+        cited.update(p for p in [ev.get("page"), *(ev.get("pages") or [])] if isinstance(p, int))
+    if assurance and isinstance(getattr(assurance, "page", None), int):
+        cited.add(assurance.page)
+    chunks = select_chunks(chunk_document(doc), cited, settings.passage_limit)
     embeddings = None
     if llm.embeddings_provider != "none" and chunks:
         try:
