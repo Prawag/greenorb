@@ -16,6 +16,7 @@ from .metrics import METRICS, PAGE_KEYWORDS
 from .numbers import NUM_IN_TEXT, parse_number
 from .pdf import Document, Page
 from .tables import Candidate
+from .signals import _snippet
 from .units import UnitMatch, match_unit, plausible
 
 log = logging.getLogger(__name__)
@@ -108,8 +109,7 @@ def locate_value(doc: Document, raw: str, value: float, pages: list[int], locale
         if not page:
             continue
         if exact and (m := exact.search(page.text)):
-            a, b = max(0, m.start() - 110), min(len(page.text), m.end() + 60)
-            return n, re.sub(r"\s+", " ", page.text[a:b]).strip()
+            return n, _snippet(page.text, m.start(), m.end(), 100)
         for m in NUM_IN_TEXT.finditer(page.text):
             tok = m.group(0)
             v = parse_number(tok, locale)
@@ -117,8 +117,7 @@ def locate_value(doc: Document, raw: str, value: float, pages: list[int], locale
                 continue
             same = abs(v - value) <= max(1e-9, abs(value) * 1e-6) or (len(raw_digits) >= 3 and _digits(tok) == raw_digits)
             if same:
-                a, b = max(0, m.start() - 110), min(len(page.text), m.end() + 60)
-                return n, re.sub(r"\s+", " ", page.text[a:b]).strip()
+                return n, _snippet(page.text, m.start(), m.end(), 100)
     return None, None
 
 

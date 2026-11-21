@@ -1,31 +1,20 @@
-node_modules
-dist
+node_modules/
+dist/
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.log
 .DS_Store
-Backend/venv/
-ollama_log.txt
-Claude Conversation/
-*.zip
-*.pdf
-Backend/.env
-*.env
-
-# Data and Logs
-RawData/
-*.diff
-
-# Python
-*.pyc
 __pycache__/
-esg_agent/.venv/
-esg_agent/downloads/
-esg_agent/__pycache__/
-esg_agent/**/__pycache__/
-
-# Stitch Skills (cloned repo)
-stitch-skills/
-downloaded_reports/
+*.pyc
+.pytest_cache/
+.venv/
 venv/
+# Local report corpora (can be tens of GB)
+downloaded_reports/
+Backend/downloaded_reports/
+RawData/
+*.zip
+stitch-skills/
+MiroFish/
+scratch/

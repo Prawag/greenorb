@@ -35,8 +35,14 @@ class Assurance:
 
 
 def _snippet(text: str, start: int, end: int, pad: int = 140) -> str:
+    """Text around a match, widened/narrowed to whole words."""
     a, b = max(0, start - pad), min(len(text), end + pad)
-    return re.sub(r"\s+", " ", text[a:b]).strip()
+    while a > 0 and not text[a - 1].isspace() and start - a < pad + 25:
+        a -= 1
+    while b < len(text) and not text[b].isspace() and b - end < pad + 25:
+        b += 1
+    out = re.sub(r"\s+", " ", text[a:b]).strip()
+    return ("…" if a > 0 else "") + out + ("…" if b < len(text) else "")
 
 
 def detect_assurance(doc: Document) -> Assurance:

@@ -1,47 +1,23 @@
 <!doctype html>
 <html lang="en">
-
-<head>
+  <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/globe.svg" />
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" />
-    <meta name="description"
-        content="GreenOrb — Open Carbon Intelligence Platform. Real-time CO₂ data for countries, companies, and products." />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="GreenOrb" />
-    <link rel="apple-touch-icon" href="/globe.svg" />
+    <meta name="description" content="GreenOrb: emissions and ESG figures extracted from sustainability reports, with page citations and integrity flags." />
     <link rel="manifest" href="/manifest.json" />
-    <title>GreenOrb · Carbon Intelligence</title>
+    <title>GreenOrb · ESG report intelligence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-        href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxygen:wght@400;700&family=JetBrains+Mono:wght@500&display=swap"
-        rel="stylesheet" />
-    <style>
-        /* Failsafe Full-Width Overrides */
-        html, body, #root, .app-layout {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-    </style>
-</head>
-
-<body>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxygen:wght@400;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  </head>
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-        // Register Service Worker for PWA install
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').catch(() => { });
-            });
-        }
+      // v3 registered a service worker that cached stale bundles; remove it for returning visitors.
+      if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
     </script>
-</body>
-
+  </body>
 </html>

@@ -97,7 +97,7 @@ export function companiesRouter({ db, config }) {
     const [summary, reports, flags, series] = await Promise.all([
       db.one(`SELECT * FROM esg.company_summary WHERE company_id = $1`, [company.id]),
       db.query(
-        `SELECT id, title, fiscal_year, period_label, source_type, source_url, status, assurance_level,
+        `SELECT id, title, file_name, fiscal_year, period_label, source_type, source_url, status, assurance_level,
                 assurance_provider, page_count, frameworks, processed_at, created_at, error,
                 (SELECT count(*) FROM esg.metrics m WHERE m.report_id = r.id) AS metric_count,
                 (SELECT count(*) FROM esg.flags f WHERE f.report_id = r.id AND f.status = 'open') AS open_flags
@@ -116,8 +116,11 @@ export function companiesRouter({ db, config }) {
         `SELECT m.id, m.metric, m.fiscal_year, m.period_label, m.value, m.unit, m.raw_value, m.raw_unit,
                 m.boundary, m.page, m.quote, m.method, m.confidence, m.grounded, m.status, m.report_id
            FROM esg.metrics m
-          WHERE m.company_id = $1 AND m.is_primary
-          ORDER BY m.metric, m.fiscal_year`,
+          WHERE m.company_id = $1 AND m.status <> 'rejected'
+            AND (m.is_primary OR (m.value IS NULL AND NOT EXISTS (
+                  SELECT 1 FROM esg.metrics p WHERE p.company_id = m.company_id AND p.metric = m.metric
+                     AND p.fiscal_year = m.fiscal_year AND p.is_primary)))
+          ORDER BY m.metric, m.fiscal_year, m.id`,
         [company.id],
       ),
     ]);

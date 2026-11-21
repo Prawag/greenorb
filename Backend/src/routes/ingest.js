@@ -178,7 +178,7 @@ export function jobsRouter({ db }) {
       [q.status || null, q.limit, (q.page - 1) * q.limit],
     );
     const total = rows[0]?.total ?? 0;
-    const worker = await db.one(`SELECT max(locked_at) AS last_claim FROM esg.jobs WHERE locked_at IS NOT NULL`);
+    const worker = await db.one(`SELECT max(coalesce(locked_at, finished_at)) AS last_claim FROM esg.jobs WHERE attempts > 0`);
     res.json({ data: rows.map(({ total: _t, ...x }) => x), total, page: q.page, limit: q.limit, worker_last_seen: worker?.last_claim || null });
   });
 

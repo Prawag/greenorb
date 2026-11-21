@@ -29,7 +29,7 @@ export function statsRouter({ db }) {
                  WHERE f.status = 'open'
                  ORDER BY CASE f.severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END, f.created_at DESC
                  LIMIT 8`),
-      db.query(`SELECT r.id, r.title, r.fiscal_year, r.status, r.processed_at, r.created_at, r.assurance_level,
+      db.query(`SELECT r.id, r.title, r.file_name, r.fiscal_year, r.status, r.processed_at, r.created_at, r.assurance_level,
                        c.slug AS company_slug, c.name AS company_name,
                        (SELECT count(*) FROM esg.metrics m WHERE m.report_id = r.id) AS metric_count
                   FROM esg.reports r JOIN esg.companies c ON c.id = r.company_id
@@ -87,9 +87,10 @@ export function healthRouter({ db, config, llm, features }) {
     let worker = null;
     if (dbOk) {
       worker = await db
-        .one(`SELECT max(locked_at) AS last_seen,
+        .one(`SELECT max(coalesce(locked_at, finished_at)) FILTER (WHERE attempts > 0) AS last_seen,
                      count(*) FILTER (WHERE status = 'queued') AS queued,
-                     count(*) FILTER (WHERE status = 'running') AS running
+                     count(*) FILTER (WHERE status = 'running') AS running,
+                     extract(epoch FROM now() - min(created_at) FILTER (WHERE status = 'queued' AND run_after <= now()))::int AS oldest_queued_s
                 FROM esg.jobs`)
         .catch(() => null);
     }
@@ -105,7 +106,11 @@ export function healthRouter({ db, config, llm, features }) {
         reviewer_enabled: Boolean(config.ADMIN_TOKEN),
         max_upload_mb: config.MAX_UPLOAD_MB,
       },
-      worker,
+      worker: worker && {
+        ...worker,
+        // Jobs have waited > 2 minutes with nothing running: the worker is probably not started.
+        stalled: Boolean(worker.queued > 0 && worker.running === 0 && worker.oldest_queued_s > 120),
+      },
     });
   });
   return r;
