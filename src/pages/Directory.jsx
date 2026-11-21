@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { useApi } from '../hooks/useApi.js';
-import { AssuranceBadge, Card, Empty, ErrorState, PageHeader, Pagination, SkeletonRows } from '../components/ui.jsx';
+import { useCrumbs } from '../components/Frame.jsx';
+import { Assurance, Empty, ErrorNotice, PageHead, Pager, Panel, SkelRows } from '../components/ui.jsx';
 import { fmtCompact } from '../format.js';
 
 const COLS = [
   { key: 'name', label: 'Company' },
-  { key: 'year', label: 'Latest FY', num: true },
+  { key: 'year', label: 'Latest year', num: true },
   { key: 'scope1', label: 'Scope 1', num: true },
   { key: 'scope2', label: 'Scope 2', num: true },
   { key: 'scope3', label: 'Scope 3', num: true },
@@ -15,6 +17,7 @@ const COLS = [
 ];
 
 export default function Directory() {
+  useCrumbs([{ label: 'Companies' }]);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const q = params.get('q') || '';
@@ -25,109 +28,111 @@ export default function Directory() {
   const order = params.get('order') || '';
   const page = Number(params.get('page') || 1);
   const [search, setSearch] = useState(q);
+  const limit = 25;
 
   const update = (patch) => {
     const next = new URLSearchParams(params);
-    Object.entries(patch).forEach(([k, v]) => (v === '' || v === null || v === undefined ? next.delete(k) : next.set(k, v)));
+    Object.entries(patch).forEach(([k, v]) => (v === '' || v == null ? next.delete(k) : next.set(k, v)));
     if (!('page' in patch)) next.delete('page');
     setParams(next, { replace: true });
   };
-
+  useEffect(() => setSearch(q), [q]);
   useEffect(() => {
     const t = setTimeout(() => search !== q && update({ q: search }), 350);
     return () => clearTimeout(t);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const qs = new URLSearchParams({ page, limit: 25, sort });
+  const qs = new URLSearchParams({ page, limit, sort });
   if (order) qs.set('order', order);
   if (q) qs.set('q', q);
   if (sector) qs.set('sector', sector);
   if (country) qs.set('country', country);
-  if (hasData !== 'all') qs.set('has_data', hasData);
+  qs.set('has_data', hasData);
   const { data, error, loading, reload } = useApi(`/companies?${qs}`);
   const facets = useApi('/companies/facets').data;
 
-  const clickSort = (key) => {
-    if (sort === key) update({ order: (order || (key === 'name' ? 'asc' : 'desc')) === 'asc' ? 'desc' : 'asc' });
-    else update({ sort: key, order: '' });
-  };
-  const arrow = (key) => (sort === key ? ((order || (key === 'name' ? 'asc' : 'desc')) === 'asc' ? ' ↑' : ' ↓') : '');
+  const dir = (key) => order || (key === 'name' ? 'asc' : 'desc');
+  const clickSort = (key) => (sort === key ? update({ order: dir(key) === 'asc' ? 'desc' : 'asc' }) : update({ sort: key, order: '' }));
+  const filtered = q || sector || country;
 
   return (
-    <div className="page">
-      <PageHeader
-        title="ESG Directory"
-        subtitle={data ? `${data.total.toLocaleString()} ${data.total === 1 ? 'company' : 'companies'}${sector ? ` in ${sector}` : ''}${country ? ` · ${country}` : ''}${q ? ` matching “${q}”` : ''}. Emissions show the latest primary value in tCO₂e.` : 'Loading…'}
-      />
+    <div className="content">
+      <PageHead title="Companies">
+        Latest reported figures per company. Emissions are in tonnes of CO₂-equivalent; open a company to see the source page for each figure.
+      </PageHead>
+      <ErrorNotice error={error} onRetry={reload} />
 
-      <Card style={{ marginBottom: 20 }}>
-        <div className="row" style={{ gap: 12 }}>
-          <input className="go-input" style={{ maxWidth: 320 }} placeholder="Search companies or tickers…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search companies" />
-          <select className="go-select" value={sector} onChange={(e) => update({ sector: e.target.value })} aria-label="Sector">
+      <Panel flush>
+        <div className="toolbar">
+          <input className="input" style={{ maxWidth: 280 }} placeholder="Filter by name or ticker" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Filter companies" />
+          <select className="select" value={sector} onChange={(e) => update({ sector: e.target.value })} aria-label="Sector">
             <option value="">All sectors</option>
             {facets?.sectors?.map((s) => <option key={s.value} value={s.value}>{s.value} ({s.count})</option>)}
           </select>
-          <select className="go-select" value={country} onChange={(e) => update({ country: e.target.value })} aria-label="Country">
+          <select className="select" value={country} onChange={(e) => update({ country: e.target.value })} aria-label="Country">
             <option value="">All countries</option>
             {facets?.countries?.map((c) => <option key={c.value} value={c.value}>{c.value} ({c.count})</option>)}
           </select>
-          <div className="seg" role="group" aria-label="Data filter">
-            <button className={hasData === 'true' ? 'on' : ''} onClick={() => update({ has_data: 'true' })}>With data</button>
-            <button className={hasData === 'false' ? 'on' : ''} onClick={() => update({ has_data: 'false' })}>No data yet</button>
-            <button className={hasData === 'all' ? 'on' : ''} onClick={() => update({ has_data: 'all' })}>All</button>
+          <div className="segmented" role="group" aria-label="Show">
+            {[['true', 'With figures'], ['false', 'Awaiting reports'], ['all', 'All']].map(([v, l]) => (
+              <button key={v} className={hasData === v ? 'on' : ''} aria-pressed={hasData === v} onClick={() => update({ has_data: v })}>{l}</button>
+            ))}
           </div>
-          {(q || sector || country) && (
-            <button className="go-btn go-btn-ghost" onClick={() => { setSearch(''); setParams({}, { replace: true }); }}>Clear</button>
-          )}
+          {filtered && <button className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setParams({ has_data: hasData }, { replace: true }); }}>Clear filters</button>}
+          <span className="spacer" />
+          {data && <span className="small muted">{data.total.toLocaleString()} {data.total === 1 ? 'company' : 'companies'}</span>}
         </div>
-      </Card>
 
-      <ErrorState error={error} onRetry={reload} />
-
-      <Card flush>
-        {loading && !data ? <div style={{ padding: '0 24px' }}><SkeletonRows rows={10} h={22} /></div> : data?.data?.length ? (
+        {loading && !data ? <SkelRows rows={10} /> : data?.data?.length ? (
           <div className="table-wrap" style={{ opacity: loading ? 0.6 : 1 }}>
-            <table className="go-table">
+            <table className="table">
               <thead>
                 <tr>
                   {COLS.map((c) => (
-                    <th key={c.key} className={c.num ? 'num' : ''}>
-                      <button onClick={() => clickSort(c.key)}>{c.label}{arrow(c.key)}</button>
+                    <th key={c.key} className={c.num ? 'num' : ''} aria-sort={sort === c.key ? (dir(c.key) === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                      <button className={sort === c.key ? 'sorted' : ''} onClick={() => clickSort(c.key)}>
+                        {c.label}
+                        {sort === c.key && (dir(c.key) === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                      </button>
                     </th>
                   ))}
                   <th>Assurance</th>
                 </tr>
               </thead>
               <tbody>
-                {data.data.map((c) => (
-                  <tr key={c.id} className={`clickable${c.has_legacy_data && c.assurance_level === 'unknown' ? ' dim' : ''}`} onClick={() => navigate(`/companies/${c.slug}`)}>
-                    <td>
-                      <div style={{ fontWeight: 700 }}>{c.name}</div>
-                      <div className="small muted">{[c.sector, c.country].filter(Boolean).join(' · ') || '–'}</div>
-                    </td>
-                    <td className="num">{c.latest_year || '–'}</td>
-                    <td className="num">{fmtCompact(c.scope1)}</td>
-                    <td className="num">{fmtCompact(c.scope2)}</td>
-                    <td className="num">{fmtCompact(c.scope3)}</td>
-                    <td className="num">{c.disclosure_score ?? '–'}</td>
-                    <td className="num" style={{ color: c.open_material_flags ? 'var(--down)' : undefined }}>{c.open_flags || '–'}</td>
-                    <td>
-                      {c.has_legacy_data && c.assurance_level === 'unknown' ? (
-                        <span className="go-badge go-badge-medium" title="Imported from GreenOrb v3 without citations. Re-ingest the report to verify.">Unverified (v3)</span>
-                      ) : c.latest_year ? <AssuranceBadge level={c.assurance_level} /> : c.report_count ? <span className="go-badge go-badge-info">queued</span> : <span className="muted small">–</span>}
-                    </td>
-                  </tr>
-                ))}
+                {data.data.map((c) => {
+                  const legacyOnly = c.has_legacy_data && c.assurance_level === 'unknown';
+                  return (
+                    <tr key={c.id} className="link" onClick={() => navigate(`/companies/${c.slug}`)}>
+                      <td>
+                        <div className="name">{c.name}</div>
+                        <div className="sub">{[c.sector, c.country].filter(Boolean).join(', ') || 'Sector and country not set'}</div>
+                      </td>
+                      <td className="num">{c.latest_year ? `FY${c.latest_year}` : <span className="faint">–</span>}</td>
+                      <td className="num">{fmtCompact(c.scope1)}</td>
+                      <td className="num">{fmtCompact(c.scope2)}</td>
+                      <td className="num">{fmtCompact(c.scope3)}</td>
+                      <td className="num">{c.disclosure_score ?? <span className="faint">–</span>}</td>
+                      <td className="num" style={{ color: c.open_material_flags ? 'var(--red)' : undefined }}>{c.open_flags || <span className="faint">–</span>}</td>
+                      <td>
+                        {legacyOnly ? <span className="tag tag-medium" title="Imported from GreenOrb v3 without page sources">Unverified import</span>
+                          : c.latest_year ? <Assurance level={c.assurance_level} />
+                          : c.report_count ? <span className="tag tag-info">Report queued</span>
+                          : <span className="faint">–</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ) : (
           <Empty title="No companies match">
-            {hasData === 'true' ? 'Try “All” to include companies without processed reports.' : 'Change the filters or ingest a report.'}
+            {hasData === 'true' ? 'Only companies with extracted figures are shown. Choose “All” to include companies still waiting for a report.' : 'Change the filters, or add a report for a new company.'}
           </Empty>
         )}
-      </Card>
-      {data && <Pagination page={data.page} totalPages={data.totalPages} onChange={(p) => update({ page: p })} />}
+        {data && <Pager page={data.page} totalPages={data.totalPages} total={data.total} limit={limit} onChange={(p) => update({ page: p })} />}
+      </Panel>
     </div>
   );
 }

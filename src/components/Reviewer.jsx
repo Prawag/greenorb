@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { KeyRound, LogOut } from 'lucide-react';
+import { Logo } from './Logo.jsx';
+import { Notice } from './ui.jsx';
 import { api, getToken, setToken } from '../api.js';
 
 const ReviewerCtx = createContext({ isReviewer: false, enabled: false, open: () => {}, signOut: () => {} });
@@ -53,7 +55,7 @@ function TokenDialog({ onClose, enabled }) {
       const r = await api('/auth/check');
       if (!r.reviewer) {
         setToken('');
-        setError(r.enabled ? 'That token was not accepted.' : 'Reviewer actions are disabled on this server (ADMIN_TOKEN is not set).');
+        setError(r.enabled ? 'That token was not accepted. Check for extra spaces and try again.' : 'Reviewer sign-in is turned off on this server (ADMIN_TOKEN is not set).');
       } else onClose();
     } catch (err) {
       setError(err.message);
@@ -64,21 +66,24 @@ function TokenDialog({ onClose, enabled }) {
 
   return (
     <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="modal" onSubmit={save}>
-        <h3>Reviewer access</h3>
-        <p className="small muted">
-          Paste the reviewer token (the API's <span className="mono">ADMIN_TOKEN</span>). It is kept in this browser only and is
-          required to submit reports, review flags and verify values.
-        </p>
-        {!enabled && <div className="go-status go-status-warn small">This server has no ADMIN_TOKEN configured.</div>}
-        <div className="field">
-          <label htmlFor="tok">Token</label>
-          <input id="tok" className="go-input mono" type="password" autoFocus value={token} onChange={(e) => setTok(e.target.value)} />
+      <form className="modal" onSubmit={save} aria-labelledby="rv-title">
+        <div className="modal-body">
+          <Logo height={26} />
+          <h2 id="rv-title" style={{ marginTop: 6 }}>Sign in as reviewer</h2>
+          <p className="small muted">
+            Reviewers can add reports, confirm or dismiss flags, and correct figures. Paste the reviewer token your
+            administrator gave you. It stays in this browser only.
+          </p>
+          {!enabled && <Notice tone="warn">Reviewer sign-in is turned off on this server.</Notice>}
+          <div className="field">
+            <label htmlFor="tok">Reviewer token</label>
+            <input id="tok" className="input" type="password" autoFocus autoComplete="off" value={token} onChange={(e) => setTok(e.target.value)} />
+          </div>
+          {error && <Notice tone="error">{error}</Notice>}
         </div>
-        {error && <div className="go-status go-status-error small">{error}</div>}
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <button type="button" className="go-btn go-btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="go-btn go-btn-primary" disabled={!token.trim() || busy}>{busy ? 'Checking…' : 'Unlock'}</button>
+        <div className="modal-foot">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={!token.trim() || busy}>{busy ? 'Checking…' : 'Sign in'}</button>
         </div>
       </form>
     </div>
@@ -89,14 +94,16 @@ export function ReviewerButton() {
   const r = useReviewer();
   if (r.isReviewer) {
     return (
-      <button className="go-btn go-btn-outline go-btn-sm" onClick={r.signOut} title="Forget the reviewer token">
-        <LogOut size={13} /> Reviewer
+      <button className="who" onClick={r.signOut} title="Sign out of reviewer mode on this browser">
+        <span className="avatar" aria-hidden>RV</span>
+        <span className="rv-label"><b>Reviewer</b><small>Click to sign out</small></span>
+        <LogOut aria-hidden className="rv-label" />
       </button>
     );
   }
   return (
-    <button className="go-btn go-btn-outline go-btn-sm" onClick={r.open}>
-      <KeyRound size={13} /> Reviewer sign-in
+    <button className="btn" onClick={r.open} aria-label="Reviewer sign-in">
+      <KeyRound aria-hidden /> <span className="rv-label">Reviewer sign-in</span>
     </button>
   );
 }

@@ -1,41 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FileUp, Link2 } from 'lucide-react';
 import { api } from '../api.js';
 import { useApi } from '../hooks/useApi.js';
-import { ReviewerButton, useReviewer } from '../components/Reviewer.jsx';
-import { Card, PageHeader } from '../components/ui.jsx';
+import { useCrumbs } from '../components/Frame.jsx';
+import { useReviewer } from '../components/Reviewer.jsx';
+import { Empty, Notice, PageHead, Panel, StatusTag } from '../components/ui.jsx';
 import { JobProgress } from './Report.jsx';
 import { timeAgo } from '../format.js';
-
-const STEPS = [
-  ['Fetch', 'The PDF is downloaded (public URLs only) or taken from your upload.'],
-  ['Read layout', 'Pages are rebuilt into rows and columns so table cells stay aligned with their year headers.'],
-  ['Extract', 'A deterministic table parser reads Scope 1/2/3, energy, water and waste. If an LLM is configured, it reads the key pages too.'],
-  ['Ground', 'Every LLM value must appear verbatim on the cited page, or it is rejected. Units are converted by fixed rules, never by the model.'],
-  ['Validate', 'Assurance, totals, year-on-year swings, restatements, net-zero targets and offsets are checked and raised as flags.'],
-  ['Index', 'Report text is split into passages for Ask-the-report with page citations.'],
-];
 
 function CompanyInput({ value, onChange, onPick }) {
   const [open, setOpen] = useState(false);
   const { data } = useApi(value.trim().length >= 2 ? `/companies/suggest?q=${encodeURIComponent(value.trim())}` : null);
   return (
     <div style={{ position: 'relative' }}>
-      <input
-        id="company"
-        className="go-input"
-        placeholder="e.g. Tata Steel Ltd"
-        value={value}
-        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        autoComplete="off"
-        required
-      />
+      <input id="company" className="input" placeholder="Start typing, e.g. Tata Steel" value={value} autoComplete="off" required
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 150)} />
       {open && data?.length > 0 && (
-        <div className="go-card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, marginTop: 4, padding: 6 }}>
+        <div className="menu">
           {data.map((c) => (
-            <button type="button" key={c.id} className="go-btn go-btn-ghost" style={{ width: '100%', justifyContent: 'space-between' }} onMouseDown={() => { onPick(c); setOpen(false); }}>
+            <button type="button" key={c.id} className="menu-item" onMouseDown={() => { onPick(c); setOpen(false); }}>
               <span>{c.name}</span><span className="small muted">{c.country || ''}</span>
             </button>
           ))}
@@ -46,7 +30,9 @@ function CompanyInput({ value, onChange, onPick }) {
 }
 
 export default function Ingest() {
+  useCrumbs([{ label: 'Add a report' }]);
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const reviewer = useReviewer();
   const health = useApi('/health').data;
   const recent = useApi('/jobs?limit=8', { poll: 5000 });
@@ -63,22 +49,18 @@ export default function Ingest() {
   const [over, setOver] = useState(false);
   const fileInput = useRef(null);
   const job = useApi(result?.job_id ? `/jobs/${result.job_id}` : null, { poll: result && !['succeeded', 'failed'].includes(result.status) ? 2000 : 0 });
-
   const preset = useApi(slug && !company ? `/companies/${slug}` : null).data;
-  useEffect(() => {
-    if (preset?.company && !company) setCompany(preset.company.name);
-  }, [preset]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (job.data && result && job.data.status !== result.status) setResult((r) => ({ ...r, status: job.data.status }));
-  }, [job.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { if (preset?.company && !company) setCompany(preset.company.name); }, [preset]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (job.data && result && job.data.status !== result.status) setResult((r) => ({ ...r, status: job.data.status })); }, [job.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const maxMb = health?.features?.max_upload_mb || 40;
-  const canIngest = reviewer.isReviewer || health?.features?.public_ingest;
+  const canSubmit = reviewer.isReviewer || health?.features?.public_ingest;
   const pickFile = (f) => {
     setError(null);
     if (!f) return;
-    if (f.type && f.type !== 'application/pdf' && !f.name.toLowerCase().endsWith('.pdf')) return setError('Please choose a PDF file.');
-    if (f.size > maxMb * 1024 * 1024) return setError(`The file is larger than ${maxMb} MB.`);
+    if (f.type && f.type !== 'application/pdf' && !f.name.toLowerCase().endsWith('.pdf')) return setError('Choose a PDF file. Other formats aren’t supported.');
+    if (f.size > maxMb * 1024 * 1024) return setError(`This file is ${(f.size / 1048576).toFixed(0)} MB; the limit is ${maxMb} MB.`);
     setFile(f);
   };
 
@@ -99,7 +81,7 @@ export default function Ingest() {
       setResult(r);
       recent.reload(true);
     } catch (err) {
-      setError(err.status === 401 ? 'Sign in as a reviewer to submit reports.' : err.message);
+      setError(err.status === 401 ? 'Sign in as a reviewer to add reports.' : err.message);
     } finally {
       setBusy(false);
     }
@@ -108,117 +90,102 @@ export default function Ingest() {
   const ready = company.trim().length >= 2 && (mode === 'upload' ? !!file : /^https?:\/\//i.test(url.trim()));
 
   return (
-    <div className="page">
-      <PageHeader title="Ingest a report" subtitle="Upload a sustainability, BRSR or annual report PDF, or paste a link to one. GreenOrb extracts the figures with page citations and flags anything that needs review.">
-        <ReviewerButton />
-      </PageHeader>
+    <div className="content">
+      <PageHead title="Add a report">
+        Upload a sustainability, BRSR or annual report, or paste a link to one. GreenOrb reads the emissions, energy, water and waste figures and links each one to its page.
+      </PageHead>
+      {health?.worker?.stalled && <Notice tone="warn">Reports have waited over two minutes. The report reader (worker) may not be running.</Notice>}
+      {!canSubmit && <Notice tone="info" action={<button className="btn btn-sm" onClick={reviewer.open}>Reviewer sign-in</button>}>Adding reports requires reviewer access.</Notice>}
 
-      {health?.worker?.stalled && (
-        <div className="go-status go-status-warn section">Reports have been waiting in the queue for over two minutes. Check that the worker is running (<span className="mono">python -m greenorb_worker run</span>).</div>
-      )}
-
-      <div className="grid-21">
-        <div className="stack" style={{ gap: 24 }}>
-          <Card>
-            {!canIngest && (
-              <div className="go-status go-status-warn" style={{ marginBottom: 16 }}>
-                Submitting reports needs the reviewer token. <button className="go-btn go-btn-ghost go-btn-sm" onClick={reviewer.open}>Sign in</button>
-              </div>
-            )}
-            <form className="stack" style={{ gap: 16 }} onSubmit={submit}>
-              <div className="seg" role="group" aria-label="Source">
-                <button type="button" className={mode === 'upload' ? 'on' : ''} onClick={() => setMode('upload')}><FileUp size={13} /> Upload PDF</button>
-                <button type="button" className={mode === 'url' ? 'on' : ''} onClick={() => setMode('url')}><Link2 size={13} /> From URL</button>
+      <div className="grid grid-main">
+        <div style={{ display: 'grid', gap: 20, alignContent: 'start' }}>
+          <Panel title="Report">
+            <form style={{ display: 'grid', gap: 16 }} onSubmit={submit}>
+              <div className="segmented" role="group" aria-label="Source" style={{ justifySelf: 'start' }}>
+                <button type="button" className={mode === 'upload' ? 'on' : ''} aria-pressed={mode === 'upload'} onClick={() => setMode('upload')}><FileUp size={14} aria-hidden /> Upload a PDF</button>
+                <button type="button" className={mode === 'url' ? 'on' : ''} aria-pressed={mode === 'url'} onClick={() => setMode('url')}><Link2 size={14} aria-hidden /> Paste a link</button>
               </div>
               {mode === 'upload' ? (
-                <div
-                  className={`dropzone${over ? ' over' : ''}`}
+                <div className={`dropzone${over ? ' over' : ''}`} role="button" tabIndex={0}
                   onClick={() => fileInput.current?.click()}
-                  onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-                  onDragLeave={() => setOver(false)}
-                  onDrop={(e) => { e.preventDefault(); setOver(false); pickFile(e.dataTransfer.files?.[0]); }}
-                  role="button"
-                  tabIndex={0}
-                >
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && fileInput.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+                  onDrop={(e) => { e.preventDefault(); setOver(false); pickFile(e.dataTransfer.files?.[0]); }}>
                   <input ref={fileInput} type="file" accept="application/pdf,.pdf" hidden onChange={(e) => pickFile(e.target.files?.[0])} />
-                  {file ? <><b>{file.name}</b><div className="small muted">{(file.size / 1048576).toFixed(1)} MB · click to change</div></> : <><b>Drop a PDF here or click to choose</b><div className="small muted">Up to {maxMb} MB</div></>}
+                  <FileUp aria-hidden />
+                  {file ? <><div className="strong">{file.name}</div><div className="small muted">{(file.size / 1048576).toFixed(1)} MB. Click to choose a different file.</div></>
+                    : <><div className="strong">Drop a PDF here, or click to choose one</div><div className="small muted">Up to {maxMb} MB</div></>}
                 </div>
               ) : (
                 <div className="field">
-                  <label htmlFor="url">Report URL</label>
-                  <input id="url" className="go-input" type="url" placeholder="https://company.com/sustainability-report-2024.pdf" value={url} onChange={(e) => setUrl(e.target.value)} />
-                  <span className="hint">A direct PDF link works best. If you paste a web page, GreenOrb follows its most report-like PDF link.</span>
+                  <label htmlFor="url">Link to the report</label>
+                  <input id="url" className="input" type="url" placeholder="https://www.company.com/sustainability-report-2024.pdf" value={url} onChange={(e) => setUrl(e.target.value)} />
+                  <span className="hint">A direct PDF link works best. If you paste a web page, GreenOrb follows the link on it that looks most like a report.</span>
                 </div>
               )}
-              <div className="grid-2" style={{ gap: 16 }}>
+              <div className="field">
+                <label htmlFor="company">Company</label>
+                <CompanyInput value={company} onChange={(v) => { setCompany(v); setSlug(''); }} onPick={(c) => { setCompany(c.name); setSlug(c.slug); }} />
+                <span className="hint">{slug ? 'This report will be added to the existing company.' : 'Pick an existing company from the list, or type a new name to create one.'}</span>
+              </div>
+              <div className="grid grid-2" style={{ gap: 16 }}>
                 <div className="field">
-                  <label htmlFor="company">Company</label>
-                  <CompanyInput value={company} onChange={(v) => { setCompany(v); setSlug(''); }} onPick={(c) => { setCompany(c.name); setSlug(c.slug); }} />
-                  <span className="hint">{slug ? 'Adding to an existing company.' : 'A new company is created if no match is found.'}</span>
+                  <label htmlFor="country">Country <span className="muted">(optional)</span></label>
+                  <input id="country" className="input" placeholder="e.g. India" value={country} onChange={(e) => setCountry(e.target.value)} disabled={!!slug} />
                 </div>
-                <div className="grid-2" style={{ gap: 12 }}>
-                  <div className="field">
-                    <label htmlFor="country">Country</label>
-                    <input id="country" className="go-input" placeholder="optional" value={country} onChange={(e) => setCountry(e.target.value)} disabled={!!slug} />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="year">Fiscal year</label>
-                    <input id="year" className="go-input" type="number" min="1990" max="2100" placeholder="auto" value={year} onChange={(e) => setYear(e.target.value)} />
-                  </div>
+                <div className="field">
+                  <label htmlFor="year">Reporting year <span className="muted">(optional)</span></label>
+                  <input id="year" className="input" type="number" min="1990" max="2100" placeholder="Detected automatically" value={year} onChange={(e) => setYear(e.target.value)} />
                 </div>
               </div>
-              {error && <div className="go-status go-status-error">{error}</div>}
+              {error && <Notice tone="error">{error}</Notice>}
               <div className="row">
-                <button className="go-btn go-btn-primary" disabled={!ready || busy || !canIngest}>{busy ? 'Submitting…' : 'Extract metrics'}</button>
-                <span className="small muted">Takes roughly 5–60 seconds per report once the worker picks it up.</span>
+                <button className="btn btn-primary" disabled={!ready || busy || !canSubmit}>{busy ? 'Adding…' : 'Add report'}</button>
+                <span className="small muted">Reading usually takes under a minute once it starts.</span>
               </div>
             </form>
-          </Card>
+          </Panel>
 
           {result && (
-            <Card title={result.duplicate ? 'Already ingested' : 'Processing'} action={<Link className="go-btn go-btn-ghost" to={`/reports/${result.report_id}`}>Open report →</Link>}>
-              {result.duplicate && <div className="go-status go-status-warn" style={{ marginBottom: 12 }}>This document was already submitted for {result.company.name}. Showing the existing report's status.</div>}
-              {job.data ? <JobProgress job={job.data} /> : <div className="muted small">Waiting for status…</div>}
+            <Panel title={result.duplicate ? 'This report was added before' : 'Reading the report'} action={<Link className="btn btn-sm" to={`/reports/${result.report_id}`}>Open report</Link>}>
+              {result.duplicate && <Notice tone="info">The same document is already in GreenOrb for {result.company.name}. Showing its status instead of adding a copy.</Notice>}
+              {job.data ? <JobProgress job={job.data} /> : <div className="small muted">Checking status…</div>}
               {job.data?.status === 'succeeded' && (
-                <div className="row" style={{ marginTop: 12 }}>
-                  <Link className="go-btn go-btn-primary" to={`/reports/${result.report_id}`}>See extracted values</Link>
-                  <Link className="go-btn go-btn-outline" to={`/companies/${result.company.slug}`}>Company profile</Link>
+                <div className="row" style={{ marginTop: 14 }}>
+                  <button className="btn btn-primary" onClick={() => navigate(`/reports/${result.report_id}`)}>View extracted figures</button>
+                  <Link className="btn" to={`/companies/${result.company.slug}`}>Go to {result.company.name}</Link>
                 </div>
               )}
-            </Card>
+            </Panel>
           )}
         </div>
 
-        <div className="stack" style={{ gap: 24 }}>
-          <Card title="What happens">
-            <div className="steps">
-              {STEPS.map(([t, d], i) => <div key={t} className="step"><span className="step-n">{i + 1}</span><div><b>{t}.</b> {d}</div></div>)}
-            </div>
-            {health && (
-              <div className="small muted" style={{ marginTop: 14 }}>
-                LLM on this server: {health.features.llm.length ? health.features.llm.map((p) => p.name).join(' → ') : 'none (table parser only)'}
-              </div>
-            )}
-          </Card>
-          <Card title="Recent jobs" flush>
+        <div style={{ display: 'grid', gap: 20, alignContent: 'start' }}>
+          <Panel title="What happens next">
+            <ol className="steps">
+              <li><div><b>Read.</b> Pages are rebuilt into rows and columns so each number stays with its year heading.</div></li>
+              <li><div><b>Extract.</b> Scope 1, 2 and 3, energy, water and waste are read from the tables.{health?.features?.llm?.length ? ' An AI model reads the key pages too.' : ''}</div></li>
+              <li><div><b>Check.</b> Every AI reading must appear word-for-word on its page, or it’s rejected. Units are converted by fixed rules.</div></li>
+              <li><div><b>Flag.</b> Missing assurance, totals that don’t add up and large swings are raised for review.</div></li>
+            </ol>
+          </Panel>
+          <Panel title="Recent activity" flush>
             {recent.data?.data?.length ? (
-              <table className="go-table">
+              <table className="table">
                 <tbody>
                   {recent.data.data.map((j) => (
-                    <tr key={j.id}>
+                    <tr key={j.id} className={j.report_id ? 'link' : ''} onClick={() => j.report_id && navigate(`/reports/${j.report_id}`)}>
                       <td>
-                        {j.report_id ? <Link to={`/reports/${j.report_id}`} style={{ fontWeight: 700 }}>{j.company_name}</Link> : j.company_name}
-                        <div className="small muted">{j.stage || j.status} · {timeAgo(j.updated_at)}</div>
+                        <div className="name">{j.company_name}</div>
+                        <div className="sub">{timeAgo(j.updated_at)}</div>
                       </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <span className={`go-badge ${j.status === 'succeeded' ? 'go-badge-success' : j.status === 'failed' ? 'go-badge-high' : 'go-badge-info'}`}>{j.status === 'running' ? `${j.progress}%` : j.status}</span>
-                      </td>
+                      <td style={{ textAlign: 'right' }}>{j.status === 'running' ? <span className="tag tag-info">{j.progress}%</span> : <StatusTag status={j.status} />}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            ) : <div className="empty">No jobs yet.</div>}
-          </Card>
+            ) : <Empty>No reports added yet.</Empty>}
+          </Panel>
         </div>
       </div>
     </div>

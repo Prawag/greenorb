@@ -4,12 +4,12 @@
   "description": "Emissions and ESG figures extracted from sustainability reports, with page citations and integrity flags.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#0C130E",
+  "theme_color": "#0C130E",
   "orientation": "any",
   "icons": [
     {
-      "src": "/globe.svg",
+      "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

@@ -1,0 +1,5 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="64" height="64" rx="16" fill="#0C130E"/>
+<circle cx="32" cy="32" r="19" fill="url(#g)"/>
+<defs><radialGradient id="g" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-5.35 23.03 -23.17 -5.31 36.4 27.8)"><stop stop-color="#00FF19"/><stop offset="1" stop-color="#14A022"/></radialGradient></defs>
+</svg>

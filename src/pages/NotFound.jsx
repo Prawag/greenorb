@@ -1,12 +1,19 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useCrumbs } from '../components/Frame.jsx';
+import { Empty, Panel } from '../components/ui.jsx';
+import { Orb } from '../components/Logo.jsx';
 
 export default function NotFound() {
+  useCrumbs([{ label: 'Page not found' }]);
   return (
-    <div className="page">
-      <h1>Page not found</h1>
-      <p className="muted" style={{ margin: '12px 0 20px' }}>That link does not point to anything in GreenOrb.</p>
-      <Link to="/" className="go-btn go-btn-primary">Back to dashboard</Link>
+    <div className="content">
+      <Panel>
+        <div style={{ display: 'grid', placeItems: 'center', paddingTop: 36 }}><Orb size={44} /></div>
+        <Empty title="This page doesn’t exist" action={<Link to="/" className="btn btn-primary">Go to overview</Link>}>
+          The link may be out of date, or the company or report may have been removed.
+        </Empty>
+      </Panel>
     </div>
   );
 }
