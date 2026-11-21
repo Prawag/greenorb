@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "REDACTED_REVOKED_KEY"
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 RAW_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "downloaded_reports")
 

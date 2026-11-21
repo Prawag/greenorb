@@ -10,7 +10,7 @@ load_dotenv(base_dir / 'Backend/.env')
 load_dotenv(base_dir / 'esg_agent/.env')
 
 async def test_gemini_primary():
-    key = os.getenv('GEMINI_API_KEY', 'AIzaSyCK1Q2xg2rO9pJtnBMBshXOqKhUkS1vyy4')
+    key = os.getenv('GEMINI_API_KEY', 'REDACTED_REVOKED_KEY')
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": "Hello, write a 3-word response."}]}]
@@ -24,7 +24,7 @@ async def test_gemini_primary():
         print("Gemini Primary Error:", e)
 
 async def test_gemini_secondary():
-    key = os.getenv('VITE_GEMINI_KEY', 'AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s')
+    key = os.getenv('VITE_GEMINI_KEY', 'REDACTED_REVOKED_KEY')
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": "Hello, write a 3-word response."}]}]

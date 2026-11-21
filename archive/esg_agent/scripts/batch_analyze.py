@@ -49,12 +49,12 @@ PROVIDERS = [
     },
     {
         "name": "Gemini (Primary)",
-        "api_key": os.getenv('GEMINI_API_KEY', 'AIzaSyCK1Q2xg2rO9pJtnBMBshXOqKhUkS1vyy4'),
+        "api_key": os.getenv('GEMINI_API_KEY', 'REDACTED_REVOKED_KEY'),
         "model": "gemini-2.0-flash",
     },
     {
         "name": "Gemini (Secondary)",
-        "api_key": os.getenv('VITE_GEMINI_KEY', 'AIzaSyD2IaDVX6JNm8QwW1fr_gXXIQ0C_-Kgt4s'),
+        "api_key": os.getenv('VITE_GEMINI_KEY', 'REDACTED_REVOKED_KEY'),
         "model": "gemini-2.0-flash",
     },
 ]
