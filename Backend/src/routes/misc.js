@@ -11,7 +11,7 @@ export function statsRouter({ db }) {
     const [totals, sectors, recentFlags, recentReports, flagCodes] = await Promise.all([
       db.one(`SELECT
           (SELECT count(*) FROM esg.companies) AS companies,
-          (SELECT count(DISTINCT company_id) FROM esg.metrics WHERE status <> 'rejected') AS companies_with_data,
+          (SELECT count(DISTINCT company_id) FROM esg.metrics WHERE status <> 'rejected' AND method <> 'legacy' AND value IS NOT NULL) AS companies_with_data,
           (SELECT count(*) FROM esg.reports WHERE status = 'processed') AS reports_processed,
           (SELECT count(*) FROM esg.reports WHERE status IN ('queued','processing')) AS reports_pending,
           (SELECT count(*) FROM esg.reports WHERE status = 'failed') AS reports_failed,
@@ -22,7 +22,7 @@ export function statsRouter({ db }) {
           (SELECT count(*) FROM esg.flags WHERE status = 'open') AS open_flags,
           (SELECT count(*) FROM esg.flags WHERE status = 'open' AND severity IN ('high','medium')) AS open_material_flags`),
       db.query(`SELECT coalesce(c.sector, 'Unclassified') AS sector, count(*)::int AS companies
-                  FROM esg.companies c WHERE EXISTS (SELECT 1 FROM esg.metrics m WHERE m.company_id = c.id)
+                  FROM esg.companies c WHERE EXISTS (SELECT 1 FROM esg.metrics m WHERE m.company_id = c.id AND m.method <> 'legacy')
                  GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 12`),
       db.query(`SELECT f.id, f.code, f.severity, f.title, f.created_at, f.report_id, c.slug AS company_slug, c.name AS company_name
                   FROM esg.flags f JOIN esg.companies c ON c.id = f.company_id
@@ -85,7 +85,12 @@ export function healthRouter({ db, config, llm, features }) {
       dbOk = false;
     }
     let worker = null;
+    let dbSizeMb = null;
     if (dbOk) {
+      dbSizeMb = await db
+        .one(`SELECT round(pg_database_size(current_database()) / 1048576.0)::int AS mb`)
+        .then((x) => x.mb)
+        .catch(() => null);
       worker = await db
         .one(`SELECT max(coalesce(locked_at, finished_at)) FILTER (WHERE attempts > 0) AS last_seen,
                      count(*) FILTER (WHERE status = 'queued') AS queued,
@@ -97,6 +102,7 @@ export function healthRouter({ db, config, llm, features }) {
     res.status(dbOk ? 200 : 503).json({
       status: dbOk ? 'ok' : 'degraded',
       database: dbOk,
+      database_size_mb: dbSizeMb,
       version: '4.0.0',
       features: {
         llm: llm.providers,

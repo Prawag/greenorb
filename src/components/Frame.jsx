@@ -92,7 +92,8 @@ function SystemStatus() {
     const w = data.worker || {};
     tone = w.stalled ? 'warn' : 'ok';
     text = w.stalled ? 'Reader not responding' : w.running ? 'Reading a report' : w.queued ? `${w.queued} report${w.queued === 1 ? '' : 's'} queued` : 'All systems normal';
-    detail = w.last_seen ? `Last report read ${timeAgo(w.last_seen)}` : '';
+    detail = [w.last_seen ? `Last report read ${timeAgo(w.last_seen)}` : '', data.database_size_mb != null ? `Database ${data.database_size_mb} MB` : '']
+      .filter(Boolean).join('. ');
   }
   return (
     <span className="status-chip" title={detail || text} role="status">

@@ -325,3 +325,13 @@ def register_local_report(conn: psycopg.Connection, *, company: dict, path: str,
              Jsonb([{"at": _now(), "level": "info", "message": f"Registered local file {path}"}])),
         ).fetchone()["id"]
     return report_id, job_id, True
+
+
+def delete_report(conn: psycopg.Connection, report_id: int, *, reason: str) -> None:
+    """Remove a report and everything read from it (used for empty reports that turn out not to be reports)."""
+    with conn.transaction():
+        row = conn.execute("DELETE FROM esg.reports WHERE id = %s RETURNING company_id", (report_id,)).fetchone()
+        if row:
+            conn.execute("SELECT esg.recompute_primary(%s)", (row["company_id"],))
+            conn.execute("INSERT INTO esg.audit_log (actor, action, entity, entity_id, data) VALUES ('worker', 'delete_report', 'report', %s, %s)",
+                         (report_id, Jsonb({"reason": reason})))

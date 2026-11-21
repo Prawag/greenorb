@@ -25,10 +25,11 @@ const ROWS = [
 ];
 const SCOPE2_NOTE = { ghg_scope2_market: 'market-based', ghg_scope2_location: 'location-based' };
 
+// Headline figures are sourced ones only; v3 imports without a page stay on their report page.
 function pick(byKey, keys, year) {
   const c = [];
-  keys.forEach((k, order) => (byKey[k]?.points || []).forEach((p) => p.fiscal_year === year && c.push({ p, k, order })));
-  c.sort((a, b) => (b.p.value != null) - (a.p.value != null) || (a.p.method === 'legacy') - (b.p.method === 'legacy') || a.order - b.order);
+  keys.forEach((k, order) => (byKey[k]?.points || []).forEach((p) => p.fiscal_year === year && p.method !== 'legacy' && c.push({ p, k, order })));
+  c.sort((a, b) => (b.p.value != null) - (a.p.value != null) || a.order - b.order);
   return c[0] || null;
 }
 
@@ -63,8 +64,8 @@ export default function Company() {
     const rows = {};
     const add = (keys, alias) => {
       const best = {};
-      keys.forEach((k, order) => (byKey[k]?.points || []).filter((p) => p.value != null).forEach((p) => {
-        const rank = (p.method === 'legacy' ? 10 : 0) + order;
+      keys.forEach((k, order) => (byKey[k]?.points || []).filter((p) => p.value != null && p.method !== 'legacy').forEach((p) => {
+        const rank = order;
         if (!best[p.fiscal_year] || rank < best[p.fiscal_year].rank) best[p.fiscal_year] = { rank, value: p.value };
       }));
       Object.entries(best).forEach(([y, b]) => { (rows[y] ||= { year: Number(y) })[alias] = b.value; });
@@ -104,14 +105,26 @@ export default function Company() {
       </div>
 
       {summary?.has_legacy_data && (
-        <Notice tone="warn">Some figures were imported from GreenOrb v3 without a source page and may be wrong. Add the original report to replace them with sourced figures.</Notice>
+        <Notice tone="info">
+          Older figures imported from GreenOrb v3 have no source page, so they are not shown here.
+          {latest ? '' : ' Add this company’s sustainability report to read sourced figures.'}
+        </Notice>
       )}
 
       {!latest ? (
         <Panel>
-          <Empty title={reports.length ? 'This company’s report is being read' : 'No reports yet'} action={!reports.length && <Link to={`/ingest?company=${company.slug}`} className="btn btn-primary">Add a report</Link>}>
-            {reports.length ? 'Figures appear here once reading finishes. This usually takes under a minute after the worker picks it up.' : 'Add a sustainability report to extract this company’s figures with their source pages.'}
-          </Empty>
+          {reports.some((r) => ['queued', 'processing'].includes(r.status)) ? (
+            <Empty title="This company’s report is being read">Figures appear here once reading finishes. This usually takes under a minute after the worker picks it up.</Empty>
+          ) : reports.some((r) => r.status === 'processed') ? (
+            <Empty title="No figures found in these reports" action={<Link to={`/ingest?company=${company.slug}`} className="btn">Add another report</Link>}>
+              GreenOrb read {reports.filter((r) => r.status === 'processed').length === 1 ? 'this company’s report' : 'this company’s reports'} but found no emissions, energy, water or waste tables.
+              The figures may be in a separate data appendix, or only in charts.
+            </Empty>
+          ) : (
+            <Empty title="No reports yet" action={<Link to={`/ingest?company=${company.slug}`} className="btn btn-primary">Add a report</Link>}>
+              Add a sustainability report to extract this company’s figures with their source pages.
+            </Empty>
+          )}
         </Panel>
       ) : (
         <div className="grid grid-main">

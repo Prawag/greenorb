@@ -204,6 +204,21 @@ describe.skipIf(!url)('evidence pages and company merging (Postgres)', () => {
     expect((await request(app).get('/api/reports/999999/pages/1')).status).toBe(404);
   });
 
+  it('keeps v3 imports out of public summaries', async () => {
+    const c = await db.one(`INSERT INTO esg.companies (slug, name) VALUES ('legacy-only', 'Legacy Only Co') RETURNING id`);
+    const r = await db.one(`INSERT INTO esg.reports (company_id, source_type, status, fiscal_year) VALUES ($1, 'legacy', 'legacy', 2023) RETURNING id`, [c.id]);
+    await db.query(`INSERT INTO esg.metrics (company_id, report_id, metric, fiscal_year, value, unit, method, confidence, grounded, is_primary)
+                    VALUES ($1, $2, 'ghg_scope1', 2023, 123456789, 'tCO2e', 'legacy', 0.3, false, true)`, [c.id, r.id]);
+    const s = await db.one(`SELECT latest_year, scope1, has_legacy_data FROM esg.company_summary WHERE company_id = $1`, [c.id]);
+    expect(s.latest_year).toBeNull();
+    expect(s.scope1).toBeNull();
+    expect(s.has_legacy_data).toBe(true);
+    const list = await request(app).get('/api/companies?q=Legacy%20Only&has_data=true');
+    expect(list.body.data).toHaveLength(0);
+    const health = await request(app).get('/api/health');
+    expect(typeof health.body.database_size_mb).toBe('number');
+  });
+
   it('merges spelling variants of the same company', async () => {
     const a = await db.one(`INSERT INTO esg.companies (slug, name, country) VALUES ('beta-industries-limited-formerly-beta', 'Beta Industries Limited (formerly Beta)', 'India') RETURNING id`);
     const b = await db.one(`INSERT INTO esg.companies (slug, name, sector) VALUES ('beta-industries-ltd', 'Beta Industries Ltd', 'Chemicals') RETURNING id`);

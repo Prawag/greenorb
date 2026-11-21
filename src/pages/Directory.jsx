@@ -101,7 +101,6 @@ export default function Directory() {
               </thead>
               <tbody>
                 {data.data.map((c) => {
-                  const legacyOnly = c.has_legacy_data && c.assurance_level === 'unknown';
                   return (
                     <tr key={c.id} className="link" onClick={() => navigate(`/companies/${c.slug}`)}>
                       <td>
@@ -115,8 +114,8 @@ export default function Directory() {
                       <td className="num">{c.disclosure_score ?? <span className="faint">–</span>}</td>
                       <td className="num" style={{ color: c.open_material_flags ? 'var(--red)' : undefined }}>{c.open_flags || <span className="faint">–</span>}</td>
                       <td>
-                        {legacyOnly ? <span className="tag tag-medium" title="Imported from GreenOrb v3 without page sources">Unverified import</span>
-                          : c.latest_year ? <Assurance level={c.assurance_level} />
+                        {c.latest_year ? <Assurance level={c.assurance_level} />
+                          : c.has_legacy_data ? <span className="tag tag-quiet" title="Only v3 figures without source pages, which are not shown">Needs a report</span>
                           : c.report_count ? <span className="tag tag-info">Report queued</span>
                           : <span className="faint">–</span>}
                       </td>

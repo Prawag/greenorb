@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import signal
+import subprocess
 import sys
 import time
 from dataclasses import asdict
@@ -25,6 +26,7 @@ from . import __version__, db
 from .config import Settings
 from .llm import LLMClient
 from .pipeline import analyse, process_job
+from .screen import screen_pdf
 
 log = logging.getLogger("greenorb_worker")
 _stop = False
@@ -135,68 +137,145 @@ def plausible_company(name: str) -> bool:
     return bool(re.search(r"[A-Za-z]{3,}", name))
 
 
-def cmd_bulk(settings: Settings, folder: str, limit: int | None, store: bool, process: bool, pattern: str, batch: int,
-             retry_empty: bool = False) -> int:
-    """Register local PDFs in batches and process each batch before reading more, so figures appear as it goes.
+def _db_size_mb(conn) -> float:
+    return conn.execute("SELECT pg_database_size(current_database()) / 1048576.0 AS mb").fetchone()["mb"]
 
-    Safe to stop and restart: files already registered (by content hash) are skipped.
+
+def _local_jobs_left(conn) -> int:
+    return conn.execute("SELECT count(*) AS n FROM esg.jobs WHERE status IN ('queued', 'running')").fetchone()["n"]
+
+
+def _start_workers(n: int) -> list[subprocess.Popen]:
+    """Extra worker processes that read queued local files while this process keeps registering."""
+    procs = []
+    for i in range(n):
+        env = dict(os.environ, WORKER_ID=f"{os.environ.get('WORKER_ID', 'bulk')}-{i + 1}")
+        # These workers also take download jobs (public report links), since this machine has internet access.
+        procs.append(subprocess.Popen([sys.executable, "-m", "greenorb_worker", "run", "--local-files"], env=env))
+    return procs
+
+
+def cmd_bulk(settings: Settings, folder: str, limit: int | None, store: bool, process: bool, pattern: str, batch: int,
+             retry_empty: bool = False, workers: int = 1, screen: bool = True, db_limit_mb: float = 0,
+             harvest: int = 0, seeds: list[str] | None = None) -> int:
+    """Register local PDFs and read them, so figures appear while it runs.
+
+    Safe to stop and restart: files already registered (by content hash) are skipped. Files that are not
+    sustainability reports, or are about a different company than the file name says, are skipped and
+    listed in bulk-skipped.csv next to the folder.
     """
+    signal.signal(signal.SIGINT, _handle_stop)
+    signal.signal(signal.SIGTERM, _handle_stop)
     conn = _connect(settings)
     files = sorted(Path(folder).glob(pattern))
-    log.info("%d files in %s", len(files), folder)
-    registered = pending = skipped = 0
-    for f in files:
-        if _stop or (limit and registered >= limit):
-            break
-        try:
-            if f.stat().st_size < 10_000:
-                skipped += 1
+    skip_log = Path(folder).resolve().parent / "bulk-skipped.csv"
+    new_log = not skip_log.exists()
+    skip_fh = skip_log.open("a", encoding="utf-8", newline="")
+    skip_csv = csv.writer(skip_fh)
+    if new_log:
+        skip_csv.writerow(["file", "reason"])
+    log.info("%d files in %s; skipped files are listed in %s", len(files), folder, skip_log)
+
+    if harvest:
+        cmd_harvest(settings, seeds or [str(Path(__file__).resolve().parent.parent / "seeds")], harvest)
+    procs = _start_workers(workers) if process and workers > 1 else []
+    counts = {"queued": 0, "reread": 0, "known": 0, "skipped": 0, "pruned": 0}
+    pending = 0
+    started = time.time()
+
+    def skip(f: Path, reason: str) -> None:
+        counts["skipped"] += 1
+        skip_csv.writerow([f.name, reason])
+        log.info("skip %s: %s", f.name, reason)
+
+    def maybe_process(force: bool = False) -> None:
+        nonlocal pending
+        if not process or (pending < batch and not force):
+            return
+        if procs:
+            # Workers are reading in the background; don't let the queue run far ahead of them.
+            while not _stop and _local_jobs_left(conn) > batch * len(procs):
+                time.sleep(5)
+        else:
+            cmd_run(settings, drain=True, max_jobs=pending + 5, local_files=True)
+        db.merge_duplicate_companies(conn)
+        pending = 0
+        done = sum(counts[k] for k in ("queued", "reread", "known", "skipped"))
+        rate = done / max(1.0, time.time() - started) * 3600
+        log.info("Progress: %d of %d files looked at (%d queued, %d re-read, %d already in, %d skipped), about %d files/hour.",
+                 done, len(files), counts["queued"], counts["reread"], counts["known"], counts["skipped"], rate)
+
+    try:
+        for f in files:
+            if _stop or (limit and counts["queued"] + counts["reread"] >= limit):
+                break
+            if db_limit_mb and pending == 0 and _db_size_mb(conn) > db_limit_mb:
+                log.warning("Stopping: the database is over %.0f MB (the free Neon plan holds 512 MB). "
+                            "Upgrade the plan or raise --db-limit-mb, then run this again to continue.", db_limit_mb)
+                break
+            try:
+                if f.stat().st_size < 10_000:
+                    skip(f, "too small to be a report")
+                    continue
+                data = f.read_bytes()
+            except OSError as exc:
+                skip(f, f"could not read the file ({exc.strerror or exc})")
                 continue
-            data = f.read_bytes()
-        except OSError as exc:
-            log.warning("skip %s (%s)", f.name, exc)
-            continue
-        if b"%PDF-" not in data[:1024]:
-            skipped += 1
-            continue
-        name, year = company_from_filename(f.stem)
-        if not plausible_company(name):
-            log.info("skip %s (no usable company name in the file name)", f.name)
-            skipped += 1
-            continue
-        sha = hashlib.sha256(data).hexdigest()
-        same = db.report_with_sha(conn, sha)
-        if same and retry_empty and same["status"] in ("processed", "failed") and not same["metric_count"]:
-            job_id = db.requeue_local(conn, same, str(f.resolve()), "Read again: the earlier pass found no figures")
-            registered += 1
-            pending += 1
-            log.info("re-reading %s (report #%s had no figures, job #%s)", f.name, same["id"], job_id)
-            if process and pending >= batch:
-                cmd_run(settings, drain=True, max_jobs=pending + 5, only_local=True)
-                pending = 0
-            continue
-        if same:
-            # The old downloader saved one PDF under several names and years; read it once.
-            log.debug("already known: %s is report #%s (%s)", f.name, same["id"], same["company"])
-            skipped += 1
-            continue
-        company = db.resolve_company(conn, name)
-        report_id, job_id, created = db.register_local_report(
-            conn, company=company, path=str(f.resolve()), sha256=sha, size=len(data), year_hint=None, store_bytes=data if store else None
-        )
-        if created:
-            registered += 1
-            pending += 1
-            log.info("queued %s → %s (report #%s, job #%s)", f.name, company["name"], report_id, job_id)
-        if process and pending >= batch:
-            cmd_run(settings, drain=True, max_jobs=pending + 5, only_local=True)
-            db.merge_duplicate_companies(conn)
-            pending = 0
-    if process and pending and not _stop:
-        cmd_run(settings, drain=True, only_local=True)
-    merged = db.merge_duplicate_companies(conn)
-    conn.close()
-    log.info("Done: %d new report(s), %d file(s) skipped (duplicates, tiny or unnamed), %d company name variant(s) merged.", registered, skipped, merged)
+            if b"%PDF-" not in data[:1024]:
+                skip(f, "not a PDF")
+                continue
+            name, _year = company_from_filename(f.stem)
+            if not plausible_company(name):
+                skip(f, "no company name in the file name")
+                continue
+            sha = hashlib.sha256(data).hexdigest()
+            same = db.report_with_sha(conn, sha)
+            if same and not (retry_empty and same["status"] in ("processed", "failed") and not same["metric_count"]):
+                counts["known"] += 1  # the old downloader saved one PDF under several names and years
+                continue
+            if screen:
+                verdict = screen_pdf(data, same["company"] if same else name)
+                if not verdict.ok:
+                    if same:
+                        db.delete_report(conn, same["id"], reason=f"bulk screening: {verdict.reason}")
+                        counts["pruned"] += 1
+                        log.info("removed report #%s (%s): %s", same["id"], same["company"], verdict.reason)
+                    skip(f, verdict.reason)
+                    continue
+            if same:
+                job_id = db.requeue_local(conn, same, str(f.resolve()), "Read again: the earlier pass found no figures")
+                counts["reread"] += 1
+                pending += 1
+                log.info("re-reading %s (report #%s had no figures, job #%s)", f.name, same["id"], job_id)
+            else:
+                company = db.resolve_company(conn, name)
+                report_id, job_id, created = db.register_local_report(
+                    conn, company=company, path=str(f.resolve()), sha256=sha, size=len(data), year_hint=None,
+                    store_bytes=data if store else None,
+                )
+                if created:
+                    counts["queued"] += 1
+                    pending += 1
+                    log.info("queued %s → %s (report #%s, job #%s)", f.name, company["name"], report_id, job_id)
+            maybe_process()
+        if not _stop:
+            maybe_process(force=True)
+            while procs and not _stop and _local_jobs_left(conn) > 0:
+                time.sleep(5)
+    finally:
+        for p in procs:
+            p.terminate()
+        for p in procs:
+            try:
+                p.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                p.kill()
+        skip_fh.close()
+        merged = db.merge_duplicate_companies(conn)
+        conn.close()
+    log.info("Done: %d new report(s), %d re-read, %d already loaded, %d skipped (see %s), %d empty report(s) removed, "
+             "%d company name variant(s) merged.", counts["queued"], counts["reread"], counts["known"], counts["skipped"],
+             skip_log.name, counts["pruned"], merged)
     return 0
 
 
@@ -279,6 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     rn = sub.add_parser("run", help="run the queue worker forever")
     rn.add_argument("--local-files", action="store_true", help="also take bulk-import jobs whose PDF is on this machine")
+    rn.add_argument("--only-local", action="store_true", help=argparse.SUPPRESS)
     d = sub.add_parser("drain", help="process queued jobs then exit")
     d.add_argument("--max-jobs", type=int, default=None)
     d.add_argument("--local-files", action="store_true", help="also take bulk-import jobs whose PDF is on this machine")
@@ -299,15 +379,25 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--no-process", action="store_true", help="only register and queue; process later with `drain` or `run`")
     b.add_argument("--batch", type=int, default=20, help="process after every N newly registered files (default 20)")
     b.add_argument("--retry-empty", action="store_true", help="also re-read files whose earlier pass found no figures")
+    b.add_argument("--workers", type=int, default=1, help="read this many PDFs at once (default 1; 3 suits most laptops)")
+    b.add_argument("--no-screen", action="store_true", help="load every PDF, even ones that don't look like this company's sustainability report")
+    b.add_argument("--harvest", type=int, default=0, metavar="N", help="also download up to N public reports from worker/seeds/*.csv")
+    b.add_argument("--db-limit-mb", type=float, default=float(os.environ.get("DB_LIMIT_MB", 0) or 0),
+                   help="stop before the database grows past this size (free Neon: use 470)")
     args = parser.parse_args(argv)
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if args.cmd == "bulk":
+        # Keep a log next to the folder so a long run can be checked later.
+        handlers.append(logging.FileHandler(Path(args.folder).resolve().parent / "bulk-log.txt", encoding="utf-8"))
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
+                        handlers=handlers)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     if args.cmd == "analyse":
         os.environ.setdefault("DATABASE_URL", "unused")
     settings = Settings.from_env()
     if args.cmd == "run":
-        return cmd_run(settings, local_files=args.local_files)
+        return cmd_run(settings, local_files=args.local_files, only_local=args.only_local)
     if args.cmd == "drain":
         if args.harvest:
             cmd_harvest(settings, args.seeds, args.harvest)
@@ -318,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_analyse(settings, args.pdf, args.year, args.json)
     if args.cmd == "bulk":
         return cmd_bulk(settings, args.folder, args.limit, args.store_files, not args.no_process, args.pattern, args.batch,
-                        args.retry_empty)
+                        args.retry_empty, args.workers, not args.no_screen, args.db_limit_mb, args.harvest)
     return 1
 
 
