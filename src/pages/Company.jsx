@@ -1,79 +1,65 @@
 import React, { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Check, Minus } from 'lucide-react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useApi } from '../hooks/useApi.js';
+import { useCrumbs } from '../components/Frame.jsx';
 import AskPanel from '../components/AskPanel.jsx';
 import FlagItem from '../components/FlagItem.jsx';
-import { AssuranceBadge, Card, Cite, Confidence, Empty, ErrorState, ExternalSource, PageHeader, ScoreRing, Skeleton, SkeletonRows } from '../components/ui.jsx';
-import { fmtCompact, fmtDate, fmtFull, fmtUnit } from '../format.js';
+import { Assurance, Basis, Empty, ErrorNotice, Figure, Notice, Panel, Skel, Source, StatusTag } from '../components/ui.jsx';
+import { fmtCompact, fmtDate, fmtFull } from '../format.js';
 
-const TILES = [
-  { key: 'ghg_scope1', label: 'Scope 1' },
-  { key: ['ghg_scope2_market', 'ghg_scope2_location', 'ghg_scope2'], label: 'Scope 2' },
-  { key: 'ghg_scope3', label: 'Scope 3' },
-  { key: 'ghg_scope12_total', label: 'Scope 1+2 (reported)' },
-  { key: 'energy_total', label: 'Energy use' },
-  { key: 'energy_renewable_pct', label: 'Renewable share' },
-  { key: ['water_withdrawal', 'water_consumption'], label: 'Water' },
-  { key: 'waste_generated', label: 'Waste' },
+// Rows of the key-figures statement. A row may draw on several metric keys (Scope 2 methods).
+const ROWS = [
+  { group: 'Greenhouse gas emissions' },
+  { label: 'Scope 1 (direct)', keys: ['ghg_scope1'] },
+  { label: 'Scope 2 (purchased energy)', keys: ['ghg_scope2_market', 'ghg_scope2_location', 'ghg_scope2'] },
+  { label: 'Scope 3 (value chain)', keys: ['ghg_scope3'] },
+  { label: 'Scope 1 + 2, as reported', keys: ['ghg_scope12_total'] },
+  { group: 'Energy, water and waste' },
+  { label: 'Energy consumed', keys: ['energy_total'] },
+  { label: 'Renewable share of energy', keys: ['energy_renewable_pct'] },
+  { label: 'Water withdrawn', keys: ['water_withdrawal'] },
+  { label: 'Water consumed', keys: ['water_consumption'] },
+  { label: 'Waste generated', keys: ['waste_generated'] },
 ];
-const SERIES = [
-  { key: 'ghg_scope1', name: 'Scope 1', color: '#0b0b0c' },
-  { key: 'scope2', name: 'Scope 2', color: '#4d7c0f' },
-  { key: 'ghg_scope3', name: 'Scope 3', color: '#a3a3a3' },
-];
+const SCOPE2_NOTE = { ghg_scope2_market: 'market-based', ghg_scope2_location: 'location-based' };
 
-function Tile({ label, point, metricKey, latestYear }) {
-  if (!point) {
-    return (
-      <div className="kpi">
-        <div className="kpi-label">{label}</div>
-        <div className="kpi-value muted">–</div>
-        <div className="kpi-foot">Not disclosed or not found</div>
-      </div>
-    );
-  }
-  const stale = latestYear && point.fiscal_year !== latestYear;
-  return (
-    <div className="kpi" title={point.quote || ''}>
-      <div className="kpi-label">{label}{metricKey?.startsWith('ghg_scope2_') ? ` (${metricKey.endsWith('market') ? 'market' : 'location'})` : ''}</div>
-      <div className="kpi-value">
-        {point.value == null ? <span title={`Printed as “${point.raw_value}”`}>nil</span> : <>{fmtCompact(point.value)}<span className="kpi-unit">{fmtUnit(point.unit)}</span></>}
-      </div>
-      <div className="kpi-foot">
-        <span>FY{point.fiscal_year}{stale ? ' (latest available)' : ''}</span>
-        {point.page && <Cite reportId={point.report_id} page={point.page} />}
-        {point.method === 'legacy' ? <span className="go-badge go-badge-medium">unverified</span> : <Confidence value={point.confidence} method={point.method} />}
-        {point.status === 'verified' && <span className="go-badge go-badge-success">verified</span>}
-      </div>
-    </div>
-  );
+function pick(byKey, keys, year) {
+  const c = [];
+  keys.forEach((k, order) => (byKey[k]?.points || []).forEach((p) => p.fiscal_year === year && c.push({ p, k, order })));
+  c.sort((a, b) => (b.p.value != null) - (a.p.value != null) || (a.p.method === 'legacy') - (b.p.method === 'legacy') || a.order - b.order);
+  return c[0] || null;
 }
+
+function Change({ now, before }) {
+  if (now?.value == null || before?.value == null || !before.value) return <span className="faint">–</span>;
+  const pct = ((now.value - before.value) / before.value) * 100;
+  if (Math.abs(pct) < 0.5) return <span className="muted">no change</span>;
+  return <span className={pct > 0 ? 'delta-up' : 'delta-down'}>{pct > 0 ? '+' : '−'}{Math.abs(pct).toFixed(Math.abs(pct) < 10 ? 1 : 0)}%</span>;
+}
+
+const CHECKS = [
+  ['Scope 1', (s) => s.scope1 != null, 20],
+  ['Scope 2', (s) => s.scope2 != null, 20],
+  ['Scope 3', (s) => s.scope3 != null, 15],
+  ['Energy', (s) => s.energy_mwh != null, 10],
+  ['Water', (s) => s.water_m3 != null, 10],
+  ['Waste', (s) => s.waste_t != null, 10],
+  ['External assurance', (s) => ['limited', 'reasonable'].includes(s.assurance_level), 15],
+];
 
 export default function Company() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const { data, error, loading, reload } = useApi(`/companies/${slug}`);
-  const [showAllFlags, setShowAllFlags] = useState(false);
+  const [showReviewed, setShowReviewed] = useState(false);
+  useCrumbs([{ to: '/companies', label: 'Companies' }, { label: data?.company?.name || '…' }]);
 
   const byKey = useMemo(() => Object.fromEntries((data?.metrics || []).map((m) => [m.key, m])), [data]);
-  const latestYear = data?.summary?.latest_year;
-  // For a tile covering several metric keys (e.g. Scope 2 market/location/unspecified), prefer the
-  // latest year, then verified extractions over unverified legacy imports, then the key order.
-  const latestPoint = (keys) => {
-    const cands = [];
-    [].concat(keys).forEach((k, order) => (byKey[k]?.points || []).forEach((p) => cands.push({ p, k, order })));
-    if (!cands.length) return { point: null, key: null };
-    cands.sort((a, b) =>
-      (b.p.value != null) - (a.p.value != null) ||
-      (b.p.fiscal_year === latestYear) - (a.p.fiscal_year === latestYear) ||
-      (a.p.method === 'legacy') - (b.p.method === 'legacy') ||
-      b.p.fiscal_year - a.p.fiscal_year ||
-      a.order - b.order);
-    return { point: cands[0].p, key: cands[0].k };
-  };
+  const latest = data?.summary?.latest_year;
 
   const chart = useMemo(() => {
-    // One value per series and year; cited extractions win over unverified legacy imports.
     const rows = {};
     const add = (keys, alias) => {
       const best = {};
@@ -81,130 +67,184 @@ export default function Company() {
         const rank = (p.method === 'legacy' ? 10 : 0) + order;
         if (!best[p.fiscal_year] || rank < best[p.fiscal_year].rank) best[p.fiscal_year] = { rank, value: p.value };
       }));
-      Object.entries(best).forEach(([y, b]) => {
-        rows[y] ||= { year: Number(y) };
-        rows[y][alias] = b.value;
-      });
+      Object.entries(best).forEach(([y, b]) => { (rows[y] ||= { year: Number(y) })[alias] = b.value; });
     };
-    add(['ghg_scope1'], 'ghg_scope1');
-    add(['ghg_scope2_market', 'ghg_scope2_location', 'ghg_scope2'], 'scope2');
-    add(['ghg_scope3'], 'ghg_scope3');
+    add(['ghg_scope1'], 's1');
+    add(['ghg_scope2_market', 'ghg_scope2_location', 'ghg_scope2'], 's2');
+    add(['ghg_scope3'], 's3');
     return Object.values(rows).sort((a, b) => a.year - b.year);
   }, [byKey]);
 
   if (loading && !data) {
-    return <div className="page"><Skeleton h={36} w="40%" /><div style={{ height: 24 }} /><div className="kpi-grid">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} h={110} />)}</div></div>;
+    return <div className="content"><Skel h={28} w="35%" /><Skel w="50%" style={{ marginTop: 12 }} /><Skel h={320} style={{ marginTop: 24 }} /></div>;
   }
-  if (error) return <div className="page"><Link to="/companies" className="go-btn go-btn-ghost">← Directory</Link><div style={{ height: 16 }} /><ErrorState error={error} onRetry={reload} /></div>;
+  if (error) return <div className="content"><ErrorNotice error={error} onRetry={reload} /></div>;
   if (!data) return null;
 
   const { company, summary, reports, flags } = data;
-  const openFlags = flags.filter((f) => f.status === 'open');
-  const shownFlags = showAllFlags ? flags : openFlags;
+  const open = flags.filter((f) => f.status === 'open');
+  const shown = showReviewed ? flags : open;
+  const prev = latest ? latest - 1 : null;
+  const hasPrev = latest && ROWS.some((r) => r.keys && pick(byKey, r.keys, prev));
 
   return (
-    <div className="page">
-      <Link to="/companies" className="go-btn go-btn-ghost" style={{ marginBottom: 12 }}>← Directory</Link>
-      <PageHeader title={company.name}>
-        <Link to={`/ingest?company=${company.slug}`} className="go-btn go-btn-primary">Add a report</Link>
-      </PageHeader>
-      <div className="row section" style={{ marginTop: -16 }}>
-        {company.sector && <span className="go-badge go-badge-accent">{company.sector}</span>}
-        {company.country && <span className="go-badge">{company.country}</span>}
-        {company.ticker && <span className="go-badge mono">{company.ticker}</span>}
-        {summary?.latest_report_id && <AssuranceBadge level={summary.assurance_level} />}
-        {company.website && <ExternalSource url={company.website} />}
+    <div className="content">
+      <div className="page-head">
+        <div>
+          <h1>{company.name}</h1>
+          <div className="facts">
+            {company.sector && <span>Sector <b>{company.sector}</b></span>}
+            {company.country && <span>Country <b>{company.country}</b></span>}
+            {company.ticker && <span>Ticker <b>{company.ticker}</b></span>}
+            <span>Reports <b>{summary?.report_count ?? 0}</b></span>
+            {company.website && <a href={company.website} target="_blank" rel="noreferrer">Company website</a>}
+          </div>
+        </div>
+        <div className="page-actions"><Link to={`/ingest?company=${company.slug}`} className="btn btn-primary">Add a report</Link></div>
       </div>
 
-      {!latestYear ? (
-        <Card style={{ marginBottom: 24 }}>
-          <Empty title={reports.length ? 'Reports are being processed' : 'No reports yet'}>
-            {reports.length ? 'Figures appear here once the worker has read the report.' : 'Add a sustainability report to extract cited figures for this company.'}
-          </Empty>
-        </Card>
-      ) : (
-        <>
-          <div className="grid-21 section">
-            <div className="kpi-grid">
-              {TILES.map((t) => {
-                const { point, key } = latestPoint(t.key);
-                return <Tile key={t.label} label={t.label} point={point} metricKey={key} latestYear={latestYear} />;
-              })}
-            </div>
-            <Card title="Disclosure score">
-              <div className="row" style={{ gap: 16, flexWrap: 'nowrap' }}>
-                <ScoreRing value={summary.disclosure_score} />
-                <div className="small muted" style={{ lineHeight: 1.5 }}>
-                  How completely FY{latestYear} is disclosed: Scope 1 (20) + Scope 2 (20) + Scope 3 (15) + energy, water and waste (10 each) + external assurance (10 limited / 15 reasonable).
-                </div>
-              </div>
-              <div className="stack small" style={{ marginTop: 14 }}>
-                <div className="row"><span className="muted">Data confidence</span><span className="spacer" />{summary.data_confidence != null ? `${Math.round(summary.data_confidence * 100)}%` : '–'}</div>
-                <div className="row"><span className="muted">Open flags</span><span className="spacer" /><span style={{ color: summary.open_material_flags ? 'var(--down)' : undefined }}>{summary.open_flags}</span></div>
-                <div className="row"><span className="muted">Reports</span><span className="spacer" />{summary.report_count}</div>
-                {summary.has_legacy_data && <div className="go-status go-status-warn small">Some figures were imported from GreenOrb v3 and are unverified.</div>}
-              </div>
-            </Card>
-          </div>
-          {chart.length > 1 && (
-            <Card title="Emissions over time (tCO₂e)" style={{ marginBottom: 24 }}>
-              <div style={{ width: '100%', height: 260 }}>
-                <ResponsiveContainer>
-                  <LineChart data={chart} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(0,0,0,.06)" vertical={false} />
-                    <XAxis dataKey="year" tickFormatter={(y) => `FY${y}`} tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={fmtCompact} tick={{ fontSize: 12 }} width={64} />
-                    <Tooltip formatter={(v) => `${fmtFull(v)} tCO₂e`} labelFormatter={(y) => `FY${y}`} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    {SERIES.filter((s) => chart.some((r) => r[s.key] != null)).map((s) => (
-                      <Line key={s.key} type="monotone" dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          )}
-        </>
+      {summary?.has_legacy_data && (
+        <Notice tone="warn">Some figures were imported from GreenOrb v3 without a source page and may be wrong. Add the original report to replace them with sourced figures.</Notice>
       )}
 
-      <div className="grid-2 section">
-        <Card title={`Integrity flags (${openFlags.length} open)`} action={flags.length > openFlags.length && (
-          <button className="go-btn go-btn-ghost" onClick={() => setShowAllFlags((v) => !v)}>{showAllFlags ? 'Open only' : `Show reviewed (${flags.length - openFlags.length})`}</button>
-        )}>
-          {shownFlags.length ? (
-            <div className="stack">{shownFlags.map((f) => <FlagItem key={f.id} flag={f} onChange={() => reload(true)} />)}</div>
-          ) : <Empty>No {showAllFlags ? '' : 'open '}flags.</Empty>}
-        </Card>
-        <Card title="Ask the reports">
-          {reports.some((r) => r.status === 'processed') ? <AskPanel company={company.slug} /> : <Empty>Available once a report has been processed.</Empty>}
-        </Card>
+      {!latest ? (
+        <Panel>
+          <Empty title={reports.length ? 'This company’s report is being read' : 'No reports yet'} action={!reports.length && <Link to={`/ingest?company=${company.slug}`} className="btn btn-primary">Add a report</Link>}>
+            {reports.length ? 'Figures appear here once reading finishes. This usually takes under a minute after the worker picks it up.' : 'Add a sustainability report to extract this company’s figures with their source pages.'}
+          </Empty>
+        </Panel>
+      ) : (
+        <div className="grid grid-main">
+          <Panel title="Key figures" hint={`As reported for FY${latest}${hasPrev ? ` and FY${prev}` : ''}. Click a page number to open the report there.`} flush>
+            <div className="table-wrap">
+              <table className="table statement">
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th className="num">FY{latest}</th>
+                    {hasPrev && <th className="num">FY{prev}</th>}
+                    {hasPrev && <th className="num">Change</th>}
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ROWS.map((r, i) => {
+                    if (r.group) return <tr key={i} className="group"><td colSpan={hasPrev ? 5 : 3}>{r.group}</td></tr>;
+                    const now = pick(byKey, r.keys, latest);
+                    const before = hasPrev ? pick(byKey, r.keys, prev) : null;
+                    return (
+                      <tr key={r.label}>
+                        <td>
+                          <div className="metric">{r.label}</div>
+                          {now && SCOPE2_NOTE[now.k] && <div className="sub">{SCOPE2_NOTE[now.k]}</div>}
+                          {now?.p.boundary && <div className="sub">{now.p.boundary} figures</div>}
+                        </td>
+                        <td className="num"><Figure value={now?.p.value} unit={now?.p.unit} raw={now?.p.raw_value} /></td>
+                        {hasPrev && <td className="num">{before ? <Figure value={before.p.value} unit={before.p.unit} raw={before.p.raw_value} /> : <span className="faint">–</span>}</td>}
+                        {hasPrev && <td className="num">{r.keys[0] === 'energy_renewable_pct' ? <span className="faint">–</span> : <Change now={now?.p} before={before?.p} />}</td>}
+                        <td>
+                          {now ? (
+                            <div style={{ display: 'grid', gap: 2 }}>
+                              <span><Source reportId={now.p.report_id} page={now.p.page} method={now.p.method} /></span>
+                              <Basis method={now.p.method} confidence={now.p.confidence} status={now.p.status} />
+                            </div>
+                          ) : <span className="faint">Not found in reports</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+
+          <div style={{ display: 'grid', gap: 20, alignContent: 'start' }}>
+            <Panel title="Disclosure completeness" hint={`What FY${latest} covers`}>
+              <div className="score">
+                <div className="score-value">{summary.disclosure_score}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="small muted">out of 100</div>
+                  <div className="score-bar"><span style={{ width: `${summary.disclosure_score}%` }} /></div>
+                </div>
+              </div>
+              <ul className="checklist" style={{ marginTop: 14 }}>
+                {CHECKS.map(([label, ok, pts]) => {
+                  const yes = ok(summary);
+                  return (
+                    <li key={label}>
+                      {yes ? <Check size={15} className="yes" aria-label="Disclosed" /> : <Minus size={15} className="no" aria-label="Not disclosed" />}
+                      <span style={{ color: yes ? 'var(--ink)' : 'var(--muted)' }}>{label}</span>
+                      <span>{pts} pts</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="small muted" style={{ marginTop: 12 }}>This scores how complete the disclosure is, not how sustainable the company is.</p>
+            </Panel>
+            <Panel title="Assurance">
+              <Assurance level={summary.assurance_level} />
+              <p className="small muted" style={{ marginTop: 8 }}>Whether an independent firm checked the emissions data in the latest report.</p>
+            </Panel>
+          </div>
+        </div>
+      )}
+
+      {chart.length > 1 && (
+        <Panel title="Emissions over time" hint="Tonnes of CO₂-equivalent, as reported each year" className="mt-20">
+          <div style={{ width: '100%', height: 260 }}>
+            <ResponsiveContainer>
+              <LineChart data={chart} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+                <CartesianGrid stroke="#eceef0" vertical={false} />
+                <XAxis dataKey="year" tickFormatter={(y) => `FY${y}`} tick={{ fontSize: 12, fill: '#697584' }} axisLine={{ stroke: '#dce0e4' }} tickLine={false} />
+                <YAxis tickFormatter={fmtCompact} tick={{ fontSize: 12, fill: '#697584' }} width={60} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v) => `${fmtFull(v)} tCO₂e`} labelFormatter={(y) => `FY${y}`} contentStyle={{ fontFamily: 'IBM Plex Sans', fontSize: 12, borderRadius: 4, borderColor: '#dce0e4' }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} iconType="plainline" />
+                {[['s1', 'Scope 1', '#13273d'], ['s2', 'Scope 2', '#2e7d5b'], ['s3', 'Scope 3', '#8aa4bf']].filter(([k]) => chart.some((r) => r[k] != null)).map(([k, name, color]) => (
+                  <Line key={k} type="linear" dataKey={k} name={name} stroke={color} strokeWidth={2} dot={{ r: 3, strokeWidth: 0, fill: color }} connectNulls isAnimationActive={false} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Panel>
+      )}
+
+      <div className="grid grid-2 mt-20">
+        <Panel
+          title="Flags"
+          hint={open.length ? `${open.length} open` : 'Nothing open'}
+          flush
+          action={flags.length > open.length && <button className="btn btn-sm btn-ghost" onClick={() => setShowReviewed((v) => !v)}>{showReviewed ? 'Hide reviewed' : `Show reviewed (${flags.length - open.length})`}</button>}
+        >
+          {shown.length ? shown.map((f) => <FlagItem key={f.id} flag={f} onChange={() => reload(true)} />) : <Empty>No {showReviewed ? '' : 'open '}flags for this company.</Empty>}
+        </Panel>
+        <Panel title="Ask about this company">
+          {reports.some((r) => r.status === 'processed') ? <AskPanel company={company.slug} /> : <Empty>Available once a report has been read.</Empty>}
+        </Panel>
       </div>
 
-      <Card title="Reports" flush>
-        {reports.length ? (
-          <div className="table-wrap">
-            <table className="go-table">
-              <thead><tr><th>Report</th><th>FY</th><th>Status</th><th>Assurance</th><th className="num">Metrics</th><th className="num">Open flags</th><th>Added</th></tr></thead>
-              <tbody>
-                {reports.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <Link to={`/reports/${r.id}`} style={{ fontWeight: 700 }}>{r.title || r.file_name || `Report #${r.id}`}</Link>
-                      <div className="small muted">{r.source_type === 'legacy' ? 'Imported from v3' : r.source_type}{r.page_count ? ` · ${r.page_count} pages` : ''}</div>
-                    </td>
-                    <td className="mono">{r.fiscal_year || '–'}</td>
-                    <td><span className={`go-badge ${r.status === 'processed' ? 'go-badge-success' : r.status === 'failed' ? 'go-badge-high' : r.status === 'legacy' ? 'go-badge-medium' : 'go-badge-info'}`}>{r.status}</span></td>
-                    <td>{r.status === 'processed' ? <AssuranceBadge level={r.assurance_level} provider={r.assurance_provider} /> : '–'}</td>
-                    <td className="num">{r.metric_count}</td>
-                    <td className="num">{r.open_flags || '–'}</td>
-                    <td className="small muted nowrap">{fmtDate(r.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : <SkeletonRows rows={0} />}
-      </Card>
+      <Panel title="Reports" flush className="mt-20">
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>Report</th><th>Year</th><th>Status</th><th>Assurance</th><th className="num">Figures</th><th className="num">Open flags</th><th>Added</th></tr></thead>
+            <tbody>
+              {reports.map((r) => (
+                <tr key={r.id} className="link" onClick={() => navigate(`/reports/${r.id}`)}>
+                  <td>
+                    <div className="name">{r.title || r.file_name || `Report ${r.id}`}</div>
+                    <div className="sub">{{ legacy: 'Imported from v3', url: 'From a link', local: 'Local file', upload: 'Uploaded file' }[r.source_type] || r.source_type}{r.page_count ? `, ${r.page_count} pages` : ''}</div>
+                  </td>
+                  <td className="nowrap">{r.fiscal_year ? `FY${r.fiscal_year}` : '–'}</td>
+                  <td><StatusTag status={r.status} /></td>
+                  <td>{r.status === 'processed' ? <Assurance level={r.assurance_level} provider={r.assurance_provider} /> : <span className="faint">–</span>}</td>
+                  <td className="num">{r.metric_count}</td>
+                  <td className="num">{r.open_flags || <span className="faint">–</span>}</td>
+                  <td className="nowrap muted">{fmtDate(r.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
     </div>
   );
 }

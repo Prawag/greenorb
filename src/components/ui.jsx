@@ -1,169 +1,151 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { ExternalLink, FileText } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileText, Info, XCircle } from 'lucide-react';
 import { fileUrl } from '../api.js';
-import { FLAG_LABELS, METHOD_LABELS } from '../format.js';
+import { FLAG_LABELS, METHOD_LABELS, fmtCompact, fmtFull, fmtUnit } from '../format.js';
 
-export function PageHeader({ title, subtitle, children }) {
+export function PageHead({ title, children, actions }) {
   return (
-    <div className="page-header">
+    <div className="page-head">
       <div>
         <h1>{title}</h1>
-        {subtitle && <p>{subtitle}</p>}
+        {children && <p>{children}</p>}
       </div>
-      {children && <div className="row">{children}</div>}
+      {actions && <div className="page-actions">{actions}</div>}
     </div>
   );
 }
 
-export function Card({ title, action, children, flush = false, style }) {
+export function Panel({ title, hint, action, children, flush = false, foot, style, className = '' }) {
   return (
-    <div className="go-card" style={style}>
+    <section className={`panel ${className}`} style={style}>
       {(title || action) && (
-        <div className="go-card-header">
-          {title && <div className="go-card-title">{title}</div>}
+        <div className="panel-head">
+          <div>
+            {title && <h2>{title}</h2>}
+            {hint && <div className="hint">{hint}</div>}
+          </div>
           {action}
         </div>
       )}
-      <div className={`go-card-content${flush ? ' flush' : ''}`}>{children}</div>
-    </div>
+      <div className={`panel-body${flush ? ' flush' : ''}`}>{children}</div>
+      {foot && <div className="panel-foot">{foot}</div>}
+    </section>
   );
 }
 
-export function Stat({ value, label, sub, tone }) {
+export function Skel({ h = 14, w = '100%', style }) {
+  return <div className="skel" style={{ height: h, width: w, ...style }} />;
+}
+
+export function SkelRows({ rows = 6 }) {
   return (
-    <div className="stat-card">
-      <div className="stat-value" style={tone ? { color: tone } : undefined}>{value}</div>
-      <div className="stat-label">{label}</div>
-      {sub && <div className="stat-sub">{sub}</div>}
+    <div style={{ display: 'grid', gap: 14, padding: '16px 18px' }}>
+      {Array.from({ length: rows }, (_, i) => <Skel key={i} w={`${90 - (i % 3) * 12}%`} />)}
     </div>
   );
 }
 
-export function Skeleton({ h = 16, w = '100%', style }) {
-  return <div className="skeleton" style={{ height: h, width: w, ...style }} />;
-}
-
-export function SkeletonRows({ rows = 6, h = 18 }) {
+const NOTICE_ICONS = { warn: AlertTriangle, error: XCircle, info: Info };
+export function Notice({ tone = 'info', children, action }) {
+  const Icon = NOTICE_ICONS[tone] || Info;
   return (
-    <div className="stack" style={{ padding: '8px 0' }}>
-      {Array.from({ length: rows }, (_, i) => (
-        <Skeleton key={i} h={h} w={`${92 - (i % 3) * 9}%`} />
-      ))}
+    <div className={`notice notice-${tone}`} role={tone === 'error' ? 'alert' : 'status'}>
+      <Icon aria-hidden />
+      <div>{children}</div>
+      {action}
     </div>
   );
 }
 
-export function ErrorState({ error, onRetry }) {
+export function ErrorNotice({ error, onRetry }) {
   if (!error) return null;
   return (
-    <div className="go-status go-status-error row" role="alert">
-      <span>{error.message || String(error)}</span>
-      <span className="spacer" />
-      {onRetry && (
-        <button className="go-btn go-btn-outline go-btn-sm" onClick={() => onRetry()}>
-          Retry
-        </button>
-      )}
-    </div>
+    <Notice tone="error" action={onRetry && <button className="btn btn-sm" onClick={() => onRetry()}>Try again</button>}>
+      {error.message || String(error)}
+    </Notice>
   );
 }
 
-export function Empty({ title, children }) {
+export function Empty({ title, children, action }) {
   return (
     <div className="empty">
       {title && <h3>{title}</h3>}
-      <div>{children}</div>
+      {children && <p>{children}</p>}
+      {action}
     </div>
   );
 }
 
-export function Severity({ level }) {
-  return <span className={`go-badge go-badge-${level}`}>{level}</span>;
-}
-
-export function FlagCode({ code }) {
-  return <span className="go-badge">{FLAG_LABELS[code] || code}</span>;
-}
-
-export function Confidence({ value, method }) {
-  const pct = Math.round((value ?? 0) * 100);
+const SEV_LABEL = { high: 'High', medium: 'Medium', low: 'Low', info: 'Note' };
+export function Severity({ level, withText = true }) {
   return (
-    <span className="conf" title={`${METHOD_LABELS[method] || method || ''} · confidence ${pct}%`}>
-      <span className="conf-bar"><span style={{ width: `${pct}%` }} /></span>
-      {pct}%
+    <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }} title={`${SEV_LABEL[level] || level} severity`}>
+      <span className={`sev sev-${level}`} aria-hidden />
+      {withText && <span>{SEV_LABEL[level] || level}</span>}
     </span>
   );
 }
 
-/** A page citation that opens the PDF at that page (stored file, or the original URL). */
-export function Cite({ reportId, page, label }) {
+export function FlagName({ code }) {
+  return <span className="tag">{FLAG_LABELS[code] || code}</span>;
+}
+
+export function StatusTag({ status }) {
+  const tone = { processed: 'ok', succeeded: 'ok', failed: 'high', legacy: 'medium', queued: 'info', processing: 'info', running: 'info' }[status] || 'quiet';
+  const label = { processed: 'Processed', succeeded: 'Done', failed: 'Failed', legacy: 'Imported (v3)', queued: 'Queued', processing: 'Processing', running: 'Processing' }[status] || status;
+  return <span className={`tag tag-${tone}`}>{label}</span>;
+}
+
+/** How a figure was obtained, in plain words, with the confidence. */
+export function Basis({ method, confidence, status }) {
+  if (status === 'verified') return <span className="basis"><b>Checked by a reviewer</b></span>;
+  if (method === 'legacy') return <span className="basis" style={{ color: 'var(--amber)' }}>Unverified import from v3</span>;
+  const label = { table: 'Read from table', llm: 'Read by AI, found on page', 'table+llm': 'Table and AI agree', manual: 'Entered manually' }[method] || METHOD_LABELS[method] || method;
+  return <span className="basis" title="How sure GreenOrb is that this reading is correct"><b>{label}</b> ({Math.round((confidence ?? 0) * 100)}% confidence)</span>;
+}
+
+/** Provenance mark: the page a figure came from; opens the PDF at that page. */
+export function Source({ reportId, page, method, label }) {
   if (!reportId) return null;
+  if (!page) return <span className="src none">{method === 'legacy' ? 'No source' : 'No page'}</span>;
   return (
-    <a className="cite" href={fileUrl(reportId, page)} target="_blank" rel="noreferrer" title="Open the source PDF at this page">
-      <FileText size={11} /> {label || (page ? `p.${page}` : 'PDF')}
+    <a className={`src${method === 'legacy' ? ' weak' : ''}`} href={fileUrl(reportId, page)} target="_blank" rel="noreferrer" title="Open the report at this page">
+      <FileText aria-hidden /> {label || `p. ${page}`}
     </a>
   );
 }
 
-export function ReportLink({ id, children }) {
-  return (
-    <Link to={`/reports/${id}`} className="cite">
-      {children || `Report #${id}`}
-    </Link>
-  );
-}
-
-export function ExternalSource({ url }) {
-  if (!url) return null;
-  let host = url;
-  try {
-    host = new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    /* keep raw */
+export function Figure({ value, unit, compact = true, raw }) {
+  if (value === null || value === undefined) {
+    return raw ? <span className="muted" title={`Printed as “${raw}”`}>Reported as nil</span> : <span className="faint">Not reported</span>;
   }
   return (
-    <a href={url} target="_blank" rel="noreferrer" className="row small" style={{ gap: 4, color: 'var(--body-text)' }}>
-      <ExternalLink size={12} /> {host}
-    </a>
-  );
-}
-
-export function Pagination({ page, totalPages, onChange }) {
-  if (!totalPages || totalPages <= 1) return null;
-  const pages = [];
-  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
-  for (let p = start; p <= Math.min(totalPages, start + 4); p++) pages.push(p);
-  return (
-    <div className="row" style={{ justifyContent: 'center', marginTop: 20 }}>
-      <button className="go-btn go-btn-ghost" disabled={page <= 1} onClick={() => onChange(page - 1)}>← Prev</button>
-      {start > 1 && <span className="muted small">1 …</span>}
-      {pages.map((p) => (
-        <button key={p} className={`go-btn go-btn-sm ${p === page ? 'go-btn-primary' : 'go-btn-ghost'}`} onClick={() => onChange(p)}>
-          {p}
-        </button>
-      ))}
-      {pages[pages.length - 1] < totalPages && <span className="muted small">… {totalPages}</span>}
-      <button className="go-btn go-btn-ghost" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>Next →</button>
-    </div>
-  );
-}
-
-export function ScoreRing({ value, size = 64 }) {
-  if (value === null || value === undefined) return <span className="muted">–</span>;
-  return (
-    <div className="score-ring" style={{ '--v': value, width: size, height: size }} title="Disclosure score (0–100)">
-      <span style={{ width: size - 14, height: size - 14 }}>{value}</span>
-    </div>
-  );
-}
-
-export function AssuranceBadge({ level, provider }) {
-  const tone = { reasonable: 'success', limited: 'info', none: 'high', unknown: 'low' }[level] || 'low';
-  const text = { reasonable: 'Reasonable assurance', limited: 'Limited assurance', none: 'Not assured', unknown: provider ? 'Assured (level n/a)' : 'Assurance unknown' }[level] || level;
-  return (
-    <span className={`go-badge go-badge-${tone}`} title={provider ? `Assurance provider: ${provider}` : undefined}>
-      {text}{provider ? ` · ${provider}` : ''}
+    <span className="figure">
+      <span className="strong">{compact ? fmtCompact(value) : fmtFull(value)}</span>
+      <span className="figure-unit">{fmtUnit(unit)}</span>
     </span>
+  );
+}
+
+export function Assurance({ level, provider }) {
+  if (level === 'reasonable') return <span className="tag tag-ok"><CheckCircle2 size={13} aria-hidden /> Reasonable assurance{provider ? `, ${provider}` : ''}</span>;
+  if (level === 'limited') return <span className="tag tag-ok"><CheckCircle2 size={13} aria-hidden /> Limited assurance{provider ? `, ${provider}` : ''}</span>;
+  if (level === 'none') return <span className="tag tag-high">Not externally assured</span>;
+  return <span className="tag tag-quiet">{provider ? `Assured by ${provider}, level not stated` : 'Assurance not found'}</span>;
+}
+
+export function Pager({ page, totalPages, total, limit, onChange }) {
+  if (!total) return null;
+  const from = (page - 1) * limit + 1;
+  const to = Math.min(total, page * limit);
+  return (
+    <div className="pager">
+      <span>{from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()}</span>
+      <span className="row">
+        <button className="btn btn-sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</button>
+        <span>Page {page} of {totalPages}</span>
+        <button className="btn btn-sm" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>Next</button>
+      </span>
+    </div>
   );
 }

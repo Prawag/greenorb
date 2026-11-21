@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import Globe from 'react-globe.gl';
 import { useApi } from '../hooks/useApi.js';
-import { ErrorState } from '../components/ui.jsx';
+import { ErrorNotice, Panel } from '../components/ui.jsx';
+import { useCrumbs } from '../components/Frame.jsx';
 import { fmtCompact } from '../format.js';
 
-const COLORS = { material: '#ef4444', open: '#f59e0b', clean: '#97ffa1' };
+const COLORS = { material: '#e5675c', open: '#e0a33a', clean: '#5fbf8f' };
 
 function colorFor(p) {
   if (p.open_material_flags > 0) return COLORS.material;
@@ -18,6 +19,7 @@ function esc(s) {
 }
 
 export default function GlobePage() {
+  useCrumbs([{ label: 'Map' }]);
   const { data, error, reload } = useApi('/globe');
   const navigate = useNavigate();
   const wrap = useRef(null);
@@ -68,20 +70,20 @@ export default function GlobePage() {
   const maxLog = Math.max(1, ...points.map((p) => Math.log10(1 + p.total)));
 
   return (
-    <div className="globe-wrap" ref={wrap}>
+    <div className="globe-page" ref={wrap}>
       <div className="globe-panel">
-        <h3>Reporting footprint</h3>
-        <div className="small muted">
-          {data ? `${data.points.length} companies with processed reports${data.unplaced ? ` · ${data.unplaced} without a known location` : ''}.` : 'Loading…'}
-          {' '}Bubbles without an exact headquarters are grouped by country. Height shows Scope 1+2 emissions.
-        </div>
-        <div className="globe-legend">
-          <span className="row"><span className="dot" style={{ background: COLORS.material }} /> Open medium/high flags</span>
-          <span className="row"><span className="dot" style={{ background: COLORS.open }} /> Only low/info flags</span>
-          <span className="row"><span className="dot" style={{ background: '#16a34a' }} /> No open flags</span>
-        </div>
-        <Link to="/companies" className="go-btn go-btn-outline go-btn-sm" style={{ alignSelf: 'flex-start' }}>Open directory</Link>
-        {error && <ErrorState error={error} onRetry={reload} />}
+        <Panel title="Where reporting companies are">
+          <p className="small muted">
+            {data ? `${data.points.length} companies with figures${data.unplaced ? `; ${data.unplaced} have no known location` : ''}. ` : 'Loading… '}
+            Companies without an exact headquarters are grouped at their country. Column height shows Scope 1 + 2 emissions.
+          </p>
+          <div className="legend" style={{ marginTop: 12 }}>
+            <span><span className="sev" style={{ background: COLORS.material }} /> Medium or high flags open</span>
+            <span><span className="sev" style={{ background: COLORS.open }} /> Only low-severity flags open</span>
+            <span><span className="sev" style={{ background: COLORS.clean }} /> No open flags</span>
+          </div>
+          {error && <div style={{ marginTop: 12 }}><ErrorNotice error={error} onRetry={reload} /></div>}
+        </Panel>
       </div>
       <Globe
         ref={globe}
@@ -90,7 +92,7 @@ export default function GlobePage() {
         backgroundColor="rgba(0,0,0,0)"
         globeImageUrl="/textures/earth-day.jpg"
         bumpImageUrl="/textures/earth-topology.png"
-        atmosphereColor="#97ffa1"
+        atmosphereColor="#9fc3e6"
         atmosphereAltitude={0.15}
         pointsData={points}
         pointLat="lat"
@@ -102,8 +104,8 @@ export default function GlobePage() {
         pointsMerge={false}
         pointLabel={(p) =>
           p.kind === 'country'
-            ? `<div class="globe-tip"><b>${esc(p.country)}</b><br/>${p.count} compan${p.count === 1 ? 'y' : 'ies'} · Scope 1+2 ${fmtCompact(p.total)} tCO₂e<br/>${p.open_flags} open flags<br/><span style="color:#6b6c74">${p.top.map((t) => esc(t.name)).join(', ')}</span></div>`
-            : `<div class="globe-tip"><b>${esc(p.name)}</b><br/>FY${p.latest_year} · Scope 1+2 ${fmtCompact(p.total)} tCO₂e<br/>${p.open_flags} open flags</div>`
+            ? `<div class="globe-tip"><b>${esc(p.country)}</b><br/>${p.count} compan${p.count === 1 ? 'y' : 'ies'}, Scope 1 + 2: ${fmtCompact(p.total)} tCO₂e<br/>${p.open_flags} open flags<br/><span style="color:#697584">${p.top.map((t) => esc(t.name)).join(', ')}</span></div>`
+            : `<div class="globe-tip"><b>${esc(p.name)}</b><br/>FY${p.latest_year}, Scope 1 + 2: ${fmtCompact(p.total)} tCO₂e<br/>${p.open_flags} open flags</div>`
         }
         onPointClick={(p) => navigate(p.kind === 'country' ? `/companies?country=${encodeURIComponent(p.country)}` : `/companies/${p.slug}`)}
       />
