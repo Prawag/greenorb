@@ -125,15 +125,32 @@ npm run dev                     # http://localhost:5173, proxies /api to :5000
 ```bash
 python -m greenorb_worker analyse report.pdf          # no database needed: prints metrics, flags, stats
 python -m greenorb_worker analyse report.pdf --json
-python -m greenorb_worker bulk ../Backend/downloaded_reports --limit 100   # register + process local PDFs
+python -m greenorb_worker bulk ../Backend/downloaded_reports --retry-empty   # register + process local PDFs, 20 at a time
 python -m greenorb_worker bulk ./pdfs --no-process    # only queue them
-python -m greenorb_worker drain                       # process the queue, then exit
+python -m greenorb_worker harvest --count 20          # queue public reports listed in worker/seeds/*.csv
+python -m greenorb_worker drain --harvest 8           # top up from the seed lists, process the queue, exit
 ```
 
+On Windows, double-click `worker\load-local-reports.cmd` to read everything in `Backend\downloaded_reports`.
+
 `bulk` takes the company name from the file name (`tata_steel_ltd._sustainability_report_2024.pdf`
-becomes "Tata Steel Ltd") and matches it to existing companies, ignoring suffixes like Ltd/Limited/Inc.
-Files are de-duplicated by SHA-256. Add `--store-files` to keep the PDFs in Postgres so citations open
-in the browser (this uses database storage).
+becomes "Tata Steel Ltd") and matches it to existing companies, ignoring suffixes like Ltd/Limited/Inc and
+notes in brackets. File names that carry no company name ("2025_q-1,2_…") are skipped. Files are
+de-duplicated by SHA-256 across all companies, so one PDF saved under several names is read once. It
+processes each batch before reading more, so figures appear while it runs, and it can be stopped and
+restarted. `--retry-empty` re-reads reports whose earlier pass found no figures. Jobs for local files are
+only taken by a worker on the same machine; the GitHub Actions worker leaves them alone. Add `--store-files`
+to keep the PDFs in Postgres so "Open PDF" works (this uses database storage; page text is always kept,
+so the evidence view works without it).
+
+### Keeping the database growing
+
+The scheduled workflow `Process report queue` runs every 30 minutes. When fewer than eight reports are
+waiting it queues the next ones from `worker/seeds/*.csv` (newest first, one per company per run), then
+downloads and reads them. Add rows to a seed file (`company,country,sector,year,url`) to widen coverage;
+URLs already read are skipped. Set the repository variable `HARVEST_PER_RUN` to change the batch size.
+After imports, spelling variants of the same company ("3i Group" / "3i Group plc") are merged by
+`esg.merge_duplicate_companies()`, which keeps every report and figure.
 
 ### Migrating from v3
 
@@ -208,6 +225,7 @@ with 1 GB+ RAM. The web app, API, worker and Postgres all run there.
 | POST / PATCH | `/companies`, `/companies/:slug` | reviewer | Create or edit company details (sector, HQ coordinates…) |
 | GET | `/reports?status`, `/reports/:id` | – | Report with every extracted value, evidence and flags |
 | GET | `/reports/:id/file` | – | Stored PDF (append `#page=N`) or redirect to the source URL |
+| GET | `/reports/:id/pages/:page` | – | Text of one page as read, the figures taken from it, and the neighbouring pages (the evidence view) |
 | POST | `/reports/:id/reprocess` | reviewer | Re-queue a report |
 | DELETE | `/reports/:id` | reviewer | Delete a report and its values |
 | PATCH | `/metrics/:id` | reviewer | `{status: verified\|rejected\|extracted, value?, note?}` |

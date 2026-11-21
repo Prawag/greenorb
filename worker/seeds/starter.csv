@@ -1,0 +1,39 @@
+# Public sustainability / BRSR report PDFs for the background loader (worker `harvest`).
+# One row per report. Add rows freely; the loader skips URLs it has already read.
+# company,country,sector,year,url   (year = fiscal year the report covers, if known)
+company,country,sector,year,url
+Reliance Industries Ltd,India,Oil Gas & Consumable Fuels,2025,https://www.ril.com/sites/default/files/2025-08/RIL_BRSR_FY_2024-25.pdf
+Tata Steel Ltd,India,Metals & Mining,2025,https://www.tatasteel.com/media/23970/brsr-fy2024-25.pdf
+Tata Consultancy Services Ltd,India,Information Technology,2025,https://www.tcs.com/content/dam/tcs/investor-relations/financial-statements/2024-25/ar/annual-report-2024-2025.pdf
+Infosys Ltd,India,Information Technology,2025,https://www.infosys.com/investors/reports-filings/annual-report/annual/documents/2024-25/business-responsibility-and-sustainability-report.pdf
+Wipro Ltd,India,Information Technology,2025,https://www.wipro.com/content/dam/nexus/en/investor/corporate-governance/stock-exchange-filing/submission-of-business-responsibility-and-sustainability-report-for-fy-2024-25-21-jun-2025.pdf
+HCL Technologies Ltd,India,Information Technology,2025,https://www.hcltech.com/sites/default/files/en/investors/3098/BRSR-2024-25.pdf
+Tech Mahindra Ltd,India,Information Technology,2025,https://insights.techmahindra.com/investors/se-intimation-brsr-fy24-25.pdf
+Persistent Systems Ltd,India,Information Technology,2025,https://www.persistent.com/wp-content/uploads/2025/06/business-responsibility-and-sustainability-report-2025.pdf
+Larsen & Toubro Ltd,India,Construction,2025,https://investors.larsentoubro.com/pdf/2025/Business%20Responsibility%20and%20Sustainability%20Reporting.pdf
+State Bank of India,India,Financial Services,2024,https://sbi.bank.in/corporate/SBIAR2324/pdf/business-responsibility-and-sustainability-report.pdf
+Central Bank of India,India,Financial Services,2025,https://centralbank.bank.in/sites/default/files/Full%20BRSR%20Report_0.pdf
+Bharti Airtel Ltd,India,Telecommunication,2025,https://assets.airtel.in/static-assets/cms/investor/docs/annual_results_2024_25/BAL_BRSR_FY_24_25.pdf
+Hindustan Unilever Ltd,India,Fast Moving Consumer Goods,2025,https://www.hul.co.in/files/hul-business-responsibility-sustainability-report-fy-2024-25.pdf
+Tata Consumer Products Ltd,India,Fast Moving Consumer Goods,2025,https://www.tataconsumer.com/sites/g/files/gfwrlq316/files/2025-05/BUSINESS_RESPONSIBILITY_AND_SUSTAINABILITY_REPORT_FY_2024_25.pdf
+CCL Products (India) Ltd,India,Fast Moving Consumer Goods,2025,https://www.cclproducts.com/wp-content/uploads/2025/07/Business-Responsibility-and-Sustainability-Report-FY-2024-25.pdf
+Asian Paints Ltd,India,Consumer Durables,2024,https://static.asianpaints.com/content/dam/annual-report-2024/pdf/BRSR.pdf
+Sun Pharmaceutical Industries Ltd,India,Healthcare,2025,https://sunpharma.com/wp-content/uploads/2025/07/Business-Responsibility-and-Sustainability-Report.pdf
+Sun Pharmaceutical Industries Ltd,India,Healthcare,2025,https://sunpharma.com/responsibility/sustainability/assets/pdf/SunPharma-SR-2024-25.pdf
+Dr. Reddy's Laboratories Ltd,India,Healthcare,2025,https://www.drreddys.com/cms/cms/sites/default/files/2025-06/BRSR%202024-25.pdf
+Mahindra & Mahindra Ltd,India,Automobile and Auto Components,2024,https://www.mahindra.com/sites/default/files/2024-08/Mahindra-and-Mahindra-Sustainability-Report-2024.pdf
+UltraTech Cement Ltd,India,Construction Materials,2025,https://www.ultratechcement.com/content/dam/ultratechcementwebsite/pdf/financials/annual-reports/integrated-and-sustainability-report-2024-25-single-page-view.pdf
+NTPC Ltd,India,Power,2025,https://ntpc.co.in/sites/default/files/annual-report/complete-reports/Annual%20Report%202024-25.pdf
+Coal India Ltd,India,Oil Gas & Consumable Fuels,2025,https://d3u7ubx0okog7j.cloudfront.net/documents/Coal_India_BRSR_31.07.2025.pdf
+DCW Ltd,India,Chemicals,2025,https://dcwltd.com/wp-content/uploads/2025/09/BRSR-2024-25.pdf
+Sunflag Iron and Steel Company Ltd,India,Metals & Mining,2025,https://sunflagsteel.com/wp-content/uploads/2025/09/BRSR-2024-25.pdf
+Isgec Heavy Engineering Ltd,India,Capital Goods,2025,https://www.isgec.com/pdf/BusinessResponsibilityandSustainabilityReport202425.pdf
+Tata Investment Corporation Ltd,India,Financial Services,2025,https://tatainvestment.com/wp-content/uploads/2025/06/BRSR.pdf
+Tata Projects Ltd,India,Construction,2025,https://tataprojects.com/annual-report/24-25/pdf/Tata-Projects-BRSR.pdf
+Unilever PLC,United Kingdom,Fast Moving Consumer Goods,2024,https://www.unilever.com/files/unilever-annual-report-and-accounts-2024.pdf
+Shell plc,United Kingdom,Oil Gas & Consumable Fuels,2024,https://www.shell.com/investors/results-and-reporting/annual-report-archive/_jcr_content/root/main/section_812377294/tabs/tab_copy/text.multi.stream/1752580693041/6c20b8111738b9a590ba145f0d1c4fa0e530dae0/shell-annual-report-2024.pdf
+BASF SE,Germany,Chemicals,2024,https://report.basf.com/2024/en/_assets/downloads/sst-environment-basf-ar24.pdf
+Holcim Ltd,Switzerland,Construction Materials,2024,https://www.holcim.com/sites/holcim/files/docs/28022025-holcim-climate-report-2024.pdf
+Siemens Energy AG,Germany,Capital Goods,2024,https://assets.siemens-energy.com/dam/d9bb52dc-6039-4159-a91f-b2430132c301/se-sustainability-report-2024-pdf_Original%20file.pdf
+Nestle S.A.,Switzerland,Fast Moving Consumer Goods,2024,https://www.nestle.com/sites/default/files/2025-02/creating-shared-value-nestle-2024.pdf
+ArcelorMittal Brasil,Brazil,Metals & Mining,2024,https://cdn.arcelormittal.com/media/l30ijrgd/brazil-sustainability-report-2024.pdf

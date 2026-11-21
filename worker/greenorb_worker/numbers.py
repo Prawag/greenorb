@@ -95,6 +95,9 @@ def numbers_in_text(text: str, locale: str = "us") -> list[float]:
 
 
 # ── Reporting periods ─────────────────────────────────────────────────────────
+# FY 23-24 / PY 22-23 / CY 23-24 (BRSR tables often use two-digit ranges, "PY" = previous year)
+_SHORT_RANGE = re.compile(r"\b[FPC]\.?Y\.?\s*'?(\d{2})\s*[-–/]\s*'?(\d{2})(?!\d)", re.I)
+
 _PERIOD_PATTERNS = [
     # FY2023-24, FY 2023-24, F.Y. 2023–2024, 2023-24, 2023/24
     re.compile(r"(?:\bF\.?Y\.?\s*'?)?(?<!\d)((?:19|20)\d{2})\s*[-–/]\s*((?:19|20)?\d{2})(?!\d)", re.I),
@@ -108,6 +111,9 @@ _PERIOD_PATTERNS = [
 def parse_period(token: str) -> tuple[int, str] | None:
     """Return (fiscal year end, label) for tokens like 'FY23', 'FY2023-24', '2021-22', '2023'."""
     t = token.strip()
+    m = _SHORT_RANGE.search(t)
+    if m and int(m.group(2)) - int(m.group(1)) == 1:
+        return 2000 + int(m.group(2)), m.group(0).strip()
     m = _PERIOD_PATTERNS[0].search(t)
     if m:
         a, b = int(m.group(1)), m.group(2)
@@ -137,6 +143,10 @@ def find_periods(text: str) -> list[tuple[int, str]]:
     """Find reporting periods in a header cell, tolerating glued footnote digits ("FY 2024-2552")."""
     out: list[tuple[int, str]] = []
     taken: list[tuple[int, int]] = []
+    for m in _SHORT_RANGE.finditer(text):
+        if int(m.group(2)) - int(m.group(1)) == 1:
+            out.append((2000 + int(m.group(2)), m.group(0).strip()))
+            taken.append(m.span())
     for m in _RANGE_LOOSE.finditer(text):
         start, tail = int(m.group(1)), m.group(2)
         end = None
@@ -160,7 +170,7 @@ def find_periods(text: str) -> list[tuple[int, str]]:
 
 def periods_in_text(text: str) -> list[tuple[int, str]]:
     found = []
-    for pat in _PERIOD_PATTERNS[:2]:
+    for pat in (_SHORT_RANGE, *_PERIOD_PATTERNS[:2]):
         for m in pat.finditer(text):
             p = parse_period(m.group(0))
             if p:

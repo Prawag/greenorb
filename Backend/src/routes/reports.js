@@ -17,6 +17,28 @@ export async function enqueueReport(q, { reportId, companyId, reason }) {
   );
 }
 
+/** Passages overlap by ~150 characters; stitch them back into one page of text. */
+export function joinPassages(parts) {
+  let out = '';
+  for (const raw of parts) {
+    const part = raw.trim();
+    if (!out) { out = part; continue; }
+    // The worker overlaps passages by at most 150 characters (less after trimming).
+    let k = Math.min(160, out.length, part.length);
+    let joined = false;
+    for (; k >= 20; k -= 1) {
+      if (out.endsWith(part.slice(0, k))) { out += part.slice(k); joined = true; break; }
+    }
+    if (!joined) {
+      // Overlap was trimmed at whitespace: look for the passage's opening words near the end of what we have.
+      const head = part.slice(0, 40);
+      const at = out.lastIndexOf(head, out.length - 1);
+      out = at >= 0 && at > out.length - 200 ? out.slice(0, at) + part : `${out}\n${part}`;
+    }
+  }
+  return out;
+}
+
 export function reportsRouter({ db, config }) {
   const r = Router();
 
@@ -75,6 +97,44 @@ export function reportsRouter({ db, config }) {
       metrics: metrics.map((m) => ({ ...m, label: METRICS[m.metric]?.label || m.metric })),
       flags,
       job,
+    });
+  });
+
+  // Text of one page, rebuilt from the stored passages. This is the evidence view: it works for every
+  // processed report, including ones read from a local folder whose PDF the server never received.
+  r.get('/:id/pages/:page', async (req, res) => {
+    const { id, page } = parse(z.object({ id: z.coerce.number().int().positive(), page: z.coerce.number().int().positive().max(5000) }), req.params);
+    const report = await db.one(
+      `SELECT r.id, r.title, r.file_name, r.fiscal_year, r.page_count, r.source_type, r.source_url, r.status,
+              (rf.report_id IS NOT NULL) AS has_file,
+              json_build_object('slug', c.slug, 'name', c.name) AS company
+         FROM esg.reports r JOIN esg.companies c ON c.id = r.company_id
+         LEFT JOIN esg.report_files rf ON rf.report_id = r.id
+        WHERE r.id = $1`,
+      [id],
+    );
+    if (!report) throw notFound('Report');
+    const [chunks, pages, metrics] = await Promise.all([
+      db.query(`SELECT content FROM esg.chunks WHERE report_id = $1 AND page = $2 ORDER BY ord`, [id, page]),
+      db.query(`SELECT DISTINCT page FROM esg.chunks WHERE report_id = $1 ORDER BY page`, [id]),
+      db.query(
+        `SELECT id, metric, fiscal_year, value, unit, raw_value, quote, method, confidence, status
+           FROM esg.metrics WHERE report_id = $1 AND page = $2 AND status <> 'rejected'
+          ORDER BY metric, fiscal_year DESC`,
+        [id, page],
+      ),
+    ]);
+    const nums = pages.map((p) => p.page);
+    res.set('cache-control', 'private, max-age=300');
+    res.json({
+      report,
+      page,
+      text: joinPassages(chunks.map((c) => c.content)),
+      has_text: chunks.length > 0,
+      prev_page: [...nums].reverse().find((n) => n < page) ?? null,
+      next_page: nums.find((n) => n > page) ?? null,
+      pages_with_text: nums.length,
+      metrics: metrics.map((m) => ({ ...m, label: METRICS[m.metric]?.label || m.metric })),
     });
   });
 

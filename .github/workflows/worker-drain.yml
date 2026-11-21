@@ -1,5 +1,6 @@
 # Free alternative to an always-on worker: every 30 minutes (or on demand) GitHub Actions
-# processes whatever is queued, then exits. Add the repository secrets DATABASE_URL and,
+# processes whatever is queued, then exits. When the queue is short it first queues a few new
+# public reports from worker/seeds/*.csv, so the database keeps growing on its own. Add the repository secrets DATABASE_URL and,
 # optionally, GROQ_API_KEY / GEMINI_API_KEY. Without DATABASE_URL the job is a no-op.
 name: Process report queue
 
@@ -15,7 +16,7 @@ concurrency:
 jobs:
   drain:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -38,4 +39,4 @@ jobs:
         run: sudo apt-get install -y tesseract-ocr >/dev/null && pip install -r requirements.txt
       - if: steps.cfg.outputs.skip != 'true'
         working-directory: worker
-        run: python -m greenorb_worker drain --max-jobs 25
+        run: python -m greenorb_worker drain --max-jobs 25 --harvest ${{ vars.HARVEST_PER_RUN || 8 }}

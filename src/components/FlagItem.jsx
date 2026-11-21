@@ -44,7 +44,7 @@ export default function FlagItem({ flag, showCompany = false, onChange }) {
       {flag.detail && <div className="flag-detail">{flag.detail}</div>}
       {(ev.quote || (ev.page && flag.report_id)) && (
         <div>
-          {ev.page && flag.report_id && <Source reportId={flag.report_id} page={ev.page} label={`Evidence, p. ${ev.page}`} />}
+          {ev.page && flag.report_id && <Source reportId={flag.report_id} page={ev.page} quote={ev.quote} label={`Evidence, p. ${ev.page}`} />}
           {ev.quote && <div className="quote">{ev.quote}</div>}
         </div>
       )}

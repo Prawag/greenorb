@@ -10,6 +10,7 @@ import { hasVectorColumn, migrate } from '../src/migrate.js';
 import { createLlm } from '../src/services/llm.js';
 import { createApp } from '../src/app.js';
 import { checkPublicUrl } from '../src/routes/ingest.js';
+import { joinPassages } from '../src/routes/reports.js';
 import { nameKey, slugify } from '../src/http.js';
 
 const url = process.env.TEST_DATABASE_URL;
@@ -28,6 +29,16 @@ describe('pure helpers', () => {
     for (const bad of ['http://localhost/a.pdf', 'http://127.0.0.1/a', 'http://10.0.0.5/a', 'http://169.254.169.254/latest', 'file:///etc/passwd', 'http://user:pw@example.com/', 'http://intranet/a', 'http://[::1]/a']) {
       expect(checkPublicUrl(bad)).not.toBeNull();
     }
+  });
+});
+
+describe('page text', () => {
+  it('stitches overlapping passages back into one page', () => {
+    const page = Array.from({ length: 40 }, (_, i) => `Row ${i}: Scope 1 emissions were ${(i * 7919) % 100003} tCO2e.`).join(' ');
+    const parts = [page.slice(0, 900), page.slice(750, 1650)];
+    expect(joinPassages(parts)).toBe(page.slice(0, 1650).trim());
+    expect(joinPassages(['alpha beta', 'gamma delta'])).toBe('alpha beta\ngamma delta');
+    expect(joinPassages([])).toBe('');
   });
 });
 
@@ -160,5 +171,55 @@ describe.skipIf(!url)('API (Postgres)', () => {
     const r = await request(app).get('/api/nope');
     expect(r.status).toBe(404);
     expect(r.body.error).toMatch(/No route/);
+  });
+});
+
+describe.skipIf(!url)('evidence pages and company merging (Postgres)', () => {
+  let db;
+  let app;
+  beforeAll(async () => {
+    const config = loadConfig({ DATABASE_URL: url, ADMIN_TOKEN: TOKEN, NODE_ENV: 'test', RATE_LIMIT_PER_MIN: '10000' });
+    db = createDb(config);
+    await migrate(db, { log: () => {} });
+    app = createApp({ db, config, llm: createLlm(config), features: { vector: false } });
+  });
+  afterAll(async () => db && db.close());
+
+  it('serves the stored text of a cited page', async () => {
+    const c = await db.one(`INSERT INTO esg.companies (slug, name) VALUES ('page-co', 'Page Co') RETURNING id`);
+    const r = await db.one(`INSERT INTO esg.reports (company_id, source_type, status, fiscal_year) VALUES ($1, 'local', 'processed', 2024) RETURNING id`, [c.id]);
+    const text = Array.from({ length: 60 }, (_, i) => `Line ${i}: total Scope 1 emissions ${(i * 104729) % 999983} metric tonnes.`).join(' ');
+    for (const [ord, part] of [[0, text.slice(0, 1100)], [1, text.slice(950, 2050)], [2, text.slice(1900)]]) {
+      await db.query(`INSERT INTO esg.chunks (report_id, company_id, page, ord, content) VALUES ($1, $2, 7, $3, $4)`, [r.id, c.id, ord, part]);
+    }
+    await db.query(`INSERT INTO esg.chunks (report_id, company_id, page, ord, content) VALUES ($1, $2, 9, 0, 'Next page text that is long enough to keep.')`, [r.id, c.id]);
+    const res = await request(app).get(`/api/reports/${r.id}/pages/7`);
+    expect(res.status).toBe(200);
+    expect(res.body.text).toBe(text.trim());
+    expect(res.body.next_page).toBe(9);
+    expect(res.body.prev_page).toBeNull();
+    expect(res.body.report.has_file).toBe(false);
+    const missing = await request(app).get(`/api/reports/${r.id}/pages/3`);
+    expect(missing.body.has_text).toBe(false);
+    expect((await request(app).get('/api/reports/999999/pages/1')).status).toBe(404);
+  });
+
+  it('merges spelling variants of the same company', async () => {
+    const a = await db.one(`INSERT INTO esg.companies (slug, name, country) VALUES ('beta-industries-limited-formerly-beta', 'Beta Industries Limited (formerly Beta)', 'India') RETURNING id`);
+    const b = await db.one(`INSERT INTO esg.companies (slug, name, sector) VALUES ('beta-industries-ltd', 'Beta Industries Ltd', 'Chemicals') RETURNING id`);
+    const other = await db.one(`INSERT INTO esg.companies (slug, name, country) VALUES ('beta-industries-ltd-2', 'Beta Industries Ltd.', 'Germany') RETURNING id`);
+    await db.query(`INSERT INTO esg.reports (company_id, source_type, status, file_sha256) VALUES ($1, 'local', 'processed', 'aaa'), ($2, 'local', 'processed', 'aaa'), ($2, 'local', 'processed', 'bbb')`, [a.id, b.id]);
+    const merged = await db.one('SELECT esg.merge_duplicate_companies() AS n');
+    expect(merged.n).toBe(0); // the spellings name two different countries: never merged
+    await db.query(`DELETE FROM esg.companies WHERE id = $1`, [other.id]);
+    expect((await db.one('SELECT esg.merge_duplicate_companies() AS n')).n).toBe(1);
+    const kept = await db.one(`SELECT id, name, slug, aliases, sector, country FROM esg.companies WHERE esg.company_key(name) = 'beta-industries'`);
+    expect(kept.name).toBe('Beta Industries Ltd');
+    expect(kept.sector).toBe('Chemicals');
+    expect(kept.country).toBe('India');
+    expect(kept.aliases).toContain('Beta Industries Limited (formerly Beta)');
+    const reports = await db.query(`SELECT file_sha256 FROM esg.reports WHERE company_id = $1 ORDER BY file_sha256`, [kept.id]);
+    expect(reports.map((x) => x.file_sha256)).toEqual(['aaa', 'bbb']);
+    expect((await db.one('SELECT esg.merge_duplicate_companies() AS n')).n).toBe(0);
   });
 });

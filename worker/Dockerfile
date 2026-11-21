@@ -6,6 +6,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY greenorb_worker ./greenorb_worker
+COPY seeds ./seeds
 RUN useradd --create-home worker
 USER worker
 CMD ["python", "-m", "greenorb_worker", "run"]

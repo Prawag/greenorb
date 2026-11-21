@@ -39,15 +39,20 @@ def requeue_stale(conn: psycopg.Connection, minutes: int) -> int:
     return cur.rowcount
 
 
-def claim_job(conn: psycopg.Connection, worker_id: str) -> dict | None:
+def claim_job(conn: psycopg.Connection, worker_id: str, *, local_files: bool = False, only_local: bool = False) -> dict | None:
+    """Claim the oldest queued job. Jobs that point at a file on someone's disk (bulk imports) are only
+    taken by a worker started with local_files=True, so a cloud worker never fails them; a bulk import
+    (only_local=True) works through its own files and leaves downloads to the cloud worker."""
     return conn.execute(
         """UPDATE esg.jobs SET status = 'running', locked_at = now(), locked_by = %s, attempts = attempts + 1,
                   stage = 'starting', progress = 1, error = NULL
             WHERE id = (SELECT id FROM esg.jobs
                          WHERE status = 'queued' AND run_after <= now()
+                           AND (%s OR NOT (payload ? 'local_path'))
+                           AND (NOT %s OR payload ? 'local_path')
                          ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1)
         RETURNING *""",
-        (worker_id,),
+        (worker_id, local_files or only_local, only_local),
     ).fetchone()
 
 
@@ -205,20 +210,85 @@ def slugify(name: str) -> str:
 
 
 def name_key(name: str) -> str:
-    return _SUFFIX.sub("", _SUFFIX.sub("", slugify(name)))
+    """Matching key shared with SQL esg.company_key(): no bracketed notes, no legal-form suffix."""
+    return _SUFFIX.sub("", _SUFFIX.sub("", slugify(_re.sub(r"\([^)]*\)?", " ", name))))
+
+
+def merge_duplicate_companies(conn: psycopg.Connection) -> int:
+    """Fold spelling variants of the same company together (no-op until the API has run migration 003)."""
+    has = conn.execute("SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
+                       "WHERE n.nspname = 'esg' AND p.proname = 'merge_duplicate_companies'").fetchone()
+    if not has:
+        return 0
+    with conn.transaction():
+        return conn.execute("SELECT esg.merge_duplicate_companies() AS n").fetchone()["n"]
+
+
+def report_with_sha(conn: psycopg.Connection, sha256: str) -> dict | None:
+    return conn.execute(
+        "SELECT r.id, r.company_id, r.status, c.name AS company, "
+        "(SELECT count(*) FROM esg.metrics m WHERE m.report_id = r.id) AS metric_count "
+        "FROM esg.reports r JOIN esg.companies c ON c.id = r.company_id "
+        "WHERE r.file_sha256 = %s ORDER BY r.id LIMIT 1", (sha256,)).fetchone()
+
+
+def requeue_local(conn: psycopg.Connection, report: dict, path: str, reason: str) -> int:
+    """Read an already-registered local report again (e.g. after the extractor improved)."""
+    with conn.transaction():
+        conn.execute("UPDATE esg.reports SET status = 'queued', error = NULL WHERE id = %s", (report["id"],))
+        return conn.execute(
+            """INSERT INTO esg.jobs (kind, payload, company_id, report_id, logs)
+               VALUES ('ingest_report', %s, %s, %s, %s) RETURNING id""",
+            (Jsonb({"report_id": report["id"], "local_path": path}), report["company_id"], report["id"],
+             Jsonb([{"at": _now(), "level": "info", "message": reason}])),
+        ).fetchone()["id"]
+
+
+def known_source_urls(conn: psycopg.Connection) -> set[str]:
+    return {r["source_url"] for r in conn.execute("SELECT source_url FROM esg.reports WHERE source_url IS NOT NULL")}
+
+
+def register_url_report(conn: psycopg.Connection, *, company: dict, url: str, year_hint: int | None, note: str) -> tuple[int, int]:
+    """Queue a report that the worker will download from its public URL."""
+    with conn.transaction():
+        report_id = conn.execute(
+            """INSERT INTO esg.reports (company_id, source_type, source_url, fiscal_year, status)
+               VALUES (%s, 'url', %s, %s, 'queued') RETURNING id""",
+            (company["id"], url, year_hint),
+        ).fetchone()["id"]
+        job_id = conn.execute(
+            """INSERT INTO esg.jobs (kind, payload, company_id, report_id, logs)
+               VALUES ('ingest_report', %s, %s, %s, %s) RETURNING id""",
+            (Jsonb({"report_id": report_id}), company["id"], report_id,
+             Jsonb([{"at": _now(), "level": "info", "message": note}])),
+        ).fetchone()["id"]
+    return report_id, job_id
+
+
+def update_company_facts(conn: psycopg.Connection, company_id: int, *, country: str | None, sector: str | None) -> None:
+    conn.execute(
+        "UPDATE esg.companies SET country = coalesce(nullif(country, 'Unknown'), %s, country), sector = coalesce(sector, %s) WHERE id = %s",
+        (country, sector, company_id),
+    )
 
 
 def resolve_company(conn: psycopg.Connection, name: str, *, country: str | None = None) -> dict:
     slug, key = slugify(name), name_key(name)
     rows = conn.execute(
-        "SELECT * FROM esg.companies WHERE slug = %s OR lower(name) = lower(%s) OR slug LIKE %s LIMIT 20",
-        (slug, name, key + "%"),
+        "SELECT * FROM esg.companies WHERE slug = %s OR lower(name) = lower(%s) OR slug LIKE %s OR %s = ANY(aliases) LIMIT 50",
+        (slug, name, key + "%", name),
     ).fetchall()
     for r in rows:
-        if r["slug"] == slug or r["name"].lower() == name.lower():
+        if r["slug"] == slug or r["name"].lower() == name.lower() or name in (r.get("aliases") or []):
             return r
     for r in rows:
         if name_key(r["name"]) == key:
+            # Keep the plainest spelling as the display name ("X Ltd" over "X LIMITED (formerly Y)").
+            if "(" in r["name"] and "(" not in name:
+                r = conn.execute(
+                    "UPDATE esg.companies SET name = %s, aliases = array_append(array_remove(aliases, %s), %s) WHERE id = %s RETURNING *",
+                    (name, r["name"], r["name"], r["id"]),
+                ).fetchone()
             return r
     final, i = slug, 2
     while conn.execute("SELECT 1 FROM esg.companies WHERE slug = %s", (final,)).fetchone():

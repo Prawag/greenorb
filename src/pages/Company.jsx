@@ -145,7 +145,7 @@ export default function Company() {
                         <td>
                           {now ? (
                             <div style={{ display: 'grid', gap: 2 }}>
-                              <span><Source reportId={now.p.report_id} page={now.p.page} method={now.p.method} /></span>
+                              <span><Source reportId={now.p.report_id} page={now.p.page} method={now.p.method} quote={now.p.quote} /></span>
                               <Basis method={now.p.method} confidence={now.p.confidence} status={now.p.status} />
                             </div>
                           ) : <span className="faint">Not found in reports</span>}

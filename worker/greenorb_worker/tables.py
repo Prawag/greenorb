@@ -48,7 +48,8 @@ _CURRENT = re.compile(r"current\s+(?:financial\s+|reporting\s+)?year|\bcurrent\s
 _PREVIOUS = re.compile(r"previous\s+(?:financial\s+|reporting\s+)?year|\bprevious\s+fy|prior\s+year", re.I)
 _BOUNDARY = re.compile(r"\b(standalone|consolidated)\b", re.I)
 _FY_LIKE = re.compile(
-    r"(?:\bF\.?Y\.?\s*'?)?(?<!\d)(?:19|20)\d{2}\s*[-–/]\s*(?:19|20)?\d{2}(?!\d)|\bF\.?Y\.?\s*'?(?:(?:19|20)\d{2}|\d{2})(?![\d\-–/])|\bCY\s*20\d{2}",
+    r"(?:\bF\.?Y\.?\s*'?)?(?<!\d)(?:19|20)\d{2}\s*[-–/]\s*(?:19|20)?\d{2}(?!\d)|\bF\.?Y\.?\s*'?(?:(?:19|20)\d{2}|\d{2})(?![\d\-–/])|\bCY\s*20\d{2}"
+    r"|\b[FPC]\.?Y\.?\s*'?\d{2}\s*[-–/]\s*'?\d{2}(?!\d)",  # FY 23-24, PY 22-23
     re.I,
 )
 _RATIO = re.compile(r"/\s*$|/\s*\w|\bper\b|intensity|revenue|turnover", re.I)
@@ -62,7 +63,13 @@ def _is_value_cell(c: Cell) -> bool:
     return parse_number(t) is not None or parse_number(t.replace(" ", "")) is not None
 
 
+# First line of a unit that wraps onto the next row ("Metric" / "tonnes"): a unit, not a label.
+_UNIT_FRAGMENT = re.compile(r"^(?:metric|mt|tonnes?|kilo\s*-?\s*litres?|kl|gj|mwh|kwh|giga\s*joules?|cubic|m3|units?)\b[\w\s.]{0,12}$", re.I)
+
+
 def _is_unit_cell(c: Cell) -> bool:
+    if _UNIT_FRAGMENT.match(c.text.strip()):
+        return True
     if _METRIC_WORDS.search(c.text) and not re.search(r"co2|equivalent", c.text, re.I):
         return False
     return any(match_unit(c.text, fam) for fam in ("ghg", "energy", "water", "waste")) and len(c.text) < 60

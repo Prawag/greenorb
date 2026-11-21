@@ -1,6 +1,6 @@
+import { Link } from 'react-router-dom';
 import React from 'react';
 import { AlertTriangle, CheckCircle2, FileText, Info, XCircle } from 'lucide-react';
-import { fileUrl } from '../api.js';
 import { FLAG_LABELS, METHOD_LABELS, fmtCompact, fmtFull, fmtUnit } from '../format.js';
 
 export function PageHead({ title, children, actions }) {
@@ -104,14 +104,20 @@ export function Basis({ method, confidence, status }) {
   return <span className="basis" title="How sure GreenOrb is that this reading is correct"><b>{label}</b> ({Math.round((confidence ?? 0) * 100)}% confidence)</span>;
 }
 
-/** Provenance mark: the page a figure came from; opens the PDF at that page. */
-export function Source({ reportId, page, method, label }) {
+/** Link to the evidence view for a page; the quote (if any) is highlighted there. */
+export function evidenceHref(reportId, page, quote) {
+  const q = quote ? `?q=${encodeURIComponent(String(quote).replace(/\s+/g, ' ').trim().slice(0, 300))}` : '';
+  return `/reports/${reportId}/pages/${page}${q}`;
+}
+
+/** Provenance mark: the page a figure came from; opens the page text with the quote highlighted. */
+export function Source({ reportId, page, method, label, quote }) {
   if (!reportId) return null;
   if (!page) return <span className="src none">{method === 'legacy' ? 'No source' : 'No page'}</span>;
   return (
-    <a className={`src${method === 'legacy' ? ' weak' : ''}`} href={fileUrl(reportId, page)} target="_blank" rel="noreferrer" title="Open the report at this page">
+    <Link className={`src${method === 'legacy' ? ' weak' : ''}`} to={evidenceHref(reportId, page, quote)} title="Show this page with the quoted text highlighted">
       <FileText aria-hidden /> {label || `p. ${page}`}
-    </a>
+    </Link>
   );
 }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Check, RotateCcw, Trash2, X } from 'lucide-react';
 import { api, fileUrl } from '../api.js';
 import { useApi } from '../hooks/useApi.js';
@@ -84,7 +84,7 @@ function FigureRow({ m, reportId, reviewer, onChange }) {
         )}
       </td>
       <td style={{ maxWidth: 420 }}>
-        <Source reportId={reportId} page={m.page} method={m.method} />
+        <Source reportId={reportId} page={m.page} method={m.method} quote={m.quote} />
         {m.quote && <div className="quote">{m.quote}</div>}
         {m.notes && <div className="sub" style={{ marginTop: 4 }}>{m.notes}</div>}
       </td>
@@ -115,6 +115,8 @@ export default function Report() {
   const active = Boolean(data && ['queued', 'processing'].includes(data.report.status));
   useEffect(() => setPoll(active ? 2500 : 0), [active]);
   const r = data?.report;
+  // The evidence view opens at the first page a figure was read from.
+  const firstPage = Math.min(...(data?.metrics || []).map((m) => m.page).filter(Boolean), r?.assurance_page || Infinity);
   const title = r ? r.title || (r.fiscal_year ? `FY${r.fiscal_year} report` : 'Report') : '…';
   useCrumbs([{ to: '/companies', label: 'Companies' }, ...(r ? [{ to: `/companies/${r.company.slug}`, label: r.company.name }] : []), { label: title }]);
 
@@ -165,6 +167,9 @@ export default function Report() {
           {r.file_name && <div className="small faint" style={{ marginTop: 6 }}>{r.file_name}</div>}
         </div>
         <div className="page-actions">
+          {r.status === 'processed' && (
+            <Link className="btn" to={`/reports/${r.id}/pages/${Number.isFinite(firstPage) ? firstPage : 1}`}>Read the pages</Link>
+          )}
           {(r.has_file || r.source_url) && <a className="btn" href={fileUrl(r.id)} target="_blank" rel="noreferrer">Open PDF</a>}
           {reviewer.isReviewer && !active && r.status !== 'legacy' && <button className="btn" onClick={reprocess}><RotateCcw aria-hidden /> Read again</button>}
           {reviewer.isReviewer && <button className="btn btn-danger" onClick={remove}><Trash2 aria-hidden /> Delete</button>}
