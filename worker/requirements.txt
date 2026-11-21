@@ -1,0 +1,7 @@
+# GreenOrb worker: kept deliberately small so it runs on free/cheap hosts.
+pymupdf>=1.24,<2.0
+psycopg[binary]>=3.2,<4
+httpx>=0.27,<1
+# Optional OCR for scanned pages (also needs the tesseract binary):
+pytesseract>=0.3.13
+pillow>=10.0

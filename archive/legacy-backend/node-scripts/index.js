@@ -1,0 +1,1278 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import pg from 'pg';
+import { execFile } from 'child_process';
+import path from 'path';
+import { URL } from 'url';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import NodeCache from 'node-cache';
+import cron from 'node-cron';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { writeFile } from 'fs/promises';
+import { buildSpatialIndex } from './lib/spatial-water.js';
+
+// Globe API route modules
+process.on('uncaughtException', (err) => {
+  console.error('[Global] Uncaught Exception:', err.message);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Global] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+import mountGlobePoints from './api/globe-points.js';
+import mountCountryChoropleth from './api/country-choropleth.js';
+import mountEsgNews from './api/esg-news.js';
+import mountClimateTrace from './api/climate-trace.js';
+import mountGdelt from './api/gdelt.js';
+import mountGreenwashVelocity from './api/greenwash-velocity.js';
+import mountNasaFirms from './api/nasa-firms.js';
+import mountGridCarbon from './api/grid-carbon.js';
+import mountAirQuality from './api/air-quality.js';
+import mountEarthquakes from './api/earthquakes.js';
+import mountFloods from './api/floods.js';
+import mountCyclones from './api/cyclones.js';
+import mountVolcanoes from './api/volcanoes.js';
+import mountNasaEonet from './api/nasa-eonet.js';
+import mountDisastersProximity from './api/disasters-proximity.js';
+import mountFacilities from './api/facilities.js';
+import mountGpmImerg from './api/gpm-imerg.js';
+import mountSentinel5p from './api/sentinel-5p.js';
+import mountBiodiversity from './api/biodiversity.js';
+import mountOceanCurrents from './api/ocean-currents.js';
+import mountOceanHealthPace from './api/ocean-health-pace.js';
+import mountWaterStress from './api/water-stress.js';
+import mountBrsrPdf from './api/brsr-pdf.js';
+import mountForestLoss from './api/forest-loss.js';
+import mountCoralBleaching from './api/coral-bleaching.js';
+import mountFishingWatch from './api/fishing-watch.js';
+import mountScope2Verifier from './api/scope2-verifier.js';
+import compareApi from './api/compare.js';
+import welfordCheck from './api/welford-check.js';
+import mountCityIiot from './api/city-iiot.js';
+import llmStatus from './api/llm-status.js';
+import llmRouter from './lib/llm-router.js';
+import { runBrsrIngestion } from './workers/brsr-ingestion.js';
+import { computeGreendex } from './lib/greendex.js';
+import mountSatelliteVerify from './api/satellite-verify.js';
+import mountOsiIngest from './api/osi-ingest.js';
+import mountEsgCompare from './api/esg-compare.js';
+import mountSpatialFacilities from './lib/spatial-facilities.js';
+import mountOsmFacilities from './api/osm-facilities.js';
+import mountWikidataFacilities from './api/wikidata-facilities.js';
+import mountProductLca from './api/product-lca.js';
+
+// Track B Imports
+import mountImportYeti from './api/importyeti.js';
+import mountOshFacilities from './api/osh-facilities.js';
+import mountVesselTracking from './api/vessel-tracking.js';
+import mountLogisticsEmissions from './api/logistics-emissions.js';
+import mountSectorPeers from './api/sector-peers.js';
+import { startAisTracker } from './workers/ais-tracker.js';
+
+// Track C Imports
+import mountEdgarFinancials from './api/edgar-financials.js';
+import mountMacrotrends from './api/macrotrends.js';
+import mountProductionIndices from './api/production-indices.js';
+import mountClimateAlignment from './api/climate-alignment.js';
+
+// Sprint 8 Imports
+import carbonPriceRouter from './api/carbon-price.js';
+import companyFinancialsRouter from './api/company-financials.js';
+import tradeIntelligenceRouter from './api/trade-intelligence.js';
+import companyProductionRouter from './api/company-production.js';
+import scope3CalculatorRouter from './api/scope3-calculator.js';
+import companyNewsRouter from './api/company-news.js';
+import companyRegistryRouter from './api/company-registry.js';
+import countryContextRouter from './api/country-context.js';
+import clean200Router from './api/clean200.js';
+
+dotenv.config();
+
+const app = express();
+const port = process.env.PORT || 5000;
+
+if (!process.env.DATABASE_URL) {
+    console.error("❌ ERROR: DATABASE_URL is missing in Backend/.env");
+    console.error("Please paste your Neon connection string into Backend/.env");
+    process.exit(1);
+}
+
+const pool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
+
+async function sql(strings, ...values) {
+    let queryText = '';
+    for (let i = 0; i < strings.length; i++) {
+        queryText += strings[i];
+        if (i < values.length) {
+            queryText += `$${i + 1}`;
+        }
+    }
+    const result = await pool.query(queryText, values);
+    return result.rows;
+}
+
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGIN?.split(',') || '*', // Allow Vercel frontend or any origin if not set
+  credentials: true
+}));
+
+app.use(helmet());
+
+const generalLimiter = rateLimit({ windowMs: 60 * 1000, max: 60 });
+app.use(generalLimiter);
+
+const llmLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
+app.use(['/api/ask', '/api/scout', '/api/analyze', '/api/risk', '/api/strategy', '/api/embeddings'], llmLimiter);
+
+function requireInternalKey(req, res, next) {
+  const key = req.headers['x-internal-key'];
+  if (key !== process.env.INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+function isUrlAllowed(urlString) {
+  try {
+    const url = new URL(urlString);
+    if (!['http:', 'https:'].includes(url.protocol)) return false;
+    const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254'];
+    if (blockedHosts.includes(url.hostname)) return false;
+    if (url.hostname.startsWith('10.') || url.hostname.startsWith('192.168.') || url.hostname.startsWith('172.')) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use('/audit_failures', express.static(path.join(process.cwd(), 'audit_failures')));
+app.use('/downloaded_reports', express.static(path.join(process.cwd(), 'downloaded_reports')));
+
+app.get('/api/compare', compareApi);
+app.post('/api/welford/check', welfordCheck(sql));
+mountCityIiot(app);
+app.get('/api/llm/status', llmStatus);
+
+// ==========================================
+// MOUNT SPRINT 6: SATELLITE VERIFICATION
+// ==========================================
+mountSatelliteVerify(app);
+
+app.post('/api/brsr/ingest', requireInternalKey, async (req, res) => {
+    try {
+        const results = await runBrsrIngestion(sql);
+        res.json(results);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/greendex/recompute', async (req, res) => {
+    const { company } = req.query;
+    if (!company) return res.status(400).json({ error: "Missing company query parameter" });
+    try {
+        const results = await computeGreendex(company, sql);
+        res.json(results);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ─── DATA INITIALIZATION ─────────────────────────────────────────────────────
+const WATER_STRESS_PATH = './data/water-stress.json';
+
+async function downloadWaterStressData() {
+  if (existsSync(WATER_STRESS_PATH)) return;
+  console.log('[water-stress] Initializing WRI Aqueduct data...');
+  if (!existsSync('./data')) mkdirSync('./data', { recursive: true });
+  
+  const keyBasins = [
+    { basin: 'Indus', lat: 31.5, lng: 72.0, bws_raw: 4.9, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Colorado', lat: 36.0, lng: -112.0, bws_raw: 4.8, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Yellow River', lat: 36.0, lng: 105.0, bws_raw: 4.6, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Tigris-Euphrates', lat: 33.0, lng: 44.0, bws_raw: 4.5, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Amu Darya', lat: 40.0, lng: 61.0, bws_raw: 4.7, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Limpopo', lat: -22.0, lng: 29.0, bws_raw: 3.8, bws_cat: 4, bws_label: 'High (40-80%)' },
+    { basin: 'Orange', lat: -29.0, lng: 25.0, bws_raw: 4.1, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Murray-Darling', lat: -34.0, lng: 143.0, bws_raw: 3.5, bws_cat: 4, bws_label: 'High (40-80%)' },
+    { basin: 'Rio Grande', lat: 29.0, lng: -103.0, bws_raw: 4.3, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Ganges', lat: 25.0, lng: 83.0, bws_raw: 3.9, bws_cat: 4, bws_label: 'High (40-80%)' },
+    { basin: 'Nile', lat: 20.0, lng: 32.0, bws_raw: 4.4, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Jordan', lat: 32.0, lng: 35.5, bws_raw: 4.8, bws_cat: 5, bws_label: 'Extremely High (>80%)' },
+    { basin: 'Pearl River', lat: 23.0, lng: 113.0, bws_raw: 2.1, bws_cat: 3, bws_label: 'Medium-High (20-40%)' },
+    { basin: 'Mekong', lat: 16.0, lng: 102.0, bws_raw: 1.8, bws_cat: 2, bws_label: 'Low-Medium (10-20%)' },
+    { basin: 'Amazon', lat: -5.0, lng: -60.0, bws_raw: 0.1, bws_cat: 1, bws_label: 'Low (<10%)' },
+    { basin: 'Congo', lat: -3.0, lng: 22.0, bws_raw: 0.2, bws_cat: 1, bws_label: 'Low (<10%)' },
+    { basin: 'Rhine', lat: 51.0, lng: 7.0, bws_raw: 2.8, bws_cat: 3, bws_label: 'Medium-High (20-40%)' },
+    { basin: 'Danube', lat: 45.0, lng: 20.0, bws_raw: 1.5, bws_cat: 2, bws_label: 'Low-Medium (10-20%)' },
+    { basin: 'Yangtze', lat: 30.0, lng: 110.0, bws_raw: 1.2, bws_cat: 2, bws_label: 'Low-Medium (10-20%)' },
+    { basin: 'Mississippi', lat: 38.0, lng: -91.0, bws_raw: 1.6, bws_cat: 2, bws_label: 'Low-Medium (10-20%)' },
+  ];
+  
+  await writeFile(WATER_STRESS_PATH, JSON.stringify(keyBasins));
+  console.log('[water-stress] WRI Aqueduct data saved locally');
+  buildSpatialIndex(keyBasins);
+}
+
+downloadWaterStressData().then(() => {
+  if (existsSync(WATER_STRESS_PATH)) {
+    const data = JSON.parse(readFileSync(WATER_STRESS_PATH, 'utf8'));
+    buildSpatialIndex(data);
+  }
+});
+
+// ─── INITIALIZE DATABASE ─────────────────────────────────────────────────────
+const initDb = async () => {
+    try {
+        // Enable pgvector extension
+        await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS companies (
+                name TEXT PRIMARY KEY,
+                sector TEXT,
+                country TEXT,
+                co2 NUMERIC,
+                esg TEXT,
+                url TEXT,
+                products TEXT,
+                methodology TEXT,
+                s1 NUMERIC,
+                s2 NUMERIC,
+                s3 NUMERIC,
+                report_year INTEGER,
+                lat NUMERIC,
+                lng NUMERIC,
+                audit_status TEXT DEFAULT 'PENDING',
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                ts TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
+
+        await sql`
+            ALTER TABLE companies 
+            ADD COLUMN IF NOT EXISTS audit_status TEXT DEFAULT 'PENDING'
+        `;
+
+        await sql`
+            ALTER TABLE companies 
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        `;
+
+        // Add missing ESG data columns from BRSR audit
+        await sql`
+            ALTER TABLE companies
+            ADD COLUMN IF NOT EXISTS verification_body TEXT,
+            ADD COLUMN IF NOT EXISTS energy_consumption NUMERIC,
+            ADD COLUMN IF NOT EXISTS water_withdrawal NUMERIC,
+            ADD COLUMN IF NOT EXISTS waste_generated NUMERIC,
+            ADD COLUMN IF NOT EXISTS renewable_energy_pct NUMERIC,
+            ADD COLUMN IF NOT EXISTS scope2_location NUMERIC,
+            ADD COLUMN IF NOT EXISTS scope2_market NUMERIC,
+            ADD COLUMN IF NOT EXISTS net_zero_year INTEGER,
+            ADD COLUMN IF NOT EXISTS revenue NUMERIC,
+            ADD COLUMN IF NOT EXISTS profit NUMERIC,
+            ADD COLUMN IF NOT EXISTS supply_chain_budget NUMERIC,
+            ADD COLUMN IF NOT EXISTS facilities_list TEXT,
+            ADD COLUMN IF NOT EXISTS services TEXT,
+            ADD COLUMN IF NOT EXISTS production_volume TEXT,
+            ADD COLUMN IF NOT EXISTS manufacturing_process TEXT,
+            ADD COLUMN IF NOT EXISTS manufacturing_co2 NUMERIC,
+            ADD COLUMN IF NOT EXISTS lifecycle_co2 TEXT
+        `;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS embeddings (
+                id SERIAL PRIMARY KEY,
+                company_name TEXT REFERENCES companies(name) ON DELETE CASCADE,
+                content TEXT,
+                embedding VECTOR(768),
+                page_number INTEGER,
+                report_year INTEGER,
+                metadata JSONB,
+                ts TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS analysis (
+                company TEXT PRIMARY KEY REFERENCES companies(name) ON DELETE CASCADE,
+                score INTEGER,
+                e_score INTEGER,
+                s_score INTEGER,
+                g_score INTEGER,
+                trend TEXT,
+                peer TEXT,
+                strengths TEXT,
+                weaknesses TEXT,
+                recommendation TEXT
+            )
+        `;
+        await sql`
+            CREATE TABLE IF NOT EXISTS risks (
+                company TEXT PRIMARY KEY REFERENCES companies(name) ON DELETE CASCADE,
+                greenwash TEXT,
+                reg_risk TEXT,
+                climate_exp TEXT,
+                data_quality TEXT,
+                red_flags TEXT,
+                compliance TEXT
+            )
+        `;
+        await sql`
+            CREATE TABLE IF NOT EXISTS strategies (
+                company TEXT PRIMARY KEY REFERENCES companies(name) ON DELETE CASCADE,
+                action TEXT,
+                confidence INTEGER,
+                rationale TEXT,
+                price_impact TEXT,
+                catalyst TEXT,
+                timeline TEXT
+            )
+        `;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS facilities (
+                id SERIAL PRIMARY KEY,
+                company_name TEXT REFERENCES companies(name) ON DELETE CASCADE,
+                facility_name TEXT NOT NULL,
+                facility_type TEXT,
+                lat DOUBLE PRECISION NOT NULL,
+                lng DOUBLE PRECISION NOT NULL,
+                status TEXT DEFAULT 'OPERATIONAL',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(company_name, facility_name)
+            )
+        `;
+        
+        await sql`
+            ALTER TABLE facilities 
+            ADD CONSTRAINT unique_facility_per_company 
+            UNIQUE (company_name, facility_name)
+        `.catch(e => console.log('[init] Facility constraint already exists or failed:', e.message));
+
+        await sql`
+            ALTER TABLE companies 
+            ADD COLUMN IF NOT EXISTS city TEXT,
+            ADD COLUMN IF NOT EXISTS geocoding_source TEXT
+        `.catch(e => console.log('[init] Companies Alter failed:', e.message));
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS agent_runs (
+                id SERIAL PRIMARY KEY,
+                company_name TEXT NOT NULL,
+                status TEXT DEFAULT 'PENDING',
+                current_step TEXT DEFAULT 'INIT',
+                logs JSONB DEFAULT '[]'::jsonb,
+                error_message TEXT,
+                verification_data JSONB,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+        `.catch(e => console.log('[init] agent_runs creation failed:', e.message));
+
+        console.log("✅ Neon Database Initialized");
+    } catch (err) {
+        console.error("❌ Database Init Error:", err);
+    }
+};
+
+initDb();
+
+// ─── ROUTES ──────────────────────────────────────────────────────────────────
+
+// GET all companies + their associated data (paginated)
+app.get('/api/data', async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+        const offset = (page - 1) * limit;
+        const search = req.query.search || '';
+        const sector = req.query.sector || '';
+
+        // Build WHERE clause fragments
+        let whereClause = '';
+        const conditions = [];
+        if (search) conditions.push(`c.name ILIKE '%' || '${search.replace(/'/g, "''")}' || '%'`);
+        if (sector && sector !== 'All') conditions.push(`c.sector = '${sector.replace(/'/g, "''")}'`);
+        if (conditions.length > 0) whereClause = 'WHERE ' + conditions.join(' AND ');
+
+        // Count total matching rows
+        const countResult = await sql.unsafe(`SELECT COUNT(*) as total FROM companies c ${whereClause}`);
+        const total = parseInt(countResult[0].total);
+
+        // Fetch paginated data
+        const data = await sql.unsafe(`
+            SELECT 
+                c.*, 
+                a.score, a.e_score, a.s_score, a.g_score, a.trend, a.peer, a.strengths, a.weaknesses, a.recommendation,
+                r.greenwash, r.reg_risk, r.climate_exp, r.data_quality, r.red_flags, r.compliance,
+                s.action, s.confidence, s.rationale, s.price_impact, s.catalyst, s.timeline
+            FROM companies c
+            LEFT JOIN analysis a ON c.name = a.company
+            LEFT JOIN risks r ON c.name = r.company
+            LEFT JOIN strategies s ON c.name = s.company
+            ${whereClause}
+            ORDER BY c.ts DESC
+            LIMIT ${limit} OFFSET ${offset}
+        `);
+        res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit) });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET all companies raw row data (for ESG Data Tab frontend) — paginated
+app.get('/api/esg/companies', async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+        const offset = (page - 1) * limit;
+        const search = req.query.search || '';
+        const sector = req.query.sector || '';
+
+        let whereClause = '';
+        const conditions = [];
+        if (search) conditions.push(`name ILIKE '%' || '${search.replace(/'/g, "''")}' || '%'`);
+        if (sector && sector !== 'All') conditions.push(`sector = '${sector.replace(/'/g, "''")}'`);
+        if (conditions.length > 0) whereClause = 'WHERE ' + conditions.join(' AND ');
+
+        const countResult = await sql.unsafe(`SELECT COUNT(*) as total FROM companies ${whereClause}`);
+        const total = parseInt(countResult[0].total);
+
+        // Also fetch distinct sectors for the filter dropdown
+        const sectorsResult = await sql`SELECT DISTINCT sector FROM companies WHERE sector IS NOT NULL ORDER BY sector ASC`;
+        const sectors = sectorsResult.map(r => r.sector).filter(Boolean);
+
+        const data = await sql.unsafe(`SELECT * FROM companies ${whereClause} ORDER BY name ASC LIMIT ${limit} OFFSET ${offset}`);
+        res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit), sectors });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Scout data
+app.post('/api/scout', requireInternalKey, async (req, res) => {
+    const { name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year, revenue, profit, water_withdrawal, energy_consumption, supply_chain_budget, facilities_list, services, production_volume, manufacturing_process, manufacturing_co2, lifecycle_co2, ebitda, local_procurement_pct, employee_count, operational_capacity, capacity_unit, facilities } = req.body;
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+        return res.status(400).json({ error: "Valid company name is required" });
+    }
+    try {
+        await sql`
+            INSERT INTO companies (name, sector, country, co2, esg, url, products, methodology, s1, s2, s3, report_year, revenue, profit, water_withdrawal, energy_consumption, supply_chain_budget, facilities_list, services, production_volume, manufacturing_process, manufacturing_co2, lifecycle_co2, ebitda, local_procurement_pct, employee_count, operational_capacity, capacity_unit)
+            VALUES (${name}, ${sector}, ${country}, ${co2}, ${esg}, ${url}, ${products}, ${methodology}, ${s1}, ${s2}, ${s3}, ${report_year}, ${revenue || null}, ${profit || null}, ${water_withdrawal || null}, ${energy_consumption || null}, ${supply_chain_budget || null}, ${facilities_list || null}, ${services || null}, ${production_volume || null}, ${manufacturing_process || null}, ${manufacturing_co2 || null}, ${lifecycle_co2 || null}, ${ebitda || null}, ${local_procurement_pct || null}, ${employee_count || null}, ${operational_capacity || null}, ${capacity_unit || null})
+            ON CONFLICT (name) DO UPDATE SET
+                sector = EXCLUDED.sector,
+                country = EXCLUDED.country,
+                co2 = EXCLUDED.co2,
+                esg = EXCLUDED.esg,
+                url = EXCLUDED.url,
+                products = EXCLUDED.products,
+                methodology = EXCLUDED.methodology,
+                s1 = EXCLUDED.s1,
+                s2 = EXCLUDED.s2,
+                s3 = EXCLUDED.s3,
+                report_year = EXCLUDED.report_year,
+                revenue = EXCLUDED.revenue,
+                profit = EXCLUDED.profit,
+                water_withdrawal = EXCLUDED.water_withdrawal,
+                energy_consumption = EXCLUDED.energy_consumption,
+                supply_chain_budget = EXCLUDED.supply_chain_budget,
+                facilities_list = EXCLUDED.facilities_list,
+                services = EXCLUDED.services,
+                production_volume = EXCLUDED.production_volume,
+                manufacturing_process = EXCLUDED.manufacturing_process,
+                manufacturing_co2 = EXCLUDED.manufacturing_co2,
+                lifecycle_co2 = EXCLUDED.lifecycle_co2,
+                ebitda = EXCLUDED.ebitda,
+                local_procurement_pct = EXCLUDED.local_procurement_pct,
+                employee_count = EXCLUDED.employee_count,
+                operational_capacity = EXCLUDED.operational_capacity,
+                capacity_unit = EXCLUDED.capacity_unit,
+                ts = CURRENT_TIMESTAMP
+        `;
+
+        if (Array.isArray(facilities) && facilities.length > 0) {
+            for (const f of facilities) {
+                if (f.facility_name && f.lat && f.lng) {
+                    await sql`
+                        INSERT INTO facilities (company_name, facility_name, facility_type, lat, lng, status)
+                        VALUES (${name}, ${f.facility_name}, ${f.facility_type || 'Operational Site'}, ${f.lat}, ${f.lng}, ${f.status || 'OPERATIONAL'})
+                        ON CONFLICT (company_name, facility_name) DO UPDATE SET
+                            facility_type = EXCLUDED.facility_type,
+                            lat = EXCLUDED.lat,
+                            lng = EXCLUDED.lng,
+                            status = EXCLUDED.status
+                    `.catch(e => console.error('[api/scout] Facility insert failed:', e.message));
+                }
+            }
+        }
+
+        if (report_year) {
+            const existing = await sql`
+                SELECT id FROM esg_sources 
+                WHERE company_name = ${name} AND report_year = ${report_year}
+            `;
+            if (existing.length === 0) {
+                await sql`
+                    INSERT INTO esg_sources (
+                        company_name, source, scope1_mt, scope2_location_mt, scope3_mt, report_year, report_url, water_withdrawal_kl
+                    ) VALUES (
+                        ${name}, 'scout_pipeline', ${s1 || null}, ${s2 || null}, ${s3 || null}, ${report_year}, ${url || null}, ${water_withdrawal || null}
+                    )
+                `;
+            } else {
+                await sql`
+                    UPDATE esg_sources SET
+                        scope1_mt = ${s1 || null},
+                        scope2_location_mt = ${s2 || null},
+                        scope3_mt = ${s3 || null},
+                        report_url = ${url || null},
+                        water_withdrawal_kl = ${water_withdrawal || null}
+                    WHERE company_name = ${name} AND report_year = ${report_year}
+                `;
+            }
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Analyst data
+app.post('/api/analyze', requireInternalKey, async (req, res) => {
+    const { company, score, e_score, s_score, g_score, trend, peer, strengths, weaknesses, recommendation } = req.body;
+    try {
+        await sql`
+            INSERT INTO analysis (company, score, e_score, s_score, g_score, trend, peer, strengths, weaknesses, recommendation)
+            VALUES (${company}, ${score}, ${e_score}, ${s_score}, ${g_score}, ${trend}, ${peer}, ${strengths}, ${weaknesses}, ${recommendation})
+            ON CONFLICT (company) DO UPDATE SET
+                score = EXCLUDED.score,
+                e_score = EXCLUDED.e_score,
+                s_score = EXCLUDED.s_score,
+                g_score = EXCLUDED.g_score,
+                trend = EXCLUDED.trend,
+                peer = EXCLUDED.peer,
+                strengths = EXCLUDED.strengths,
+                weaknesses = EXCLUDED.weaknesses,
+                recommendation = EXCLUDED.recommendation
+        `;
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Risk data
+app.post('/api/risk', requireInternalKey, async (req, res) => {
+    const { company, greenwash, reg_risk, climate_exp, data_quality, red_flags, compliance } = req.body;
+    try {
+        await sql`
+            INSERT INTO risks (company, greenwash, reg_risk, climate_exp, data_quality, red_flags, compliance)
+            VALUES (${company}, ${greenwash}, ${reg_risk}, ${climate_exp}, ${data_quality}, ${red_flags}, ${compliance})
+            ON CONFLICT (company) DO UPDATE SET
+                greenwash = EXCLUDED.greenwash,
+                reg_risk = EXCLUDED.reg_risk,
+                climate_exp = EXCLUDED.climate_exp,
+                data_quality = EXCLUDED.data_quality,
+                red_flags = EXCLUDED.red_flags,
+                compliance = EXCLUDED.compliance
+        `;
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Strategy data
+app.post('/api/strategy', requireInternalKey, async (req, res) => {
+    const { company, action, confidence, rationale, price_impact, catalyst, timeline } = req.body;
+    try {
+        await sql`
+            INSERT INTO strategies (company, action, confidence, rationale, price_impact, catalyst, timeline)
+            VALUES (${company}, ${action}, ${confidence}, ${rationale}, ${price_impact}, ${catalyst}, ${timeline})
+            ON CONFLICT (company) DO UPDATE SET
+                action = EXCLUDED.action,
+                confidence = EXCLUDED.confidence,
+                rationale = EXCLUDED.rationale,
+                price_impact = EXCLUDED.price_impact,
+                catalyst = EXCLUDED.catalyst,
+                timeline = EXCLUDED.timeline
+        `;
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Vector Embeddings
+app.post('/api/embeddings', requireInternalKey, async (req, res) => {
+    const { company_name, content, embedding, page_number, report_year, metadata, is_first_chunk } = req.body;
+    if (!Array.isArray(embedding)) {
+        return res.status(400).json({ error: "Valid embedding array is required" });
+    }
+    try {
+        // If it's the first chunk of a new report, clear old embeddings for this company
+        if (is_first_chunk) {
+            await sql`DELETE FROM embeddings WHERE company_name = ${company_name}`;
+        }
+
+        // Format embedding as [0.1, 0.2, ...] string for pgvector
+        const vectorStr = `[${embedding.join(',')}]`;
+        await sql`
+            INSERT INTO embeddings (company_name, content, embedding, page_number, report_year, metadata)
+            VALUES (${company_name}, ${content}, ${vectorStr}, ${page_number}, ${report_year}, ${JSON.stringify(metadata)})
+        `;
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Vector save error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Ask a question about a company (RAG)
+app.post('/api/ask', requireInternalKey, async (req, res) => {
+    const { company, question } = req.body;
+    if (!company || !question) return res.status(400).json({ error: "Company and question are required" });
+
+    const GEMINI_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_KEY) return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server" });
+
+    try {
+        // 1. Generate embedding for the question using Gemini
+        const embedRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GEMINI_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: "models/text-embedding-004",
+                content: { parts: [{ text: question }] }
+            })
+        });
+        const embedData = await embedRes.json();
+        const embedding = embedData?.embedding?.values;
+        if (!embedding) {
+            return res.status(500).json({ error: "Failed to generate embedding for question" });
+        }
+        const vectorStr = `[${embedding.join(',')}]`;
+
+        // 2. Perform Vector Similarity Search (Semantic Search)
+        const chunks = await sql`
+            SELECT content, page_number, report_year
+            FROM embeddings
+            WHERE company_name = ${company}
+            ORDER BY embedding <=> ${vectorStr}::vector
+            LIMIT 5
+        `;
+
+        if (chunks.length === 0) {
+            return res.json({
+                answer: `I don't have enough specific data indexed for ${company} to answer that. Try running the discovery agent first.`
+            });
+        }
+
+        // 3. Build context for Gemini
+        const context = chunks.map(c => `[Page ${c.page_number}, ${c.report_year} Report]: ${c.content}`).join("\n\n");
+
+        // 4. Generate answer via LLM Router (Gemini → Groq cascade)
+        const systemPrompt = `You are "GreenOrb Intelligence", an ESG analyst. Use the following context from ${company}'s official reports to answer the user's question. Be extremely precise and factual. Cite the page numbers if available. If the answer is not in the context, say "Based on the official reports I have, I cannot find that specific information."
+
+CONTEXT:
+${context}`;
+
+        const llmResult = await llmRouter.complete(systemPrompt, question, 2048);
+        const answer = llmResult.text || "Unable to generate response.";
+
+        res.json({
+            answer,
+            provider_used: llmResult.provider_used,
+            latency_ms: llmResult.latency_ms,
+            sources: chunks.map(c => ({ page: c.page_number, year: c.report_year }))
+        });
+
+    } catch (err) {
+        console.error("RAG Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST Crawl URL using Crawl4AI Python script
+app.post('/api/crawl', requireInternalKey, (req, res) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: "URL is required" });
+    if (!isUrlAllowed(url)) return res.status(400).json({ error: 'URL not allowed: blocked host or protocol' });
+
+    const isWindows = process.platform === 'win32';
+    const pythonPath = process.env.PYTHON_PATH || (isWindows
+      ? path.join(process.cwd(), 'venv', 'Scripts', 'python.exe')
+      : path.join(process.cwd(), 'venv', 'bin', 'python'));
+    const scriptPath = path.join(process.cwd(), 'crawler.py');
+
+    execFile(pythonPath, [scriptPath, url], { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
+        if (error) {
+            console.error("Crawl error:", error);
+            try {
+                const parsed = JSON.parse(stdout);
+                return res.status(500).json(parsed);
+            } catch {
+                return res.status(500).json({ error: error.message, stderr });
+            }
+        }
+
+        try {
+            const result = JSON.parse(stdout);
+            res.json(result);
+        } catch (e) {
+            res.status(500).json({ error: "Failed to parse crawler output", raw: stdout });
+        }
+    });
+});
+// ─── Globe emission points (live from DB) ─────────────────
+// GlobeTab can call this to render real emission dots from audited companies
+app.get('/api/emissions/globe-points', async (req, res) => {
+    try {
+        const companies = await sql`
+            SELECT name, country, co2, s1, s2, s3
+            FROM companies
+            WHERE co2 IS NOT NULL OR s1 IS NOT NULL
+            ORDER BY co2 DESC NULLS LAST
+            LIMIT 500
+        `;
+        // Map countries to approximate lat/lng (simplified lookup)
+        const COUNTRY_COORDS = {
+            'India': [20.5937, 78.9629], 'USA': [37.0902, -95.7129],
+            'China': [35.8617, 104.1954], 'United Arab Emirates': [23.4241, 53.8478],
+            'South Africa': [-30.5595, 22.9375], 'Brazil': [-14.2350, -51.9253],
+            'United Kingdom': [55.3781, -3.4360], 'Germany': [51.1657, 10.4515],
+            'Japan': [36.2048, 139.6917], 'Australia': [-25.2744, 133.7751],
+            'Switzerland': [46.8182, 8.2275], 'Netherlands': [52.1326, 5.2913],
+        };
+        const points = companies.map(c => {
+            const coords = COUNTRY_COORDS[c.country] || [0, 0];
+            const total = parseFloat(c.co2) || ((parseFloat(c.s1) || 0) + (parseFloat(c.s2) || 0));
+            return {
+                lat: coords[0] + (Math.random() - 0.5) * 2,
+                lng: coords[1] + (Math.random() - 0.5) * 2,
+                size: Math.min(1, Math.max(0.1, total / 5000)),
+                color: total > 2000 ? '#ef4444' : total > 500 ? '#f97316' : total > 200 ? '#f59e0b' : total > 50 ? '#22c55e' : '#10b981',
+                company: c.name,
+                scopeTotal: total
+            };
+        }).filter(p => p.scopeTotal > 0);
+        res.json(points);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Verdict submission (human-in-the-loop) ───────────────
+app.post('/api/verdicts', requireInternalKey, async (req, res) => {
+    const { auditId, verdict, company } = req.body;
+    console.log(`[Verdicts] ${company || auditId}: ${verdict}`);
+    // In production: write to audit_results table
+    res.json({ success: true, auditId, verdict });
+});
+
+// ─── GLOBE API ROUTES ─────────────────────────────────────────────────────────
+
+mountGlobePoints(app, sql);
+mountCountryChoropleth(app, sql);
+mountEsgNews(app, sql);
+mountOsiIngest(app, sql);
+mountEsgCompare(app, sql);
+mountClimateTrace(app, sql);
+mountDisastersProximity(app, sql);
+app.use('/api/globe/fires', mountNasaFirms);
+app.use('/api/globe/grid', mountGridCarbon);
+app.use('/api/globe/air-quality', mountAirQuality);
+app.use('/api/disasters/earthquakes', mountEarthquakes);
+app.use('/api/disasters/floods', mountFloods);
+app.use('/api/disasters/cyclones', mountCyclones);
+app.use('/api/disasters/volcanoes', mountVolcanoes);
+app.use('/api/disasters/eonet', mountNasaEonet);
+
+// ==========================================
+// MOUNT NEW SPRINT 2 APIS
+// ==========================================
+app.use('/api/gdelt', mountGdelt(sql));
+app.use('/api/greenwash-velocity', mountGreenwashVelocity(sql));
+
+// ==========================================
+// MOUNT NEW SPRINT 3 APIS
+// ==========================================
+app.get('/api/gpm-imerg', mountGpmImerg);
+app.use('/api/sentinel-5p', mountSentinel5p(sql));
+app.use('/api/biodiversity', mountBiodiversity(sql));
+
+// ==========================================
+// MOUNT NEW SPRINT 4 APIS
+// ==========================================
+app.get('/api/ocean-currents', mountOceanCurrents);
+app.get('/api/ocean-health', mountOceanHealthPace(sql));
+app.post('/api/audit/brsr-pdf', mountBrsrPdf(sql));
+app.use('/api/water-stress', mountWaterStress(app));
+app.get('/api/forest-loss', mountForestLoss);
+app.use('/api/coral-bleaching', mountCoralBleaching(sql));
+app.use('/api/fishing-watch', mountFishingWatch(sql));
+app.get('/api/verify/scope2', mountScope2Verifier);
+mountFacilities(app, sql);
+mountSpatialFacilities(app, sql);
+mountOsmFacilities(app);
+mountWikidataFacilities(app, sql);
+mountProductLca(app);
+
+// ==========================================
+// MOUNT NEW SPRINT 8 APIS
+// ==========================================
+app.use('/api/carbon', carbonPriceRouter);
+app.use('/api/company', companyFinancialsRouter);
+app.use('/api/company', tradeIntelligenceRouter);
+app.use('/api/company', companyProductionRouter);
+app.use('/api/company', scope3CalculatorRouter);
+app.use('/api/company', companyNewsRouter);
+app.use('/api/company', companyRegistryRouter);
+app.use('/api/country', countryContextRouter);
+app.use('/api/clean200', clean200Router);
+
+// Track B Mounting
+mountImportYeti(app, sql);
+mountOshFacilities(app, sql);
+mountVesselTracking(app, sql);
+mountLogisticsEmissions(app);
+mountSectorPeers(app, sql);
+
+// Start Background AIS Tracker (WebSocket)
+startAisTracker(sql);
+
+// Track C Mounting
+mountEdgarFinancials(app, sql);
+mountMacrotrends(app, sql);
+mountProductionIndices(app);
+mountClimateAlignment(app);
+
+// ─── AGENT NETWORK GROUP ARCHITECTURE ROUTES ──────────────────────────────────
+
+// GET all agent runs
+app.get('/api/agents/runs', async (req, res) => {
+    try {
+        const runs = await sql`
+            SELECT id, company_name, status, current_step, error_message, created_at, updated_at
+            FROM agent_runs
+            ORDER BY created_at DESC
+            LIMIT 50
+        `;
+        res.json(runs);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// GET a specific agent run by ID
+app.get('/api/agents/runs/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [run] = await sql`
+            SELECT * FROM agent_runs WHERE id = ${id}
+        `;
+        if (!run) return res.status(404).json({ error: 'Run not found' });
+        res.json(run);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Helper to spawn a decoupled background python agent network run
+async function launchAgentGroup(companyName) {
+    // Create a pending run record in PostgreSQL database
+    const [run] = await sql`
+        INSERT INTO agent_runs (company_name, status, current_step, logs)
+        VALUES (${companyName}, 'RUNNING', 'INIT', ${JSON.stringify([{ timestamp: new Date().toISOString(), message: `🚀 Initiated collaborative run for ${companyName}` }])})
+        RETURNING id
+    `;
+
+    const runId = run.id;
+
+    // Path to Python virtual environment
+    const isWindows = process.platform === 'win32';
+    const pythonPath = process.env.PYTHON_PATH || (isWindows
+      ? path.join(process.cwd(), 'venv', 'Scripts', 'python.exe')
+      : path.join(process.cwd(), 'venv', 'bin', 'python'));
+    const scriptPath = path.join(process.cwd(), 'orchestrator', 'agent_group.py');
+
+    console.log(`[agents/run] Spawning Agent Group for ${companyName} (Run ID: ${runId})`);
+
+    // Decouple background subprocess execution
+    execFile(pythonPath, [scriptPath, '--company', companyName, '--run-id', runId.toString()], {
+        env: { ...process.env },
+        maxBuffer: 1024 * 1024 * 10
+    }, async (error, stdout, stderr) => {
+        if (error) {
+            console.error(`[agents/run] Subprocess error on run ${runId}:`, error);
+            
+            // Fetch the run logs to append the failure event
+            const [currentRun] = await sql`SELECT logs FROM agent_runs WHERE id = ${runId}`;
+            const currentLogs = currentRun ? currentRun.logs : [];
+            currentLogs.push({ timestamp: new Date().toISOString(), message: `❌ CRITICAL ERROR: ${error.message}` });
+            if (stderr) {
+                currentLogs.push({ timestamp: new Date().toISOString(), message: `Stderr: ${stderr}` });
+            }
+
+            await sql`
+                UPDATE agent_runs
+                SET status = 'FAILED', 
+                    error_message = ${error.message}, 
+                    logs = ${JSON.stringify(currentLogs)}::jsonb, 
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ${runId}
+            `;
+        } else {
+            console.log(`[agents/run] Decoupled process finished for run ${runId}`);
+            // Ensure run is marked completed if it didn't crash or get stuck on verification
+            await sql`
+                UPDATE agent_runs
+                SET status = 'COMPLETED', current_step = 'DONE', updated_at = CURRENT_TIMESTAMP
+                WHERE id = ${runId} AND status = 'RUNNING'
+            `;
+        }
+    });
+
+    return runId;
+}
+
+// POST trigger a new agent group run for a company (async background job)
+app.post('/api/agents/run', requireInternalKey, async (req, res) => {
+    const { companyName } = req.body;
+    if (!companyName) return res.status(400).json({ error: 'companyName is required' });
+
+    try {
+        const runId = await launchAgentGroup(companyName);
+        res.json({ success: true, runId });
+    } catch (e) {
+        console.error('[agents/run] Failed to trigger run:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST submit a human override verification value
+app.post('/api/agents/verify', requireInternalKey, async (req, res) => {
+    const { runId, value } = req.body;
+    if (!runId || value === undefined) return res.status(400).json({ error: 'runId and value are required' });
+
+    try {
+        const [run] = await sql`
+            SELECT logs, verification_data FROM agent_runs WHERE id = ${runId}
+        `;
+        if (!run) return res.status(404).json({ error: 'Run not found' });
+
+        const currentLogs = run.logs || [];
+        currentLogs.push({ timestamp: new Date().toISOString(), message: `✅ Human verified override submitted: ${value}. Resuming background agents.` });
+        
+        const nextVerification = run.verification_data || {};
+        nextVerification.value = value;
+        nextVerification.resolvedAt = new Date().toISOString();
+
+        await sql`
+            UPDATE agent_runs
+            SET verification_data = ${JSON.stringify(nextVerification)}::jsonb, 
+                status = 'RUNNING', 
+                logs = ${JSON.stringify(currentLogs)}::jsonb, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${runId}
+        `;
+
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST internal update endpoint used by Python scripts to update running state
+app.post('/api/internal/agents/update-run', requireInternalKey, async (req, res) => {
+    const { runId, status, currentStep, logEntry, errorMessage, verificationPath } = req.body;
+    if (!runId) return res.status(400).json({ error: 'runId is required' });
+
+    try {
+        // Fetch current run state
+        const [currentRun] = await sql`SELECT status, current_step, logs, verification_data, error_message FROM agent_runs WHERE id = ${runId}`;
+        if (!currentRun) return res.status(404).json({ error: 'Run not found' });
+
+        const nextStatus = status || currentRun.status;
+        const nextStep = currentStep || currentRun.current_step;
+        const nextError = errorMessage !== undefined ? errorMessage : currentRun.error_message;
+
+        let nextLogs = currentRun.logs || [];
+        if (logEntry) {
+            const entryWithTime = { timestamp: new Date().toISOString(), ...logEntry };
+            nextLogs.push(entryWithTime);
+        }
+
+        let nextVerification = currentRun.verification_data || {};
+        if (verificationPath) {
+            nextVerification.imagePath = verificationPath;
+        }
+
+        await sql`
+            UPDATE agent_runs
+            SET status = ${nextStatus},
+                current_step = ${nextStep},
+                logs = ${JSON.stringify(nextLogs)}::jsonb,
+                verification_data = ${JSON.stringify(nextVerification)}::jsonb,
+                error_message = ${nextError},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${runId}
+        `;
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error('[internal/update-run] Error in python-initiated sync:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ─── AGENT STATUS (30s cache) ─────────────────────────────────────────────────
+const agentCache = new NodeCache({ stdTTL: 30, checkperiod: 10 });
+app.get('/api/agent/status', async (req, res) => {
+    const cached = agentCache.get('agent_status');
+    if (cached) return res.json(cached);
+
+    try {
+        const [countResult] = await sql`
+            SELECT 
+                COUNT(*) FILTER (WHERE audit_status = 'EXTRACTING') AS in_progress,
+                COUNT(*) FILTER (WHERE audit_status = 'FAILED') AS failed,
+                COUNT(*) FILTER (WHERE audit_status = 'COMPLETED' AND created_at >= NOW() - INTERVAL '24 hours') AS completed_today,
+                COUNT(*) AS total
+            FROM companies
+        `;
+        
+        const result = {
+            active_agents: 4,
+            audits_in_progress: parseInt(countResult?.in_progress || '0'),
+            audits_failed: parseInt(countResult?.failed || '0'),
+            audits_completed_today: parseInt(countResult?.completed_today || '0'),
+            total_companies: parseInt(countResult?.total || '0'),
+            last_audit_completed_at: new Date().toISOString(),
+        };
+
+        agentCache.set('agent_status', result);
+        res.json(result);
+    } catch (err) {
+        console.error('[agent_status] Error querying DB:', err.message);
+        res.json({
+            active_agents: 4,
+            audits_in_progress: 0,
+            audits_failed: 0,
+            audits_completed_today: 0,
+            total_companies: 0,
+            last_audit_completed_at: null,
+        });
+    }
+});
+
+// ─── AUTOPILOT CRON JOB (Every 30 minutes) ──────────────────────────────────
+// Automatically discovers a company in a random sector and launches the background Python agent network!
+cron.schedule('*/30 * * * *', async () => {
+    console.log("⏰ [Autopilot] Triggering automated sector ESG discovery...");
+    const sectors = [
+        "Fortune 500 technology companies",
+        "European manufacturing companies",
+        "Indian MSME and mid-cap companies",
+        "African energy and mining companies",
+        "Global fashion and clothing brands"
+    ];
+    const randomSector = sectors[Math.floor(Math.random() * sectors.length)];
+    
+    try {
+        // 1. Generate an ESG report publishing company in that sector using Gemini
+        const systemPrompt = "You are a research assistant. Return exactly one real, well-known company name in the requested sector that publishes sustainability or ESG reports. Output ONLY the company name, no extra text, no numbers, no punctuation.";
+        const userPrompt = `Find a company in: ${randomSector}`;
+        
+        console.log(`⏰ [Autopilot] Discovering company name for sector: "${randomSector}"...`);
+        const llmResult = await llmRouter.complete(systemPrompt, userPrompt, 128);
+        const discoveredCompany = llmResult.text ? llmResult.text.trim().replace(/['"“”]/g, "") : "";
+        
+        // Ensure we got a valid company name (not empty and not overly long)
+        if (discoveredCompany && discoveredCompany.length > 2 && discoveredCompany.length < 80) {
+            console.log(`🚀 [Autopilot] Successfully discovered company: "${discoveredCompany}". Spawning automated Agent Network run...`);
+            const runId = await launchAgentGroup(discoveredCompany);
+            console.log(`🚀 [Autopilot] Spawned Run ID: #${runId}`);
+        } else {
+            console.log("⚠️ [Autopilot] Discovered company name was invalid or empty. Skipping this interval.");
+        }
+    } catch (err) {
+        console.error("❌ [Autopilot] Discovery cron job error:", err.message);
+    }
+});
+
+
+
+// --- UI COMPATIBILITY ROUTES ---
+
+app.get('/api/companies', async (req, res) => {
+    try {
+        const data = await sql`
+            SELECT c.*, a.score, r.red_flags 
+            FROM companies c 
+            LEFT JOIN analysis a ON c.name = a.company 
+            LEFT JOIN risks r ON c.name = r.company
+        `;
+        
+        // Filter out completely blank companies unless they are needed
+        const valid = data.filter(c => c.co2 || c.esg || c.sector);
+        
+        const mapped = valid.map((c, i) => {
+            let flag_count = 0;
+            if (c.red_flags && Array.isArray(c.red_flags)) flag_count = c.red_flags.length;
+            else if (typeof c.red_flags === 'string' && c.red_flags.length > 5) flag_count = 1;
+            
+            return {
+                id: c.name,
+                name: c.name,
+                ticker: c.name.substring(0,4).toUpperCase(),
+                sector: c.sector || 'Unknown',
+                report_count: c.co2 ? 1 : 0,
+                latest_year: c.report_year || 2024,
+                greendex_score: c.score ? parseInt(c.score) : null,
+                flag_count: flag_count
+            };
+        });
+        res.json(mapped);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/esg/stats', async (req, res) => {
+    try {
+        const data = await sql`
+            SELECT c.*, r.red_flags, r.greenwash 
+            FROM companies c 
+            LEFT JOIN risks r ON c.name = r.company
+        `;
+        
+        let total_reports = 0;
+        let total_metrics = 0;
+        let recent_flags = [];
+        let sectors = {};
+        
+        data.forEach((c, i) => {
+            if (c.co2) {
+                total_reports++;
+                total_metrics += 4;
+            }
+            if (c.sector) {
+                sectors[c.sector] = (sectors[c.sector] || 0) + 1;
+            }
+            if (c.red_flags && c.red_flags.length > 0) {
+                recent_flags.push({
+                    id: i,
+                    company_name: c.name,
+                    company_id: c.name,
+                    metric_name: 'Audit',
+                    severity: c.greenwash === 'HIGH' ? 'HIGH' : 'MEDIUM',
+                    flag_type: 'Discrepancy',
+                    year: c.report_year || 2024
+                });
+            }
+        });
+        
+        res.json({
+            total_companies: data.length,
+            total_reports,
+            total_flags: recent_flags.length,
+            total_metrics,
+            recent_flags: recent_flags.slice(0, 10),
+            sector_breakdown: Object.entries(sectors).map(([sector, count]) => ({sector, count}))
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/esg/company/:id/audit', async (req, res) => {
+    try {
+        const companyName = req.params.id;
+        const data = await sql`
+            SELECT c.*, a.score, a.e_score, a.s_score, a.g_score,
+                   r.greenwash, r.reg_risk, r.climate_exp, r.data_quality, r.red_flags, r.compliance,
+                   s.action, s.confidence, s.rationale, s.price_impact, s.catalyst, s.timeline
+            FROM companies c 
+            LEFT JOIN analysis a ON c.name = a.company 
+            LEFT JOIN risks r ON c.name = r.company
+            LEFT JOIN strategies s ON c.name = s.company
+            WHERE c.name = ${companyName}
+        `;
+        
+        if (!data || data.length === 0) return res.status(404).json({error: 'Not found'});
+        const c = data[0];
+        
+        let flags = [];
+        if (c.red_flags) {
+            if (Array.isArray(c.red_flags)) {
+                flags = c.red_flags.map((f, i) => ({ id: i, flag_type: 'Flag', severity: 'HIGH', description: f, related_metric: 'General' }));
+            } else if (typeof c.red_flags === 'string' && c.red_flags.length > 5) {
+                flags = [{ id: 1, flag_type: 'Flag', severity: c.greenwash === 'HIGH' ? 'HIGH' : 'MEDIUM', description: c.red_flags, related_metric: 'General' }];
+            }
+        }
+        
+        const metrics = [];
+        if (c.co2) metrics.push({ metric_name: 'Total CO2', values: [{year: c.report_year || 2024, value: parseInt(c.co2.replace(/,/g, '')) || 0}] });
+        if (c.score) metrics.push({ metric_name: 'ESG Score', values: [{year: c.report_year || 2024, value: parseInt(c.score) || 0}] });
+        
+        res.json({
+            name: c.name,
+            ticker: c.name.substring(0,4).toUpperCase(),
+            sector: c.sector || 'Unknown',
+            country: c.country || 'Unknown',
+            greendex_score: c.score ? parseInt(c.score) : 0,
+            flags: flags,
+            metrics: metrics,
+            latest_report: { title: c.name + ' ESG Report', year: c.report_year || 2024, source_url: c.url || null },
+            action_recommendation: {
+                action: c.action || 'HOLD',
+                confidence: c.confidence || 'Medium',
+                rationale: c.rationale || 'No strategy data available.',
+                price_impact: c.price_impact || 'Neutral',
+                timeline: c.timeline || 'Short-term'
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/esg/report/:id', async (req, res) => {
+    try {
+        const companyName = req.params.id;
+        const data = await sql`SELECT * FROM companies WHERE name = ${companyName}`;
+        if (!data || data.length === 0) return res.status(404).json({error: 'Not found'});
+        const c = data[0];
+        
+        const values = [];
+        if (c.co2) values.push({ id: 1, metric_name: 'Total CO2', value: c.co2, unit: 'tCO2e', source_page: null, extraction_confidence: 0.95 });
+        if (c.s1) values.push({ id: 2, metric_name: 'Scope 1', value: c.s1, unit: 'tCO2e', source_page: null, extraction_confidence: 0.9 });
+        if (c.s2) values.push({ id: 3, metric_name: 'Scope 2', value: c.s2, unit: 'tCO2e', source_page: null, extraction_confidence: 0.85 });
+        if (c.s3) values.push({ id: 4, metric_name: 'Scope 3', value: c.s3, unit: 'tCO2e', source_page: null, extraction_confidence: 0.75 });
+        
+        res.json({
+            company_name: c.name,
+            reporting_year: c.report_year || 2024,
+            title: c.name + ' Sustainability Report',
+            processing_status: 'completed',
+            source_url: c.url || null,
+            values: values
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.listen(port, () => {
+    console.log(`🚀 GreenOrb Backend running on port ${port}`);
+});

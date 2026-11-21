@@ -1,0 +1,39 @@
+# Render Blueprint: the API (free web service) + the ingestion worker (background worker, paid plan).
+# Prefer not to pay for a worker? Delete the worker service below and enable
+# .github/workflows/worker-drain.yml instead, which processes the queue on a schedule.
+services:
+  - type: web
+    name: greenorb-api
+    runtime: node
+    rootDir: Backend
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false          # Neon connection string (pooled is fine)
+      - key: ADMIN_TOKEN
+        generateValue: true  # copy it from the dashboard to sign in as reviewer
+      - key: ALLOWED_ORIGINS
+        sync: false          # e.g. https://greenorb.vercel.app
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  - type: worker
+    name: greenorb-worker
+    runtime: docker
+    rootDir: worker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

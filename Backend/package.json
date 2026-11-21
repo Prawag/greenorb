@@ -1,38 +1,32 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
-    "start:full": "concurrently \"node index.js\" \"uvicorn satellite_api:app --host 127.0.0.1 --port 8000\""
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "name": "greenorb-api",
+  "version": "4.0.0",
+  "description": "GreenOrb API: ESG report evidence, integrity flags, ingestion queue and Ask-the-report.",
+  "private": true,
   "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "migrate": "node scripts/migrate.js",
+    "import-legacy": "node scripts/import-legacy.js",
+    "test": "vitest run"
+  },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2",
-    "@turf/bbox": "^7.3.4",
-    "@turf/boolean-point-in-polygon": "^7.3.4",
-    "cheerio": "^1.2.0",
-    "concurrently": "^8.2.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.3.1",
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.5.2",
-    "fast-xml-parser": "^5.5.9",
-    "helmet": "^8.2.0",
-    "node-cache": "^5.1.2",
-    "node-cron": "^4.2.1",
-    "node-fetch": "^3.3.2",
-    "pdf2json": "^4.0.2",
-    "pg": "^8.20.0",
-    "rbush": "^4.0.1",
-    "rss-parser": "^3.13.0",
-    "string-similarity": "^4.0.4",
-    "ws": "^8.20.0",
-    "xml2js": "^0.6.2"
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.0",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2",
+    "pg": "^8.16.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.0",
+    "vitest": "^3.2.0"
   }
 }
